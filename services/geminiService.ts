@@ -1,51 +1,14 @@
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 
-const defaultApiKeys = [
-  "AIzaSyAq8IONY8F2qrhIgOVZxZFyg0H4KkaXoco",
-  "AIzaSyD38wnis1C-FEa8fXVy_CSpCkC2m0lxD40"
-];
-let activeApiKeys = [...defaultApiKeys];
-let currentKeyIndex = 0;
-
-export const setUserApiKey = (userKey: string | null) => {
-  if (userKey && userKey.trim() !== '') {
-    // Prepend the user key, ensuring no duplicates from the default list
-    activeApiKeys = [userKey, ...defaultApiKeys.filter(k => k !== userKey)];
-  } else {
-    // If user key is removed or empty, revert to defaults
-    activeApiKeys = [...defaultApiKeys];
+// Helper to get the correct AI client instance
+const getAiClient = (apiKey?: string | null): GoogleGenAI => {
+  // The app is designed to allow a user-provided API key, which takes precedence.
+  // If not provided, it attempts to fall back to the environment variable.
+  const keyToUse = apiKey || process.env.API_KEY;
+  if (!keyToUse) {
+    throw new Error("API key is not configured. Please provide your Gemini API key in the settings.");
   }
-  // Reset index whenever the key list changes
-  currentKeyIndex = 0;
-};
-
-const getAiInstance = () => new GoogleGenAI({ apiKey: activeApiKeys[currentKeyIndex] });
-
-async function apiCallWithRetry<T>(apiLogic: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
-  try {
-    const ai = getAiInstance();
-    return await apiLogic(ai);
-  } catch (error) {
-    const errorMessage = (error as Error).message || '';
-    const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED');
-    const isAuthError = errorMessage.includes('API key not valid');
-
-    if ((isQuotaError || isAuthError) && currentKeyIndex < activeApiKeys.length - 1) {
-      console.warn(`API key ${currentKeyIndex + 1} failed or is exhausted. Switching to the next key.`);
-      currentKeyIndex++;
-      // Retry the call with the new key
-      return apiCallWithRetry(apiLogic);
-    } else {
-      if (isQuotaError || isAuthError) {
-        throw new Error("All available API keys have exceeded their quota or are invalid. Please check your keys and plan.");
-      }
-      throw error;
-    }
-  }
-}
-
-export const resetApiKeyIndex = () => {
-  currentKeyIndex = 0;
+  return new GoogleGenAI({ apiKey: keyToUse });
 };
 
 
@@ -65,161 +28,123 @@ const storySchema = {
   required: ['title', 'paragraphs'],
 };
 
+const getLengthDescription = (length: 'short' | 'medium' | 'long'): string => {
+  switch (length) {
+    case 'short':
+      return 'between 3 and 4';
+    case 'medium':
+      return 'between 5 and 6';
+    case 'long':
+      return 'between 7 and 8';
+    default:
+      return 'between 5 and 6';
+  }
+};
+
+
 export const generateStory = async (
   prompt: string,
+  language: string,
+  apiKey: string | null,
+  genre: string,
+  length: 'short' | 'medium' | 'long',
 ): Promise<{ title: string; paragraphs: string[] }> => {
-  return apiCallWithRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Write a short story based on this prompt: "${prompt}". The story should have a title and be between 5 and 6 paragraphs long.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: storySchema,
-      },
-    });
-    const jsonString = response.text.trim();
+  const ai = getAiClient(apiKey);
+  const lengthDescription = getLengthDescription(length);
+  const systemInstruction = `You are a master storyteller for children. Write a captivating short story in the ${genre} genre, in the ${language} language. The story must have a title and be ${lengthDescription} paragraphs long. Ensure the story is imaginative, engaging, and easy for a child to understand.`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: `The story should be about: "${prompt}"`,
+    config: {
+      systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: storySchema,
+    },
+  });
+  const jsonString = response.text.trim();
+  try {
     return JSON.parse(jsonString);
-  });
+  } catch (error) {
+    console.error("Failed to parse story JSON from model response:", jsonString);
+    throw new Error("The AI returned an invalid story format. Please try generating the story again.");
+  }
 };
 
-export const generateImage = async (prompt: string): Promise<string> => {
-  return apiCallWithRetry(async (ai) => {
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: prompt,
-      config: {
-        numberOfImages: 1,
-        aspectRatio: '4:3',
-      },
-    });
+export const generateImage = async (prompt: string, apiKey: string | null, imageStyle: string): Promise<string> => {
+  const ai = getAiClient(apiKey);
+  const fullPrompt = `An illustration for a children's storybook. The scene is: ${prompt}. The style should be ${imageStyle}, vibrant, detailed, and magical.`;
+  
+  const response = await ai.models.generateImages({
+    model: 'imagen-4.0-generate-001',
+    prompt: fullPrompt,
+    config: {
+      numberOfImages: 1,
+      outputMimeType: 'image/jpeg',
+      aspectRatio: '4:3',
+    },
+  });
+
+  if (response.generatedImages && response.generatedImages.length > 0) {
     const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
     return `data:image/jpeg;base64,${base64ImageBytes}`;
-  });
-};
-
-export const generateCoverImage = async (prompt: string): Promise<string> => {
-  return apiCallWithRetry(async (ai) => {
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: prompt,
-      config: {
-        numberOfImages: 1,
-        aspectRatio: '3:4', // Portrait aspect ratio for a book cover
-      },
-    });
-
-    const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-    return `data:image/jpeg;base64,${base64ImageBytes}`;
-  });
-};
-
-
-// --- Text-to-Speech Generation ---
-
-interface WavConversionOptions {
-  numChannels: number;
-  sampleRate: number;
-  bitsPerSample: number;
-}
-
-const parseMimeType = (mimeType: string): WavConversionOptions => {
-  const defaults = { numChannels: 1, sampleRate: 24000, bitsPerSample: 16 };
-  const parts = mimeType.split(';');
-  const formatPart = parts.find(p => p.trim().startsWith('audio/L'));
-  if (formatPart) {
-    const bits = parseInt(formatPart.split('audio/L')[1], 10);
-    if (!isNaN(bits)) {
-      defaults.bitsPerSample = bits;
-    }
   }
-  const ratePart = parts.find(p => p.trim().startsWith('rate='));
-  if (ratePart) {
-    const rate = parseInt(ratePart.split('=')[1], 10);
-    if (!isNaN(rate)) {
-      defaults.sampleRate = rate;
-    }
-  }
-  return defaults;
+  throw new Error('Image generation failed.');
 };
 
-const createWavHeader = (
-  dataLength: number,
-  options: WavConversionOptions,
-): ArrayBuffer => {
-  const { numChannels, sampleRate, bitsPerSample } = options;
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const buffer = new ArrayBuffer(44);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataLength, true); // little-endian
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true); // PCM
-  view.setUint16(20, 1, true); // AudioFormat 1 = PCM
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataLength, true);
-
-  return buffer;
+export const generateCoverImage = async (prompt: string, apiKey: string | null, imageStyle: string): Promise<string> => {
+    // This function is specifically for the PDF cover, but can reuse the main image generation logic.
+    return generateImage(prompt, apiKey, imageStyle);
 };
 
-export const generateTTSAudio = async (text: string): Promise<string> => {
-  return apiCallWithRetry(async (ai) => {
-    const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash-preview-tts',
-      contents: [{ role: 'user', parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
+export const generateTTSAudio = async (text: string, apiKey: string | null): Promise<string> => {
+  const ai = getAiClient(apiKey);
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash-preview-tts",
+    contents: [{ parts: [{ text: `Say with a warm, friendly, and slightly animated storytelling voice: ${text}` }] }],
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Zephyr' },
+            // Using a voice that's good for storytelling
+            prebuiltVoiceConfig: { voiceName: 'Kore' }, 
           },
-        },
       },
-    });
-
-    let audioData = '';
-    let mimeType = '';
-
-    for await (const chunk of responseStream) {
-      const inlineData = chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-      if (inlineData) {
-        audioData += inlineData.data;
-        if (!mimeType) mimeType = inlineData.mimeType;
-      }
-    }
-
-    if (!audioData || !mimeType) {
-      throw new Error('No audio data received from API.');
-    }
-
-    const binaryString = atob(audioData);
-    const len = binaryString.length;
-    const audioBytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      audioBytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    const options = parseMimeType(mimeType);
-    const header = createWavHeader(audioBytes.length, options);
-    
-    const wavBytes = new Uint8Array(header.byteLength + audioBytes.length);
-    wavBytes.set(new Uint8Array(header), 0);
-    wavBytes.set(audioBytes, header.byteLength);
-
-    const blob = new Blob([wavBytes], { type: 'audio/wav' });
-    return URL.createObjectURL(blob);
+    },
   });
+  
+  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (base64Audio) {
+    // Return the raw base64 encoded audio data. The client will handle decoding.
+    return base64Audio;
+  }
+  throw new Error('Audio generation failed.');
+};
+
+export const testApiKey = async (apiKey: string): Promise<{ success: boolean; message: string; }> => {
+  if (!apiKey) return { success: false, message: 'API Key cannot be empty.' };
+  try {
+    const ai = getAiClient(apiKey);
+    // A simple, low-cost call to verify the key and model access.
+    await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: 'test' });
+    return { success: true, message: 'Success! Your API Key is valid.' };
+  } catch (error: any) {
+    console.error("API Key test failed:", error);
+    let userMessage = "An unknown error occurred. Please double-check your API key.";
+    const errorMessage = error.toString().toLowerCase();
+    const linkText = "You can find or create a key at the Google AI Studio.";
+
+    if (errorMessage.includes('api key not valid')) {
+      userMessage = "Invalid API Key. Please ensure you have copied the entire key correctly.";
+    } else if (errorMessage.includes('quota') || errorMessage.includes('resource has been exhausted')) {
+      userMessage = "You may have exceeded your API quota for the day. Please check your usage in your Google Cloud account.";
+    } else if (errorMessage.includes('fetch')) {
+      userMessage = "A network error occurred. Please check your internet connection and try again.";
+    }
+    
+    return { 
+        success: false, 
+        message: `${userMessage} ${linkText}`
+    };
+  }
 };
