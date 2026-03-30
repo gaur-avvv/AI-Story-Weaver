@@ -95,7 +95,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
           // No audio, just wait a bit then advance (simulated duration)
           const timer = setTimeout(() => {
              handleNext();
-          }, 5000); // 5 seconds default
+          }, 6000); // 6 seconds default
           return () => clearTimeout(timer);
         }
       }
@@ -344,15 +344,19 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
 
            {/* Subtitles */}
            <div className="absolute bottom-0 left-0 right-0 p-8 text-center z-20">
-              <motion.p 
-                key={`text-${currentSegmentIndex}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="text-white text-xl md:text-2xl font-medium drop-shadow-lg leading-relaxed max-w-3xl mx-auto"
+              <motion.div 
+                key={`bubble-${currentSegmentIndex}`}
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3 }}
+                className="relative bg-black/60 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-2xl max-w-2xl mx-auto"
               >
-                {currentSegment?.paragraph}
-              </motion.p>
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-black/60 border-b border-r border-white/10 rotate-45"></div>
+                <p className="text-white text-lg md:text-xl font-medium leading-relaxed">
+                  {currentSegment?.paragraph}
+                </p>
+              </motion.div>
            </div>
         </div>
 
