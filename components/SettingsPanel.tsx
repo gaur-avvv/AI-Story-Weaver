@@ -107,22 +107,23 @@ const textModels = {
   ],
   others: [
     { id: 'MiniMaxAI/MiniMax-M2.5', name: 'MiniMax M2.5' },
-    { id: 'zai-org/GLM-5', name: 'GLM-5' },
+    { id: 'zai-org/GLM-4.6', name: 'GLM 4.6' },
     { id: 'stepfun-ai/Step-3.5-Flash', name: 'Step 3.5 Flash' },
-    { id: 'moonshotai/Kimi-K2.5', name: 'Kimi K2.5' },
     { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2' },
-    { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B' },
     { id: 'Qwen/Qwen3-32B', name: 'Qwen3 32B' },
+    { id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct', name: 'Qwen3 Coder 480B' },
     { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B' },
   ],
   siliconflow: [
-    { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', name: 'Qwen2.5 Coder 32B' },
     { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen2.5 72B' },
     { id: 'Qwen/Qwen3-32B', name: 'Qwen3 32B' },
+    { id: 'Qwen/Qwen3-235B-A22B-Instruct-2507', name: 'Qwen3 235B' },
+    { id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct', name: 'Qwen3 Coder 480B' },
     { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3' },
+    { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2' },
     { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1' },
     { id: 'MiniMaxAI/MiniMax-M2.5', name: 'MiniMax M2.5' },
-    { id: 'zai-org/GLM-5', name: 'GLM-5' },
+    { id: 'zai-org/GLM-4.6', name: 'GLM 4.6' },
     { id: 'stepfun-ai/Step-3.5-Flash', name: 'Step 3.5 Flash' },
   ]
 };
