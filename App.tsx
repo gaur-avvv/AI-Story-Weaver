@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StoryInput } from './components/StoryInput';
 import { StoryDisplay } from './components/StoryDisplay';
-import { generateStory, generateImage, generateTTSAudio, generateCoverImage } from './services/geminiService';
+import { generateStory, generateImage, generateTTSAudio, generateCoverImage, setFallbackCallback, FallbackNotification } from './services/geminiService';
 import { StorySegment, Settings } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
 import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon } from './components/icons';
@@ -35,6 +35,8 @@ const defaultSettings: Settings = {
   
   imageProvider: 'gemini',
   imageModel: 'gemini-2.5-flash-image',
+  pdfTemplate: 'classic',
+  videoTemplate: 'cinematic',
 };
 
 function App() {
@@ -49,6 +51,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [fallbackNotice, setFallbackNotice] = useState<FallbackNotification | null>(null);
 
   const languages = ['English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Simplified)'];
 
@@ -66,6 +69,13 @@ function App() {
         setSettings(defaultSettings);
       }
     }
+
+    // Register fallback callback
+    setFallbackCallback((notification: FallbackNotification) => {
+      setFallbackNotice(notification);
+      setTimeout(() => setFallbackNotice(null), 6000);
+    });
+    return () => setFallbackCallback(null);
   }, []);
 
   const handleSaveSettings = (key: string, newSettings: Settings) => {
@@ -211,164 +221,284 @@ function App() {
       );
 
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'pt',
-        format: 'a4'
-      });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = settings.pdfMargin;
       const contentWidth = pageWidth - margin * 2;
+      const template = settings.pdfTemplate || 'classic';
 
-      // Helper to load image dimensions
       const getImageDimensions = (src: string): Promise<{ width: number; height: number; ratio: number }> => {
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => {
-            resolve({
-              width: img.naturalWidth,
-              height: img.naturalHeight,
-              ratio: img.naturalWidth / img.naturalHeight
-            });
-          };
+          img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, ratio: img.naturalWidth / img.naturalHeight });
           img.onerror = reject;
           img.src = src;
         });
       };
 
+      const sanitizeText = (text: string) => {
+        return text
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/[\u2013\u2014]/g, '-')
+          .replace(/[^\x00-\xFF]/g, "");
+      };
+
+      // Template-specific configurations
+      const templateConfig = {
+        classic: { titleFont: 'times', bodyFont: 'times', titleSize: 32, bodySize: 14, accentColor: [0, 0, 0] as [number, number, number], bgColor: null as [number, number, number] | null },
+        modern: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 36, bodySize: 13, accentColor: [41, 98, 255] as [number, number, number], bgColor: [245, 247, 250] as [number, number, number] },
+        minimalist: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 28, bodySize: 12, accentColor: [80, 80, 80] as [number, number, number], bgColor: null as [number, number, number] | null },
+        storybook: { titleFont: 'times', bodyFont: 'times', titleSize: 34, bodySize: 15, accentColor: [139, 69, 19] as [number, number, number], bgColor: [255, 253, 240] as [number, number, number] },
+        magazine: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 40, bodySize: 12, accentColor: [220, 20, 60] as [number, number, number], bgColor: [250, 250, 250] as [number, number, number] },
+      };
+      const tpl = templateConfig[template];
+
+      const drawPageBg = () => {
+        if (tpl.bgColor) {
+          doc.setFillColor(tpl.bgColor[0], tpl.bgColor[1], tpl.bgColor[2]);
+          doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        }
+      };
+
+      const drawPageNumber = (num: number) => {
+        doc.setFont(tpl.bodyFont, 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        if (template === 'magazine') {
+          doc.text(String(num), pageWidth - 40, pageHeight - 20, { align: 'right' });
+        } else {
+          doc.text(String(num), pageWidth / 2, pageHeight - 20, { align: 'center' });
+        }
+        doc.setTextColor(0);
+      };
+
       // --- Cover Page ---
       try {
         const coverDims = await getImageDimensions(coverUrl);
-        // Calculate dimensions to cover the page (object-fit: cover)
         let coverW = pageWidth;
         let coverH = pageWidth / coverDims.ratio;
-
-        if (coverH < pageHeight) {
-          coverH = pageHeight;
-          coverW = pageHeight * coverDims.ratio;
-        }
-
-        // Center the image
+        if (coverH < pageHeight) { coverH = pageHeight; coverW = pageHeight * coverDims.ratio; }
         const coverX = (pageWidth - coverW) / 2;
         const coverY = (pageHeight - coverH) / 2;
-
         doc.addImage(coverUrl, 'JPEG', coverX, coverY, coverW, coverH);
+
+        // Template-specific cover overlay
+        if (template === 'modern') {
+          doc.setFillColor(0, 0, 0);
+          doc.setGState(new doc.GState({ opacity: 0.5 }));
+          doc.rect(0, pageHeight * 0.6, pageWidth, pageHeight * 0.4, 'F');
+          doc.setGState(new doc.GState({ opacity: 1 }));
+          doc.setFont(tpl.titleFont, 'bold');
+          doc.setFontSize(tpl.titleSize);
+          doc.setTextColor(255, 255, 255);
+          const coverTitleLines = doc.splitTextToSize(sanitizeText(title), pageWidth - 80);
+          doc.text(coverTitleLines, pageWidth / 2, pageHeight * 0.72, { align: 'center' });
+          doc.setTextColor(0);
+        } else if (template === 'magazine') {
+          doc.setFillColor(220, 20, 60);
+          doc.setGState(new doc.GState({ opacity: 0.85 }));
+          doc.rect(0, 0, pageWidth, 100, 'F');
+          doc.setGState(new doc.GState({ opacity: 1 }));
+          doc.setFont(tpl.titleFont, 'bold');
+          doc.setFontSize(18);
+          doc.setTextColor(255, 255, 255);
+          doc.text('STORYSPARK MAGAZINE', pageWidth / 2, 55, { align: 'center' });
+          doc.setFillColor(0, 0, 0);
+          doc.setGState(new doc.GState({ opacity: 0.6 }));
+          doc.rect(0, pageHeight - 160, pageWidth, 160, 'F');
+          doc.setGState(new doc.GState({ opacity: 1 }));
+          doc.setFont(tpl.titleFont, 'bold');
+          doc.setFontSize(tpl.titleSize);
+          doc.setTextColor(255, 255, 255);
+          const coverTitleLines = doc.splitTextToSize(sanitizeText(title), pageWidth - 80);
+          doc.text(coverTitleLines, pageWidth / 2, pageHeight - 100, { align: 'center' });
+          doc.setTextColor(0);
+        }
       } catch (e) {
         console.error("Could not load cover image", e);
+        // Fallback: text-only cover
+        drawPageBg();
+        doc.setFont(tpl.titleFont, 'bold');
+        doc.setFontSize(tpl.titleSize + 8);
+        doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        const coverTitleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
+        doc.text(coverTitleLines, pageWidth / 2, pageHeight / 2, { align: 'center' });
+        doc.setTextColor(0);
       }
-
-      // Helper to sanitize text for PDF (replace smart quotes, etc.)
-      const sanitizeText = (text: string) => {
-        return text
-          .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
-          .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
-          .replace(/[\u2013\u2014]/g, '-') // En/Em dashes
-          .replace(/[^\x00-\xFF]/g, ""); // Remove non-Latin-1 characters as a last resort for standard fonts
-      };
 
       // --- Title Page ---
       doc.addPage();
-      doc.setFont('times', 'bold');
-      doc.setFontSize(32);
-      const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
-      // Center vertically roughly
-      const titleBlockHeight = titleLines.length * 32 * 1.15;
-      doc.text(titleLines, pageWidth / 2, (pageHeight / 2) - (titleBlockHeight / 2), { align: 'center' });
+      drawPageBg();
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(12);
-      doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
+      if (template === 'minimalist') {
+        doc.setDrawColor(80, 80, 80);
+        doc.setLineWidth(0.5);
+        doc.line(margin, pageHeight / 2 - 60, pageWidth - margin, pageHeight / 2 - 60);
+        doc.setFont(tpl.titleFont, 'bold');
+        doc.setFontSize(tpl.titleSize);
+        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
+        doc.text(titleLines, pageWidth / 2, pageHeight / 2, { align: 'center' });
+        doc.line(margin, pageHeight / 2 + 30, pageWidth - margin, pageHeight / 2 + 30);
+        doc.setFont(tpl.bodyFont, 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(120);
+        doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
+        doc.setTextColor(0);
+      } else if (template === 'storybook') {
+        doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        doc.setLineWidth(2);
+        doc.rect(margin - 10, margin - 10, contentWidth + 20, pageHeight - margin * 2 + 20);
+        doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
+        doc.setFont(tpl.titleFont, 'bolditalic');
+        doc.setFontSize(tpl.titleSize);
+        doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth - 20);
+        doc.text(titleLines, pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
+        doc.setFont(tpl.bodyFont, 'italic');
+        doc.setFontSize(14);
+        doc.text("~ A StorySpark Tale ~", pageWidth / 2, pageHeight / 2 + 40, { align: 'center' });
+        doc.setTextColor(0);
+      } else if (template === 'magazine') {
+        doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        doc.rect(0, 0, pageWidth, 6, 'F');
+        doc.setFont(tpl.titleFont, 'bold');
+        doc.setFontSize(tpl.titleSize);
+        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
+        doc.text(titleLines, pageWidth / 2, pageHeight / 3, { align: 'center' });
+        doc.setFont(tpl.bodyFont, 'normal');
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        doc.text("A StorySpark Publication", pageWidth / 2, pageHeight / 3 + 50, { align: 'center' });
+        doc.setDrawColor(200);
+        doc.line(margin + 80, pageHeight / 3 + 65, pageWidth - margin - 80, pageHeight / 3 + 65);
+        doc.setTextColor(0);
+      } else {
+        // Classic & Modern title pages
+        doc.setFont(tpl.titleFont, 'bold');
+        doc.setFontSize(tpl.titleSize);
+        if (template === 'modern') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
+        const titleBlockHeight = titleLines.length * tpl.titleSize * 1.15;
+        doc.text(titleLines, pageWidth / 2, (pageHeight / 2) - (titleBlockHeight / 2), { align: 'center' });
+        doc.setTextColor(0);
+        doc.setFont(tpl.bodyFont, 'normal');
+        doc.setFontSize(12);
+        doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
+      }
 
       // --- Story Pages ---
       let pageNumber = 1;
       let currentY = margin;
 
-      for (const segment of segments) {
+      for (let si = 0; si < segments.length; si++) {
+        const segment = segments[si];
         doc.addPage();
-
-        // Footer: Page Number
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(String(pageNumber++), pageWidth / 2, pageHeight - 20, { align: 'center' });
-        doc.setTextColor(0); // Reset color
-
+        drawPageBg();
+        drawPageNumber(pageNumber++);
         currentY = margin;
+
+        // Template-specific decorations
+        if (template === 'storybook') {
+          doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+          doc.setLineWidth(1);
+          doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
+          currentY = margin + 10;
+        } else if (template === 'magazine') {
+          doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+          doc.rect(0, 0, pageWidth, 4, 'F');
+          currentY = margin + 10;
+        } else if (template === 'modern') {
+          doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+          doc.rect(margin, margin, 3, 30, 'F');
+          currentY = margin;
+        }
 
         // Image
         if (segment.imageUrl) {
           try {
             const imgDims = await getImageDimensions(segment.imageUrl);
-
-            // Fit image within margins
             let imgW = contentWidth;
             let imgH = contentWidth / imgDims.ratio;
-
-            // If image is too tall (e.g. portrait), constrain height to 60% of page
             const maxImgHeight = pageHeight * 0.55;
-            if (imgH > maxImgHeight) {
-              imgH = maxImgHeight;
-              imgW = maxImgHeight * imgDims.ratio;
+            if (imgH > maxImgHeight) { imgH = maxImgHeight; imgW = maxImgHeight * imgDims.ratio; }
+
+            if (template === 'magazine' && si % 2 === 1) {
+              // Magazine: alternate image positioning (full-bleed)
+              doc.addImage(segment.imageUrl, 'JPEG', 0, 0, pageWidth, pageHeight * 0.45);
+              currentY = pageHeight * 0.45 + 20;
+            } else if (template === 'minimalist') {
+              // Minimalist: smaller centered image
+              const smallW = contentWidth * 0.7;
+              const smallH = smallW / imgDims.ratio;
+              const clampedH = Math.min(smallH, maxImgHeight * 0.7);
+              const clampedW = clampedH === smallH ? smallW : clampedH * imgDims.ratio;
+              doc.addImage(segment.imageUrl, 'JPEG', (pageWidth - clampedW) / 2, currentY, clampedW, clampedH);
+              currentY += clampedH + 30;
+            } else {
+              const imgX = margin + (contentWidth - imgW) / 2;
+              doc.addImage(segment.imageUrl, 'JPEG', imgX, currentY, imgW, imgH);
+              currentY += imgH + 30;
             }
-
-            // Center image horizontally
-            const imgX = margin + (contentWidth - imgW) / 2;
-
-            doc.addImage(segment.imageUrl, 'JPEG', imgX, currentY, imgW, imgH);
-            currentY += imgH + 30; // Space after image
           } catch (e) {
             console.error("Failed to load segment image", e);
           }
         }
 
         // Text
-        doc.setFont('times', 'normal');
-        doc.setFontSize(14);
-        // Manual line height calculation
-        const lineHeight = 14 * 1.5;
-        
+        doc.setFont(tpl.bodyFont, 'normal');
+        doc.setFontSize(tpl.bodySize);
+        const lineHeight = tpl.bodySize * 1.6;
         const textLines = doc.splitTextToSize(sanitizeText(segment.paragraph), contentWidth);
 
         for (let i = 0; i < textLines.length; i++) {
-          // Check if we need a new page
-          // Leave space for footer (approx 40pt)
           if (currentY + lineHeight > pageHeight - 40) {
             doc.addPage();
-            
-            // Footer on new page
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(String(pageNumber++), pageWidth / 2, pageHeight - 20, { align: 'center' });
-            doc.setTextColor(0);
-
-            // Reset font for text
-            doc.setFont('times', 'normal');
-            doc.setFontSize(14);
+            drawPageBg();
+            drawPageNumber(pageNumber++);
+            if (template === 'storybook') {
+              doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+              doc.setLineWidth(1);
+              doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
+            } else if (template === 'magazine') {
+              doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+              doc.rect(0, 0, pageWidth, 4, 'F');
+            }
+            doc.setFont(tpl.bodyFont, 'normal');
+            doc.setFontSize(tpl.bodySize);
             currentY = margin;
           }
-          
-          doc.text(textLines[i], margin, currentY + 10); // +10 adjustment for baseline
+
+          if (template === 'minimalist') {
+            doc.text(textLines[i], pageWidth / 2, currentY + 10, { align: 'center' });
+          } else {
+            doc.text(textLines[i], margin, currentY + 10);
+          }
           currentY += lineHeight;
         }
       }
       
       // The End
+      const endText = template === 'storybook' ? '~ The End ~' : 'The End';
       if (currentY + 50 < pageHeight - 40) {
-          doc.setFont('times', 'italic');
-          doc.setFontSize(12);
-          doc.text("The End", pageWidth / 2, currentY + 40, { align: 'center' });
+        doc.setFont(tpl.titleFont, 'italic');
+        doc.setFontSize(14);
+        if (template !== 'classic') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        doc.text(endText, pageWidth / 2, currentY + 40, { align: 'center' });
       } else {
-          doc.addPage();
-          doc.setFont('times', 'italic');
-          doc.setFontSize(12);
-          doc.text("The End", pageWidth / 2, pageHeight / 2, { align: 'center' });
+        doc.addPage();
+        drawPageBg();
+        doc.setFont(tpl.titleFont, 'italic');
+        doc.setFontSize(14);
+        if (template !== 'classic') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
+        doc.text(endText, pageWidth / 2, pageHeight / 2, { align: 'center' });
       }
+      doc.setTextColor(0);
 
       const safeTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      doc.save(`${safeTitle}_storybook.pdf`);
+      doc.save(`${safeTitle}_${template}_ebook.pdf`);
 
     } catch (e) {
       console.error("Error saving PDF:", e);
@@ -491,6 +621,20 @@ function App() {
         )}
         
         {error && <div className="text-red-700 text-center font-bold p-4 bg-red-100 rounded-lg max-w-2xl mx-auto border border-red-200">{error}</div>}
+
+        {/* Fallback Notification */}
+        <AnimatePresence>
+          {fallbackNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-yellow-100 border border-yellow-300 text-yellow-900 px-6 py-3 rounded-xl shadow-lg text-sm font-medium max-w-md text-center"
+            >
+              Provider <strong>{fallbackNotice.originalProvider}</strong> failed. Using <strong>{fallbackNotice.fallbackProvider}</strong> as fallback.
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       <footer className="w-full p-6 sticky bottom-0 bg-gradient-to-t from-[#FFFBF0] to-transparent">
@@ -509,6 +653,7 @@ function App() {
           segments={segments}
           title={title}
           genre={settings.genre}
+          videoTemplate={settings.videoTemplate}
         />
       )}
     </div>

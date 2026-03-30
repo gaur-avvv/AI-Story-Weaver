@@ -4,15 +4,26 @@ import { XIcon, PlayIcon, PauseIcon, DownloadIcon, AudioWaveform } from './icons
 import { StorySegment } from '../types';
 import { getMusicForGenre } from '../services/musicService';
 
+type VideoTemplate = 'cinematic' | 'slideshow' | 'kenburns' | 'documentary' | 'social';
+
 interface VideoModalProps {
   isOpen: boolean;
   onClose: () => void;
   segments: StorySegment[];
   title: string;
-  genre?: string; // Add genre prop to determine music
+  genre?: string;
+  videoTemplate?: VideoTemplate;
 }
 
-export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segments, title, genre = 'default' }) => {
+const VIDEO_TEMPLATE_CONFIGS: Record<VideoTemplate, { label: string; width: number; height: number; textStyle: string; overlayOpacity: number; fontSize: number }> = {
+  cinematic: { label: 'Cinematic', width: 1280, height: 720, textStyle: 'italic', overlayOpacity: 0.6, fontSize: 30 },
+  slideshow: { label: 'Slideshow', width: 1280, height: 720, textStyle: 'normal', overlayOpacity: 0.7, fontSize: 28 },
+  kenburns: { label: 'Ken Burns', width: 1280, height: 720, textStyle: 'italic', overlayOpacity: 0.5, fontSize: 32 },
+  documentary: { label: 'Documentary', width: 1280, height: 720, textStyle: 'normal', overlayOpacity: 0.75, fontSize: 26 },
+  social: { label: 'Social Media', width: 720, height: 1280, textStyle: 'normal', overlayOpacity: 0.65, fontSize: 34 },
+};
+
+export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segments, title, genre = 'default', videoTemplate = 'cinematic' }) => {
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -223,46 +234,78 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
           img.src = segment.imageUrl || ''; // Handle missing image?
         });
 
-        // Draw Image to Canvas (Cover)
-        // Calculate aspect ratio to cover
-        const ratio = Math.max(canvas.width / img.width, canvas.height / img.height);
-        const centerShift_x = (canvas.width - img.width * ratio) / 2;
-        const centerShift_y = (canvas.height - img.height * ratio) / 2;
+          // Draw Image to Canvas based on template
+          const tplCfg = VIDEO_TEMPLATE_CONFIGS[videoTemplate];
+          const ratio = Math.max(canvas.width / img.width, canvas.height / img.height);
+          const centerShift_x = (canvas.width - img.width * ratio) / 2;
+          const centerShift_y = (canvas.height - img.height * ratio) / 2;
         
-        // Simple fade effect simulation for export (hard to do perfect crossfade in canvas loop without complex logic)
-        // We will just draw the image for now.
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, img.width, img.height, centerShift_x, centerShift_y, img.width * ratio, img.height * ratio);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Text Overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(0, canvas.height - 300, canvas.width, 300);
-        
-        ctx.font = '30px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        
-        // Wrap text
-        const words = segment.paragraph.split(' ');
-        let line = '';
-        let y = canvas.height - 250;
-        const maxWidth = canvas.width - 100;
-        const lineHeight = 40;
-
-        for(let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' ';
-          const metrics = ctx.measureText(testLine);
-          const testWidth = metrics.width;
-          if (testWidth > maxWidth && n > 0) {
-            ctx.fillText(line, canvas.width / 2, y);
-            line = words[n] + ' ';
-            y += lineHeight;
+          // Ken Burns: apply slight zoom effect
+          if (videoTemplate === 'kenburns') {
+            const kbScale = 1.1 + (i % 2 === 0 ? 0.05 : -0.05);
+            const kbRatio = ratio * kbScale;
+            const kbX = (canvas.width - img.width * kbRatio) / 2;
+            const kbY = (canvas.height - img.height * kbRatio) / 2;
+            ctx.drawImage(img, 0, 0, img.width, img.height, kbX, kbY, img.width * kbRatio, img.height * kbRatio);
           } else {
-            line = testLine;
+            ctx.drawImage(img, 0, 0, img.width, img.height, centerShift_x, centerShift_y, img.width * ratio, img.height * ratio);
           }
-        }
-        ctx.fillText(line, canvas.width / 2, y);
+
+          // Template-specific text overlay
+          const overlayHeight = videoTemplate === 'social' ? 400 : videoTemplate === 'documentary' ? 200 : 300;
+          const overlayY = canvas.height - overlayHeight;
+
+          if (videoTemplate === 'documentary') {
+            // Documentary: bottom bar with accent line
+            ctx.fillStyle = `rgba(0, 0, 0, ${tplCfg.overlayOpacity})`;
+            ctx.fillRect(0, overlayY, canvas.width, overlayHeight);
+            ctx.fillStyle = '#e63946';
+            ctx.fillRect(0, overlayY, canvas.width, 4);
+          } else if (videoTemplate === 'slideshow') {
+            // Slideshow: simple clean overlay
+            ctx.fillStyle = `rgba(255, 255, 255, ${tplCfg.overlayOpacity})`;
+            ctx.fillRect(40, overlayY + 20, canvas.width - 80, overlayHeight - 40);
+          } else {
+            ctx.fillStyle = `rgba(0, 0, 0, ${tplCfg.overlayOpacity})`;
+            ctx.fillRect(0, overlayY, canvas.width, overlayHeight);
+          }
+        
+          const fontStyle = tplCfg.textStyle === 'italic' ? 'italic ' : '';
+          ctx.font = `${fontStyle}${tplCfg.fontSize}px Arial`;
+          ctx.fillStyle = videoTemplate === 'slideshow' ? '#1a1a2e' : 'white';
+          ctx.textAlign = 'center';
+        
+          // Wrap text
+          const words = segment.paragraph.split(' ');
+          let line = '';
+          let y = overlayY + 50;
+          const maxWidth = canvas.width - 100;
+          const lineHeight = tplCfg.fontSize + 10;
+
+          for(let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
+            const testWidth = metrics.width;
+            if (testWidth > maxWidth && n > 0) {
+              ctx.fillText(line, canvas.width / 2, y);
+              line = words[n] + ' ';
+              y += lineHeight;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.fillText(line, canvas.width / 2, y);
+
+          // Documentary: add segment counter
+          if (videoTemplate === 'documentary') {
+            ctx.font = '18px Arial';
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${i + 1} / ${segments.length}`, canvas.width - 30, 40);
+            ctx.textAlign = 'center';
+          }
 
         // Handle Audio
         if (segment.audioUrl) {
@@ -417,13 +460,13 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             className="hidden"
         />
 
-        {/* Hidden Canvas for Export */}
-        <canvas 
-          ref={exportCanvasRef}
-          width={1280}
-          height={720}
-          className="hidden"
-        />
+            {/* Hidden Canvas for Export */}
+            <canvas 
+              ref={exportCanvasRef}
+              width={VIDEO_TEMPLATE_CONFIGS[videoTemplate].width}
+              height={VIDEO_TEMPLATE_CONFIGS[videoTemplate].height}
+              className="hidden"
+            />
 
       </div>
     </div>
