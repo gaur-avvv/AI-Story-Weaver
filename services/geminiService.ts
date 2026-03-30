@@ -36,7 +36,7 @@ const notifyFallback = (originalProvider: string, fallbackProvider: string, reas
 const PROVIDER_BASE_URLS: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
-  siliconflow: 'https://api.siliconflow.cn/v1',
+  siliconflow: 'https://api.siliconflow.com/v1',
   pollinations: 'https://gen.pollinations.ai/v1',
   others: 'https://api.openai.com/v1',
 };
@@ -206,7 +206,7 @@ const generateImageWithPollinations = (fullPrompt: string, model: string = POLLI
 };
 
 const generateImageWithSiliconFlow = async (fullPrompt: string, apiKey: string, model: string): Promise<string> => {
-  const openai = getOpenAIClient(apiKey, 'https://api.siliconflow.cn/v1');
+  const openai = getOpenAIClient(apiKey, 'https://api.siliconflow.com/v1');
   const response = await openai.images.generate({ model, prompt: fullPrompt, n: 1, size: "1024x1024" });
   return response.data[0].url || '';
 };

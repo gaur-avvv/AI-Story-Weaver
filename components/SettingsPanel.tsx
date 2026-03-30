@@ -62,107 +62,115 @@ const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
 const textModels = {
   gemini: [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
-    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Preview)' },
   ],
   groq: [
-    { id: 'llama3-8b-8192', name: 'Llama 3 8B' },
-    { id: 'llama3-70b-8192', name: 'Llama 3 70B' },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B' },
-    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
     { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
-    { id: 'gemma-7b-it', name: 'Gemma 7B' },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9B' },
+    { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B' },
+    { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B' },
+    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B' },
+    { id: 'qwen/qwen3-32b', name: 'Qwen3 32B' },
   ],
   openrouter: [
-    { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'google/gemini-flash-1.5', name: 'Gemini Flash 1.5' },
-    { id: 'meta-llama/llama-3-8b-instruct', name: 'Llama 3 8B' },
-    { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B' },
-    { id: 'microsoft/wizardlm-2-8x22b', name: 'WizardLM-2 8x22B' },
+    { id: 'openai/gpt-oss-120b:free', name: 'GPT OSS 120B (Free)' },
+    { id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (Free)' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)' },
+    { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)' },
+    { id: 'minimax/minimax-m2.5:free', name: 'MiniMax M2.5 (Free)' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (Free)' },
+    { id: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash (Free)' },
+    { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder (Free)' },
+    { id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+    { id: 'openai/gpt-5.4', name: 'GPT-5.4' },
+    { id: 'google/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+    { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2' },
   ],
   pollinations: [
-    { id: 'openai', name: 'OpenAI (Default)' },
-    { id: 'openai-fast', name: 'OpenAI Fast' },
-    { id: 'openai-large', name: 'OpenAI Large' },
-    { id: 'qwen-coder', name: 'Qwen Coder' },
-    { id: 'mistral', name: 'Mistral' },
+    { id: 'openai', name: 'GPT-5 Mini (Default)' },
+    { id: 'openai-fast', name: 'GPT-5 Nano (Fast)' },
+    { id: 'openai-large', name: 'GPT-5.2 (Powerful)' },
+    { id: 'qwen-coder', name: 'Qwen3 Coder 30B' },
+    { id: 'mistral', name: 'Mistral Small 3.2 24B' },
+    { id: 'deepseek', name: 'DeepSeek V3.2' },
+    { id: 'gemini', name: 'Gemini 3 Flash' },
+    { id: 'gemini-fast', name: 'Gemini 2.5 Flash Lite' },
+    { id: 'claude-fast', name: 'Claude Haiku 4.5' },
+    { id: 'claude', name: 'Claude Sonnet 4.6' },
+    { id: 'kimi', name: 'Kimi K2.5' },
+    { id: 'glm', name: 'GLM-5' },
+    { id: 'minimax', name: 'MiniMax M2.5' },
+    { id: 'nova-fast', name: 'Amazon Nova Micro' },
   ],
   others: [
     { id: 'MiniMaxAI/MiniMax-M2.5', name: 'MiniMax M2.5' },
-    { id: 'zai-org/GLM-5', name: 'GLM-5' },
+    { id: 'zai-org/GLM-4.6', name: 'GLM 4.6' },
     { id: 'stepfun-ai/Step-3.5-Flash', name: 'Step 3.5 Flash' },
-    { id: 'moonshotai/Kimi-K2.5', name: 'Kimi K2.5' },
     { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2' },
-    { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B' },
     { id: 'Qwen/Qwen3-32B', name: 'Qwen3 32B' },
+    { id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct', name: 'Qwen3 Coder 480B' },
     { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B' },
   ],
   siliconflow: [
-    { id: 'Qwen/Qwen2-7B-Instruct', name: 'Qwen2 7B' },
-    { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen2.5 7B' },
     { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen2.5 72B' },
-    { id: 'deepseek-ai/DeepSeek-V2-Chat', name: 'DeepSeek V2' },
+    { id: 'Qwen/Qwen3-32B', name: 'Qwen3 32B' },
+    { id: 'Qwen/Qwen3-235B-A22B-Instruct-2507', name: 'Qwen3 235B' },
+    { id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct', name: 'Qwen3 Coder 480B' },
     { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3' },
+    { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2' },
     { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1' },
+    { id: 'MiniMaxAI/MiniMax-M2.5', name: 'MiniMax M2.5' },
+    { id: 'zai-org/GLM-4.6', name: 'GLM 4.6' },
+    { id: 'stepfun-ai/Step-3.5-Flash', name: 'Step 3.5 Flash' },
   ]
 };
 
 const imageModels = {
   gemini: [
     { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image' },
-    { id: 'gemini-3.1-flash-image-preview', name: 'Gemini 3.1 Flash Image' },
+    { id: 'gemini-3.1-flash-image-preview', name: 'Gemini 3.1 Flash Image (Preview)' },
   ],
   pollinations: [
-    { id: 'flux', name: 'Flux (Default)' },
-    { id: 'flux-realism', name: 'Flux Realism' },
-    { id: 'flux-coda', name: 'Flux Coda' },
-    { id: 'flux-3d', name: 'Flux 3D' },
-    { id: 'flux-anime', name: 'Flux Anime' },
-    { id: 'any-dark', name: 'Any Dark' },
-    { id: 'turbo', name: 'Turbo' },
-    { id: 'midjourney', name: 'Midjourney Style' },
-    { id: 'majicmix', name: 'MajicMix' },
-    { id: 'deliberate', name: 'Deliberate' },
-    { id: 'dreamshaper', name: 'Dreamshaper' },
-    { id: 'kontext', name: 'Kontext' },
-    { id: 'nanobanana', name: 'NanoBanana' },
-    { id: 'nanobanana-2', name: 'NanoBanana 2' },
-    { id: 'nanobanana-pro', name: 'NanoBanana Pro' },
-    { id: 'seedream5', name: 'SeeDream 5' },
-    { id: 'seedream', name: 'SeeDream' },
-    { id: 'seedream-pro', name: 'SeeDream Pro' },
-    { id: 'gptimage', name: 'GPT Image' },
-    { id: 'gptimage-large', name: 'GPT Image Large' },
-    { id: 'zimage', name: 'Z Image' },
-    { id: 'klein', name: 'Klein' },
-    { id: 'klein-large', name: 'Klein Large' },
-    { id: 'imagen-4', name: 'Imagen 4' },
-    { id: 'flux-2-dev', name: 'Flux 2 Dev' },
+    { id: 'flux', name: 'Flux Schnell (Default)' },
+    { id: 'zimage', name: 'Z-Image Turbo' },
+    { id: 'kontext', name: 'FLUX.1 Kontext' },
+    { id: 'nanobanana', name: 'NanoBanana (Gemini 2.5)' },
+    { id: 'nanobanana-2', name: 'NanoBanana 2 (Gemini 3.1)' },
+    { id: 'nanobanana-pro', name: 'NanoBanana Pro (Gemini 3 Pro)' },
+    { id: 'seedream5', name: 'SeeDream 5.0 Lite' },
+    { id: 'gptimage', name: 'GPT Image 1 Mini' },
+    { id: 'gptimage-large', name: 'GPT Image 1.5' },
+    { id: 'klein', name: 'FLUX.2 Klein 4B' },
     { id: 'grok-imagine', name: 'Grok Imagine' },
+    { id: 'grok-imagine-pro', name: 'Grok Imagine Pro' },
+    { id: 'qwen-image', name: 'Qwen Image Plus' },
+    { id: 'nova-canvas', name: 'Amazon Nova Canvas' },
+    { id: 'p-image', name: 'Pruna p-image' },
   ],
   siliconflow: [
     { id: 'stabilityai/stable-diffusion-3-medium', name: 'Stable Diffusion 3' },
     { id: 'stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0' },
     { id: 'black-forest-labs/FLUX.1-schnell', name: 'Flux.1 Schnell' },
     { id: 'black-forest-labs/FLUX.1-dev', name: 'Flux.1 Dev' },
+    { id: 'Qwen/Qwen-Image', name: 'Qwen Image 20B' },
   ]
 };
 
 const audioModels = {
   gemini: [
     { id: 'gemini-2.5-flash-preview-tts', name: 'Gemini 2.5 Flash TTS' },
+    { id: 'gemini-2.5-pro-preview-tts', name: 'Gemini 2.5 Pro TTS' },
   ],
   openai: [
     { id: 'tts-1', name: 'TTS-1 (Standard)' },
     { id: 'tts-1-hd', name: 'TTS-1 HD (High Quality)' },
   ],
   pollinations: [
-    { id: 'openai-audio', name: 'Pollinations Audio (OpenAI)' },
+    { id: 'elevenlabs', name: 'ElevenLabs v3 TTS' },
+    { id: 'openai-audio', name: 'OpenAI Audio' },
   ]
 };
 
@@ -223,9 +231,10 @@ const audioVoices = {
 
 export const SettingsPanel: React.FC<{
   onSave: (key: string, settings: Settings) => void;
+  onAutoSave?: (key: string, settings: Settings) => void;
   currentApiKey: string | null;
   currentSettings: Settings;
-}> = ({ onSave, currentApiKey, currentSettings }) => {
+}> = ({ onSave, onAutoSave, currentApiKey, currentSettings }) => {
   const [localApiKey, setLocalApiKey] = useState('');
   const [localSettings, setLocalSettings] = useState<Settings>(currentSettings);
   
@@ -261,28 +270,51 @@ export const SettingsPanel: React.FC<{
   };
   
   const handleSettingChange = (field: keyof Settings) => (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setLocalSettings(prev => ({...prev, [field]: e.target.value }));
+    const updated = {...localSettings, [field]: e.target.value };
+    setLocalSettings(updated);
+    if (onAutoSave) {
+      onAutoSave(localApiKey, updated);
+    }
   };
 
   const handleToggleChange = (field: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalSettings(prev => ({...prev, [field]: e.target.checked }));
+    const updated = {...localSettings, [field]: e.target.checked };
+    setLocalSettings(updated);
+    if (onAutoSave) {
+      onAutoSave(localApiKey, updated);
+    }
   };
 
   const handleApiKeySave = (provider: string, key: string) => {
+    let updatedKey = localApiKey;
+    let updatedSettings = localSettings;
+
     if (provider === 'gemini') {
+        updatedKey = key;
         setLocalApiKey(key);
     } else if (provider === 'openai') {
-        setLocalSettings(prev => ({ ...prev, openaiApiKey: key }));
+        updatedSettings = { ...localSettings, openaiApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'groq') {
-        setLocalSettings(prev => ({ ...prev, groqApiKey: key }));
+        updatedSettings = { ...localSettings, groqApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'openrouter') {
-        setLocalSettings(prev => ({ ...prev, openRouterApiKey: key }));
+        updatedSettings = { ...localSettings, openRouterApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'siliconflow') {
-        setLocalSettings(prev => ({ ...prev, siliconFlowApiKey: key }));
+        updatedSettings = { ...localSettings, siliconFlowApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'pollinations') {
-        setLocalSettings(prev => ({ ...prev, pollinationsApiKey: key }));
+        updatedSettings = { ...localSettings, pollinationsApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'others') {
-        setLocalSettings(prev => ({ ...prev, othersApiKey: key }));
+        updatedSettings = { ...localSettings, othersApiKey: key };
+        setLocalSettings(updatedSettings);
+    }
+
+    // Auto-save immediately
+    if (onAutoSave) {
+      onAutoSave(updatedKey, updatedSettings);
     }
   };
 
@@ -399,7 +431,11 @@ export const SettingsPanel: React.FC<{
                   min="20" 
                   max="100" 
                   value={localSettings.pdfMargin} 
-                  onChange={(e) => setLocalSettings(prev => ({...prev, pdfMargin: parseInt(e.target.value) }))}
+                  onChange={(e) => {
+                    const updated = {...localSettings, pdfMargin: parseInt(e.target.value) };
+                    setLocalSettings(updated);
+                    if (onAutoSave) { onAutoSave(localApiKey, updated); }
+                  }}
                   className="w-32 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
                 />
                 <span className="text-blue-900 font-semibold w-8 text-right">{localSettings.pdfMargin}</span>
