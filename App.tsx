@@ -5,8 +5,10 @@ import { StoryDisplay } from './components/StoryDisplay';
 import { generateStory, generateImage, generateTTSAudio, generateCoverImage } from './services/geminiService';
 import { StorySegment, Settings } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
-import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon } from './components/icons';
+import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon } from './components/icons';
 import { HeroIllustration } from './components/HeroIllustration';
+import { RatingSystem } from './components/RatingSystem';
+import { VideoModal } from './components/VideoModal';
 
 // Add type definition for jsPDF from window object
 declare global {
@@ -20,6 +22,19 @@ const defaultSettings: Settings = {
   genre: 'fantasy',
   imageStyle: 'whimsical',
   generateAudio: true,
+  pdfMargin: 50,
+  targetAudience: 'children',
+  
+  // Audio Defaults
+  audioProvider: 'gemini',
+  audioModel: 'gemini-2.5-flash-preview-tts',
+  voice: 'Kore',
+  
+  textProvider: 'gemini',
+  textModel: 'gemini-2.5-flash',
+  
+  imageProvider: 'gemini',
+  imageModel: 'gemini-2.5-flash-image',
 };
 
 function App() {
@@ -32,6 +47,7 @@ function App() {
   const [language, setLanguage] = useState('English');
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
 
   const languages = ['English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Simplified)'];
@@ -66,6 +82,19 @@ function App() {
     setIsSettingsOpen(false);
   };
 
+  const getApiKeyForProvider = (provider: string) => {
+    switch (provider) {
+      case 'gemini': return userApiKey;
+      case 'groq': return settings.groqApiKey;
+      case 'openrouter': return settings.openRouterApiKey;
+      case 'siliconflow': return settings.siliconFlowApiKey;
+      case 'openai': return settings.openaiApiKey;
+      case 'pollinations': return settings.pollinationsApiKey;
+      case 'others': return settings.othersApiKey;
+      default: return undefined;
+    }
+  };
+
   const handleGenerate = async (prompt: string) => {
     setIsGenerating(true);
     setIsSettingsOpen(false);
@@ -75,7 +104,19 @@ function App() {
     setInitialPrompt(prompt);
 
     try {
-      const { title: storyTitle, paragraphs } = await generateStory(prompt, language, userApiKey, settings.genre, settings.storyLength);
+      const textApiKey = getApiKeyForProvider(settings.textProvider);
+      
+      const { title: storyTitle, paragraphs } = await generateStory(
+        prompt, 
+        language, 
+        userApiKey, 
+        settings.genre, 
+        settings.storyLength, 
+        settings.textModel,
+        settings.textProvider,
+        textApiKey || undefined,
+        settings.targetAudience
+      );
       setTitle(storyTitle);
 
       const newSegments: StorySegment[] = paragraphs.map((p) => ({
@@ -89,11 +130,28 @@ function App() {
         try {
           setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: true, isLoadingAudio: settings.generateAudio } : s));
 
-          const imageUrl = await generateImage(segment.paragraph, userApiKey, settings.imageStyle);
+          const imageApiKey = getApiKeyForProvider(settings.imageProvider);
+          const imageUrl = await generateImage(
+            segment.paragraph, 
+            userApiKey, 
+            settings.imageStyle, 
+            settings.imageModel,
+            settings.imageProvider,
+            imageApiKey || undefined
+          );
+          
           setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, imageUrl, isLoadingImage: false } : s));
           
           if (settings.generateAudio) {
-            const audioUrl = await generateTTSAudio(segment.paragraph, userApiKey);
+            const audioApiKey = getApiKeyForProvider(settings.audioProvider);
+            const audioUrl = await generateTTSAudio(
+              segment.paragraph, 
+              userApiKey, 
+              settings.voice,
+              settings.audioModel,
+              settings.audioProvider,
+              audioApiKey || undefined
+            );
             setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, audioUrl, isLoadingAudio: false } : s));
           }
           
@@ -101,11 +159,22 @@ function App() {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
 
-        } catch (e) {
+        } catch (e: any) {
            console.error(`Error processing segment ${segment.id}:`, e);
-           setError(`An error occurred while generating assets for a paragraph. The story may be incomplete.`);
+           
+           const errorMessage = e?.message || 'Unknown error';
+           if (errorMessage.includes('Rate Limit') || errorMessage.includes('429') || errorMessage.includes('quota')) {
+             setError(`Rate Limit Exceeded: ${errorMessage}. Stopping further generation to prevent issues.`);
+             setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
+             break; // Stop if we hit a rate limit
+           }
+
+           // For other errors, we might want to continue or just log it
+           setError(`Error generating assets for segment ${i + 1}: ${errorMessage}`);
            setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
-           break;
+           // We continue to the next segment for non-fatal errors, but maybe we should break for critical ones?
+           // For now, let's break to be safe and not spam the user if something is broken.
+           break; 
         }
       }
     } catch (e) {
@@ -130,47 +199,176 @@ function App() {
 
     try {
       const coverPrompt = `A stunning, beautiful book cover illustration for a children's story titled "${title}". The story is about: ${initialPrompt}. The style should be ${settings.imageStyle}, vibrant, detailed, digital painting.`;
-      const coverUrl = await generateCoverImage(coverPrompt, userApiKey, settings.imageStyle);
+      
+      const imageApiKey = getApiKeyForProvider(settings.imageProvider);
+      const coverUrl = await generateCoverImage(
+        coverPrompt, 
+        userApiKey, 
+        settings.imageStyle, 
+        settings.imageModel,
+        settings.imageProvider,
+        imageApiKey || undefined
+      );
 
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF('p', 'pt', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 60;
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = settings.pdfMargin;
       const contentWidth = pageWidth - margin * 2;
 
-      pdf.addImage(coverUrl, 'JPEG', 0, 0, pageWidth, pageHeight);
+      // Helper to load image dimensions
+      const getImageDimensions = (src: string): Promise<{ width: number; height: number; ratio: number }> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            resolve({
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+              ratio: img.naturalWidth / img.naturalHeight
+            });
+          };
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
 
-      pdf.addPage();
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(36);
-      pdf.text(title, pageWidth / 2, pageHeight / 3, { align: 'center', maxWidth: contentWidth });
+      // --- Cover Page ---
+      try {
+        const coverDims = await getImageDimensions(coverUrl);
+        // Calculate dimensions to cover the page (object-fit: cover)
+        let coverW = pageWidth;
+        let coverH = pageWidth / coverDims.ratio;
+
+        if (coverH < pageHeight) {
+          coverH = pageHeight;
+          coverW = pageHeight * coverDims.ratio;
+        }
+
+        // Center the image
+        const coverX = (pageWidth - coverW) / 2;
+        const coverY = (pageHeight - coverH) / 2;
+
+        doc.addImage(coverUrl, 'JPEG', coverX, coverY, coverW, coverH);
+      } catch (e) {
+        console.error("Could not load cover image", e);
+      }
+
+      // Helper to sanitize text for PDF (replace smart quotes, etc.)
+      const sanitizeText = (text: string) => {
+        return text
+          .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
+          .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
+          .replace(/[\u2013\u2014]/g, '-') // En/Em dashes
+          .replace(/[^\x00-\xFF]/g, ""); // Remove non-Latin-1 characters as a last resort for standard fonts
+      };
+
+      // --- Title Page ---
+      doc.addPage();
+      doc.setFont('times', 'bold');
+      doc.setFontSize(32);
+      const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
+      // Center vertically roughly
+      const titleBlockHeight = titleLines.length * 32 * 1.15;
+      doc.text(titleLines, pageWidth / 2, (pageHeight / 2) - (titleBlockHeight / 2), { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
+
+      // --- Story Pages ---
+      let pageNumber = 1;
+      let currentY = margin;
 
       for (const segment of segments) {
-        pdf.addPage();
-        let currentY = margin;
+        doc.addPage();
 
+        // Footer: Page Number
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(String(pageNumber++), pageWidth / 2, pageHeight - 20, { align: 'center' });
+        doc.setTextColor(0); // Reset color
+
+        currentY = margin;
+
+        // Image
         if (segment.imageUrl) {
-          const imageRatio = 4 / 3;
-          const imageHeight = contentWidth / imageRatio;
-          pdf.addImage(segment.imageUrl, 'JPEG', margin, currentY, contentWidth, imageHeight);
-          currentY += imageHeight + 30;
+          try {
+            const imgDims = await getImageDimensions(segment.imageUrl);
+
+            // Fit image within margins
+            let imgW = contentWidth;
+            let imgH = contentWidth / imgDims.ratio;
+
+            // If image is too tall (e.g. portrait), constrain height to 60% of page
+            const maxImgHeight = pageHeight * 0.55;
+            if (imgH > maxImgHeight) {
+              imgH = maxImgHeight;
+              imgW = maxImgHeight * imgDims.ratio;
+            }
+
+            // Center image horizontally
+            const imgX = margin + (contentWidth - imgW) / 2;
+
+            doc.addImage(segment.imageUrl, 'JPEG', imgX, currentY, imgW, imgH);
+            currentY += imgH + 30; // Space after image
+          } catch (e) {
+            console.error("Failed to load segment image", e);
+          }
         }
 
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(14);
-        const textLines = pdf.splitTextToSize(segment.paragraph, contentWidth);
-        const textBlockHeight = textLines.length * pdf.getLineHeight() * 0.8;
+        // Text
+        doc.setFont('times', 'normal');
+        doc.setFontSize(14);
+        // Manual line height calculation
+        const lineHeight = 14 * 1.5;
         
-        if (currentY + textBlockHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
+        const textLines = doc.splitTextToSize(sanitizeText(segment.paragraph), contentWidth);
+
+        for (let i = 0; i < textLines.length; i++) {
+          // Check if we need a new page
+          // Leave space for footer (approx 40pt)
+          if (currentY + lineHeight > pageHeight - 40) {
+            doc.addPage();
+            
+            // Footer on new page
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(String(pageNumber++), pageWidth / 2, pageHeight - 20, { align: 'center' });
+            doc.setTextColor(0);
+
+            // Reset font for text
+            doc.setFont('times', 'normal');
+            doc.setFontSize(14);
+            currentY = margin;
+          }
+          
+          doc.text(textLines[i], margin, currentY + 10); // +10 adjustment for baseline
+          currentY += lineHeight;
         }
-        pdf.text(textLines, margin, currentY);
+      }
+      
+      // The End
+      if (currentY + 50 < pageHeight - 40) {
+          doc.setFont('times', 'italic');
+          doc.setFontSize(12);
+          doc.text("The End", pageWidth / 2, currentY + 40, { align: 'center' });
+      } else {
+          doc.addPage();
+          doc.setFont('times', 'italic');
+          doc.setFontSize(12);
+          doc.text("The End", pageWidth / 2, pageHeight / 2, { align: 'center' });
       }
 
       const safeTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      pdf.save(`${safeTitle}_storybook.pdf`);
+      doc.save(`${safeTitle}_storybook.pdf`);
 
     } catch (e) {
       console.error("Error saving PDF:", e);
@@ -224,6 +422,13 @@ function App() {
                   <RefreshCwIcon className="w-6 h-6" />
                 </button>
                 <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  title="Watch Story Video"
+                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+                >
+                  <VideoIcon className="w-6 h-6" />
+                </button>
+                <button
                   onClick={handleSaveAsPdf}
                   disabled={isSavingPdf}
                   title="Save as PDF Book"
@@ -268,7 +473,10 @@ function App() {
         {title && <h2 className="text-4xl sm:text-5xl font-black text-center mb-10 text-blue-900/90">{title}</h2>}
         
         {segments.length > 0 ? (
-          <StoryDisplay segments={segments} />
+          <>
+            <StoryDisplay segments={segments} />
+            {!isGenerating && <RatingSystem onRate={(rating) => console.log(`User rated: ${rating}`)} />}
+          </>
         ) : (
           <div className="flex-grow flex flex-col items-center justify-center text-center">
              {!isGenerating && !error && (
@@ -286,8 +494,23 @@ function App() {
       </main>
 
       <footer className="w-full p-6 sticky bottom-0 bg-gradient-to-t from-[#FFFBF0] to-transparent">
-        <StoryInput onGenerate={handleGenerate} isGenerating={isGenerating} />
+        <StoryInput 
+            onGenerate={handleGenerate} 
+            isGenerating={isGenerating} 
+            apiKey={userApiKey}
+            settings={settings}
+        />
       </footer>
+      
+      {isVideoModalOpen && (
+        <VideoModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          segments={segments}
+          title={title}
+          genre={settings.genre}
+        />
+      )}
     </div>
   );
 }
