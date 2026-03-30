@@ -231,9 +231,10 @@ const audioVoices = {
 
 export const SettingsPanel: React.FC<{
   onSave: (key: string, settings: Settings) => void;
+  onAutoSave?: (key: string, settings: Settings) => void;
   currentApiKey: string | null;
   currentSettings: Settings;
-}> = ({ onSave, currentApiKey, currentSettings }) => {
+}> = ({ onSave, onAutoSave, currentApiKey, currentSettings }) => {
   const [localApiKey, setLocalApiKey] = useState('');
   const [localSettings, setLocalSettings] = useState<Settings>(currentSettings);
   
@@ -269,28 +270,51 @@ export const SettingsPanel: React.FC<{
   };
   
   const handleSettingChange = (field: keyof Settings) => (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setLocalSettings(prev => ({...prev, [field]: e.target.value }));
+    const updated = {...localSettings, [field]: e.target.value };
+    setLocalSettings(updated);
+    if (onAutoSave) {
+      onAutoSave(localApiKey, updated);
+    }
   };
 
   const handleToggleChange = (field: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalSettings(prev => ({...prev, [field]: e.target.checked }));
+    const updated = {...localSettings, [field]: e.target.checked };
+    setLocalSettings(updated);
+    if (onAutoSave) {
+      onAutoSave(localApiKey, updated);
+    }
   };
 
   const handleApiKeySave = (provider: string, key: string) => {
+    let updatedKey = localApiKey;
+    let updatedSettings = localSettings;
+
     if (provider === 'gemini') {
+        updatedKey = key;
         setLocalApiKey(key);
     } else if (provider === 'openai') {
-        setLocalSettings(prev => ({ ...prev, openaiApiKey: key }));
+        updatedSettings = { ...localSettings, openaiApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'groq') {
-        setLocalSettings(prev => ({ ...prev, groqApiKey: key }));
+        updatedSettings = { ...localSettings, groqApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'openrouter') {
-        setLocalSettings(prev => ({ ...prev, openRouterApiKey: key }));
+        updatedSettings = { ...localSettings, openRouterApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'siliconflow') {
-        setLocalSettings(prev => ({ ...prev, siliconFlowApiKey: key }));
+        updatedSettings = { ...localSettings, siliconFlowApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'pollinations') {
-        setLocalSettings(prev => ({ ...prev, pollinationsApiKey: key }));
+        updatedSettings = { ...localSettings, pollinationsApiKey: key };
+        setLocalSettings(updatedSettings);
     } else if (provider === 'others') {
-        setLocalSettings(prev => ({ ...prev, othersApiKey: key }));
+        updatedSettings = { ...localSettings, othersApiKey: key };
+        setLocalSettings(updatedSettings);
+    }
+
+    // Auto-save immediately
+    if (onAutoSave) {
+      onAutoSave(updatedKey, updatedSettings);
     }
   };
 
@@ -407,7 +431,11 @@ export const SettingsPanel: React.FC<{
                   min="20" 
                   max="100" 
                   value={localSettings.pdfMargin} 
-                  onChange={(e) => setLocalSettings(prev => ({...prev, pdfMargin: parseInt(e.target.value) }))}
+                  onChange={(e) => {
+                    const updated = {...localSettings, pdfMargin: parseInt(e.target.value) };
+                    setLocalSettings(updated);
+                    if (onAutoSave) { onAutoSave(localApiKey, updated); }
+                  }}
                   className="w-32 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
                 />
                 <span className="text-blue-900 font-semibold w-8 text-right">{localSettings.pdfMargin}</span>

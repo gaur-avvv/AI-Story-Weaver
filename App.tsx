@@ -94,6 +94,20 @@ function App() {
     setIsSettingsOpen(false);
   };
 
+  // Auto-save: persists settings/keys without closing the panel
+  const handleAutoSave = (key: string, newSettings: Settings) => {
+    const newKey = key.trim();
+    if (newKey) {
+      localStorage.setItem('user-gemini-api-key', newKey);
+      setUserApiKey(newKey);
+    } else {
+      localStorage.removeItem('user-gemini-api-key');
+      setUserApiKey(null);
+    }
+    localStorage.setItem('user-story-settings', JSON.stringify(newSettings));
+    setSettings(newSettings);
+  };
+
   const getApiKeyForProvider = (provider: string) => {
     switch (provider) {
       case 'gemini': return userApiKey;
@@ -602,6 +616,7 @@ function App() {
              >
                 <SettingsPanel
                     onSave={handleSaveSettings}
+                    onAutoSave={handleAutoSave}
                     currentApiKey={userApiKey}
                     currentSettings={settings}
                 />
