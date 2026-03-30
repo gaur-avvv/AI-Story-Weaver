@@ -5,10 +5,11 @@ import { StoryDisplay } from './components/StoryDisplay';
 import { generateStory, generateImage, generateTTSAudio, generateCoverImage, setFallbackCallback, FallbackNotification } from './services/geminiService';
 import { StorySegment, Settings } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
-import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon } from './components/icons';
+import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, ShareIcon } from './components/icons';
 import { HeroIllustration } from './components/HeroIllustration';
 import { RatingSystem } from './components/RatingSystem';
 import { VideoModal } from './components/VideoModal';
+import { PublishPlatforms } from './components/PublishPlatforms';
 
 // Add type definition for jsPDF from window object
 declare global {
@@ -50,6 +51,7 @@ function App() {
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
+  const [isPublishOpen, setIsPublishOpen] = useState<boolean>(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [fallbackNotice, setFallbackNotice] = useState<FallbackNotification | null>(null);
 
@@ -559,6 +561,13 @@ function App() {
                   <VideoIcon className="w-6 h-6" />
                 </button>
                 <button
+                  onClick={() => setIsPublishOpen(!isPublishOpen)}
+                  title="Publish & Distribute"
+                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+                >
+                  <ShareIcon className="w-6 h-6" />
+                </button>
+                <button
                   onClick={handleSaveAsPdf}
                   disabled={isSavingPdf}
                   title="Save as PDF Book"
@@ -596,6 +605,21 @@ function App() {
                     currentApiKey={userApiKey}
                     currentSettings={settings}
                 />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isPublishOpen && (
+            <motion.div
+              key="publish-panel"
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="overflow-hidden mb-8"
+            >
+              <PublishPlatforms isVisible={true} />
             </motion.div>
           )}
         </AnimatePresence>
