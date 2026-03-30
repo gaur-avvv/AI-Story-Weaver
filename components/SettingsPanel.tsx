@@ -383,6 +383,15 @@ export const SettingsPanel: React.FC<{
               <CustomToggle checked={localSettings.generateAudio} onChange={handleToggleChange('generateAudio')} />
             </div>
           </SettingRow>
+          <SettingRow icon={<BookText className="w-6 h-6" />} label="PDF Template">
+            <CustomSelect value={localSettings.pdfTemplate || 'classic'} onChange={handleSettingChange('pdfTemplate')}>
+              <option value="classic">Classic</option>
+              <option value="modern">Modern</option>
+              <option value="minimalist">Minimalist</option>
+              <option value="storybook">Storybook</option>
+              <option value="magazine">Magazine</option>
+            </CustomSelect>
+          </SettingRow>
           <SettingRow icon={<BookText className="w-6 h-6" />} label="PDF Margin">
              <div className="flex items-center gap-2">
                 <input 
@@ -395,6 +404,15 @@ export const SettingsPanel: React.FC<{
                 />
                 <span className="text-blue-900 font-semibold w-8 text-right">{localSettings.pdfMargin}</span>
              </div>
+          </SettingRow>
+          <SettingRow icon={<Theater className="w-6 h-6" />} label="Video Template">
+            <CustomSelect value={localSettings.videoTemplate || 'cinematic'} onChange={handleSettingChange('videoTemplate')}>
+              <option value="cinematic">Cinematic (16:9)</option>
+              <option value="slideshow">Slideshow (16:9)</option>
+              <option value="kenburns">Ken Burns (16:9)</option>
+              <option value="documentary">Documentary (16:9)</option>
+              <option value="social">Social Media (9:16)</option>
+            </CustomSelect>
           </SettingRow>
         </div>
 

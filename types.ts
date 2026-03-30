@@ -31,6 +31,12 @@ export interface Settings {
   // Content Settings
   targetAudience: 'children' | 'teen' | 'adult';
 
+  // PDF Template
+  pdfTemplate: 'classic' | 'modern' | 'minimalist' | 'storybook' | 'magazine';
+
+  // Video Template
+  videoTemplate: 'cinematic' | 'slideshow' | 'kenburns' | 'documentary' | 'social';
+
   // API Keys
   groqApiKey?: string;
   openRouterApiKey?: string;
