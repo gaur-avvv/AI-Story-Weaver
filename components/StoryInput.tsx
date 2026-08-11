@@ -60,7 +60,7 @@ export const StoryInput: React.FC<StoryInputProps> = ({ onGenerate, isGenerating
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="What magical story shall we create?"
           disabled={isGenerating}
-          className="w-full pl-6 pr-40 sm:pr-48 py-4 text-lg text-slate-800 bg-white border-2 border-blue-300 rounded-full shadow-sm focus:outline-none focus:ring-4 focus:ring-yellow-200 focus:border-yellow-500 transition-all duration-300"
+          className="w-full pl-6 pr-40 sm:pr-48 py-4 text-lg text-slate-100 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/30 transition-all duration-300"
         />
         
         <div className="absolute inset-y-0 right-0 m-2 flex items-center gap-2">
@@ -69,11 +69,11 @@ export const StoryInput: React.FC<StoryInputProps> = ({ onGenerate, isGenerating
                     type="button"
                     onClick={handleEnhance}
                     disabled={isEnhancing || isGenerating}
-                    className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 text-purple-600 hover:bg-purple-200 rounded-full transition-colors"
+                    className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-white/10 text-purple-300 hover:bg-white/20 border border-white/10 rounded-full transition-colors backdrop-blur-md"
                     title="Magic Enhance"
                 >
                     {isEnhancing ? (
-                        <div className="w-5 h-5 border-2 border-t-transparent border-purple-600 rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-t-transparent border-purple-300 rounded-full animate-spin" />
                     ) : (
                         <WandIcon className="w-5 h-5" />
                     )}
@@ -83,7 +83,7 @@ export const StoryInput: React.FC<StoryInputProps> = ({ onGenerate, isGenerating
             <button
             type="submit"
             disabled={isGenerating || !prompt.trim()}
-            className="flex items-center justify-center h-10 sm:h-12 px-6 bg-yellow-400 text-blue-900 font-black text-lg rounded-full shadow-md hover:bg-yellow-500 active:scale-95 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 transition-all duration-200"
+            className="flex items-center justify-center h-10 sm:h-12 px-6 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-purple-500/50 active:scale-95 disabled:opacity-50 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-400 transition-all duration-200 border border-white/20"
             >
             {isGenerating ? 'Creating...' : <> <SparklesIcon className="w-5 h-5 mr-2" /> Create </>}
             </button>

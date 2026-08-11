@@ -3,20 +3,58 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Storyteller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
     <style>
       body {
-        font-family: 'Nunito', sans-serif;
-        background-color: #FFFBF0; /* Warmer, storybook-like background */
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: #0f172a; /* Fallback dark background */
+      }
+      .font-display {
+        font-family: 'Playfair Display', serif;
+      }
+      @keyframes gradient-xy {
+        0%, 100% {
+            background-size: 400% 400%;
+            background-position: left center;
+        }
+        50% {
+            background-size: 200% 200%;
+            background-position: right center;
+        }
+      }
+      .animate-gradient-xy {
+        animation: gradient-xy 15s ease infinite;
+      }
+      .animate-gradient-glow {
+        animation: gradient-xy 4s ease infinite;
+      }
+      @keyframes pulse-slow {
+        0%, 100% { opacity: 0.2; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.1); }
+      }
+      .animate-pulse-slow {
+        animation: pulse-slow 8s ease-in-out infinite;
       }
     </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.24.0",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24"
+  }
+}
+</script>
+
 </head>
   <body>
     <div id="root"></div>

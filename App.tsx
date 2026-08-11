@@ -1,15 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { StoryInput } from './components/StoryInput';
 import { StoryDisplay } from './components/StoryDisplay';
-import { generateStory, generateImage, generateTTSAudio, generateCoverImage, setFallbackCallback, FallbackNotification } from './services/geminiService';
-import { StorySegment, Settings } from './types';
+import { generateStorySegment, generateImage, generateTTSAudio, generateCoverImage } from './services/geminiService';
+import { StorySegment, Settings, SavedStory } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
-import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, ShareIcon } from './components/icons';
+import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, BookText } from './components/icons';
 import { HeroIllustration } from './components/HeroIllustration';
 import { RatingSystem } from './components/RatingSystem';
 import { VideoModal } from './components/VideoModal';
-import { PublishPlatforms } from './components/PublishPlatforms';
+import { BackgroundManager } from './components/BackgroundManager';
+import { StoryLibrary } from './components/StoryLibrary';
+import { AudioController } from './components/AudioController';
+import { useToast } from './components/ToastContext';
+
+// VFX Integration System
+import { VfxProvider, useVfx } from './vfx/VfxContext';
+import { VfxScreenOverlays } from './components/vfx/VfxScreenOverlays';
+import { VfxStyleInjector } from './components/vfx/VfxStyleInjector';
+import { VfxQuickHud } from './components/vfx/VfxQuickHud';
+import { VfxStudioPanel } from './components/vfx/VfxStudioPanel';
+import { VfxGenre } from './vfx/types';
 
 // Add type definition for jsPDF from window object
 declare global {
@@ -36,11 +48,46 @@ const defaultSettings: Settings = {
   
   imageProvider: 'gemini',
   imageModel: 'gemini-2.5-flash-image',
-  pdfTemplate: 'classic',
-  videoTemplate: 'cinematic',
 };
 
-function App() {
+// Helper to safely persist stories without exceeding browser storage quota
+function stripBase64Media(storyList: SavedStory[]): SavedStory[] {
+  return storyList.map(story => ({
+    ...story,
+    segments: story.segments.map(s => ({
+      ...s,
+      audioUrl: s.audioUrl?.startsWith('data:') ? undefined : s.audioUrl,
+      imageUrl: s.imageUrl?.startsWith('data:') ? undefined : s.imageUrl,
+    }))
+  }));
+}
+
+function saveStoriesSafely(stories: SavedStory[]): boolean {
+  try {
+    localStorage.setItem('user-saved-stories', JSON.stringify(stories));
+    return true;
+  } catch (err) {
+    console.warn("Storage quota exceeded, attempting to save trimmed story history...", err);
+    try {
+      const recentStories = stories.slice(-8);
+      localStorage.setItem('user-saved-stories', JSON.stringify(recentStories));
+      return true;
+    } catch (err2) {
+      try {
+        const lightweightStories = stripBase64Media(stories.slice(-5));
+        localStorage.setItem('user-saved-stories', JSON.stringify(lightweightStories));
+        return true;
+      } catch (err3) {
+        console.error("Unable to save stories to localStorage due to strict quota limits.", err3);
+        return false;
+      }
+    }
+  }
+}
+
+function StoryCreatorContent() {
+  const { vfx, setGenre, triggerScreenShake } = useVfx();
+  const { showErrorToast, showWarningToast, showSuccessToast } = useToast();
   const [segments, setSegments] = useState<StorySegment[]>([]);
   const [title, setTitle] = useState<string>('');
   const [initialPrompt, setInitialPrompt] = useState<string>('');
@@ -51,9 +98,8 @@ function App() {
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(true);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
-  const [isPublishOpen, setIsPublishOpen] = useState<boolean>(false);
+  const [isVfxStudioOpen, setIsVfxStudioOpen] = useState<boolean>(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [fallbackNotice, setFallbackNotice] = useState<FallbackNotification | null>(null);
 
   const languages = ['English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Simplified)'];
 
@@ -67,36 +113,76 @@ function App() {
       try {
         const parsedSettings = JSON.parse(savedSettings);
         setSettings({ ...defaultSettings, ...parsedSettings });
+        if (parsedSettings.genre) {
+          setGenre(parsedSettings.genre as VfxGenre);
+        }
       } catch {
         setSettings(defaultSettings);
       }
     }
-
-    // Register fallback callback
-    setFallbackCallback((notification: FallbackNotification) => {
-      setFallbackNotice(notification);
-      setTimeout(() => setFallbackNotice(null), 6000);
-    });
-    return () => setFallbackCallback(null);
   }, []);
 
-  const handleSaveSettings = (key: string, newSettings: Settings) => {
-    const newKey = key.trim();
-    if (newKey) {
-      localStorage.setItem('user-gemini-api-key', newKey);
-      setUserApiKey(newKey);
-    } else {
-      localStorage.removeItem('user-gemini-api-key');
-      setUserApiKey(null);
-    }
-    localStorage.setItem('user-story-settings', JSON.stringify(newSettings));
-    setSettings(newSettings);
-    setIsSettingsOpen(false);
-  };
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const loadId = searchParams.get('load');
+  const navigate = useNavigate();
 
-  // Auto-save: persists settings/keys without closing the panel
-  const handleAutoSave = (key: string, newSettings: Settings) => {
-    const newKey = key.trim();
+  useEffect(() => {
+    if (loadId) {
+      const saved = localStorage.getItem('user-saved-stories');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const story = parsed.find((s: SavedStory) => s.id === loadId);
+          if (story) {
+            setSegments(story.segments);
+            setTitle(story.title);
+            setIsSettingsOpen(false);
+          }
+        } catch (e) {
+          console.error("Failed to load story", e);
+        }
+      }
+      navigate('/', { replace: true });
+    }
+  }, [loadId, navigate]);
+
+  // Save story whenever segments update and we have a title
+  useEffect(() => {
+    if (segments.length > 0 && title && !isGenerating) {
+      const saved = localStorage.getItem('user-saved-stories');
+      let stories: SavedStory[] = [];
+      if (saved) {
+        try {
+          stories = JSON.parse(saved);
+        } catch (e) {}
+      }
+      
+      const storyId = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const existingIndex = stories.findIndex(s => s.id === storyId);
+      
+      const newStory: SavedStory = {
+        id: storyId,
+        title,
+        timestamp: Date.now(),
+        segments
+      };
+
+      if (existingIndex >= 0) {
+        stories[existingIndex] = { ...stories[existingIndex], segments, timestamp: Date.now() };
+      } else {
+        stories.push(newStory);
+      }
+      
+      const success = saveStoriesSafely(stories);
+      if (!success) {
+        showWarningToast("Storage quota limit reached. Current story is active in memory but older library items were trimmed.", "Storage Notice");
+      }
+    }
+  }, [segments, title, isGenerating]);
+
+  const handleSaveSettings = (key: string | null, newSettings: Settings) => {
+    const newKey = key?.trim() || null;
     if (newKey) {
       localStorage.setItem('user-gemini-api-key', newKey);
       setUserApiKey(newKey);
@@ -106,6 +192,9 @@ function App() {
     }
     localStorage.setItem('user-story-settings', JSON.stringify(newSettings));
     setSettings(newSettings);
+    if (newSettings.genre) {
+      setGenre(newSettings.genre as VfxGenre);
+    }
   };
 
   const getApiKeyForProvider = (provider: string) => {
@@ -121,6 +210,52 @@ function App() {
     }
   };
 
+  const getTargetLength = () => {
+    switch (settings.storyLength) {
+      case 'very_short': return 2;
+      case 'short': return 3;
+      case 'medium': return 5;
+      case 'long': return 8;
+      case 'very_long': return 12;
+      default: return 5;
+    }
+  };
+
+  const processSegmentMedia = async (segmentId: string, paragraph: string) => {
+    try {
+      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, isLoadingImage: true, isLoadingAudio: settings.generateAudio } : s));
+      
+      const imageApiKey = getApiKeyForProvider(settings.imageProvider);
+      const imageUrl = await generateImage(
+        paragraph, 
+        userApiKey, 
+        settings.imageStyle, 
+        settings.imageModel,
+        settings.imageProvider,
+        imageApiKey || undefined
+      );
+      
+      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, imageUrl, isLoadingImage: false } : s));
+      
+      if (settings.generateAudio) {
+        const audioApiKey = getApiKeyForProvider(settings.audioProvider);
+        const audioUrl = await generateTTSAudio(
+          paragraph, 
+          userApiKey, 
+          settings.voice,
+          settings.audioModel,
+          settings.audioProvider,
+          audioApiKey || undefined
+        );
+        setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, audioUrl, isLoadingAudio: false } : s));
+      }
+    } catch (e: any) {
+      console.error(`Error processing media for segment ${segmentId}:`, e);
+      showWarningToast("Media generation failed. Story text is available.", "Media Notice");
+      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
+    }
+  };
+
   const handleGenerate = async (prompt: string) => {
     setIsGenerating(true);
     setIsSettingsOpen(false);
@@ -131,85 +266,110 @@ function App() {
 
     try {
       const textApiKey = getApiKeyForProvider(settings.textProvider);
+      const targetLength = getTargetLength();
+      const isLast = targetLength <= 1;
       
-      const { title: storyTitle, paragraphs } = await generateStory(
+      const response = await generateStorySegment(
         prompt, 
+        [],
         language, 
         userApiKey, 
         settings.genre, 
-        settings.storyLength, 
         settings.textModel,
         settings.textProvider,
         textApiKey || undefined,
-        settings.targetAudience
+        settings.targetAudience,
+        isLast,
+        true
       );
-      setTitle(storyTitle);
-
-      const newSegments: StorySegment[] = paragraphs.map((p) => ({
-        id: crypto.randomUUID(),
-        paragraph: p,
-      }));
-      setSegments(newSegments);
-
-      for (let i = 0; i < newSegments.length; i++) {
-        const segment = newSegments[i];
-        try {
-          setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: true, isLoadingAudio: settings.generateAudio } : s));
-
-          const imageApiKey = getApiKeyForProvider(settings.imageProvider);
-          const imageUrl = await generateImage(
-            segment.paragraph, 
-            userApiKey, 
-            settings.imageStyle, 
-            settings.imageModel,
-            settings.imageProvider,
-            imageApiKey || undefined
-          );
-          
-          setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, imageUrl, isLoadingImage: false } : s));
-          
-          if (settings.generateAudio) {
-            const audioApiKey = getApiKeyForProvider(settings.audioProvider);
-            const audioUrl = await generateTTSAudio(
-              segment.paragraph, 
-              userApiKey, 
-              settings.voice,
-              settings.audioModel,
-              settings.audioProvider,
-              audioApiKey || undefined
-            );
-            setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, audioUrl, isLoadingAudio: false } : s));
-          }
-          
-          if (i < newSegments.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-
-        } catch (e: any) {
-           console.error(`Error processing segment ${segment.id}:`, e);
-           
-           const errorMessage = e?.message || 'Unknown error';
-           if (errorMessage.includes('Rate Limit') || errorMessage.includes('429') || errorMessage.includes('quota')) {
-             setError(`Rate Limit Exceeded: ${errorMessage}. Stopping further generation to prevent issues.`);
-             setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
-             break; // Stop if we hit a rate limit
-           }
-
-           // For other errors, we might want to continue or just log it
-           setError(`Error generating assets for segment ${i + 1}: ${errorMessage}`);
-           setSegments((prev) => prev.map(s => s.id === segment.id ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
-           // We continue to the next segment for non-fatal errors, but maybe we should break for critical ones?
-           // For now, let's break to be safe and not spam the user if something is broken.
-           break; 
-        }
+      
+      if (response.title) {
+        setTitle(response.title);
       }
+
+      const newSegment: StorySegment = {
+        id: crypto.randomUUID(),
+        paragraph: response.paragraph,
+        choices: response.choices,
+      };
+      
+      setSegments([newSegment]);
+      processSegmentMedia(newSegment.id, newSegment.paragraph);
+      
     } catch (e) {
       console.error("Story generation failed:", e);
       const friendlyError = e instanceof Error ? e.message : 'An unknown error occurred during story generation.';
-      setError(`Error: ${friendlyError} Please check your API key and try again.`);
+      const msg = `Error: ${friendlyError} Please check your API key and try again.`;
+      setError(msg);
+      showErrorToast(friendlyError, "Story Generation Failed");
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleContinue = async (choice: string) => {
+    setIsGenerating(true);
+    setError(null);
+    
+    // Set selected choice on the last segment
+    setSegments(prev => {
+      const updated = [...prev];
+      if (updated.length > 0) {
+        updated[updated.length - 1].selectedChoice = choice;
+      }
+      return updated;
+    });
+
+    try {
+      const textApiKey = getApiKeyForProvider(settings.textProvider);
+      const targetLength = getTargetLength();
+      const currentLength = segments.length;
+      const isLast = currentLength + 1 >= targetLength;
+      const previousParagraphs = segments.map(s => s.paragraph);
+      
+      const response = await generateStorySegment(
+        choice, 
+        previousParagraphs,
+        language, 
+        userApiKey, 
+        settings.genre, 
+        settings.textModel,
+        settings.textProvider,
+        textApiKey || undefined,
+        settings.targetAudience,
+        isLast,
+        false
+      );
+
+      const newSegment: StorySegment = {
+        id: crypto.randomUUID(),
+        paragraph: response.paragraph,
+        choices: response.choices,
+      };
+      
+      setSegments(prev => [...prev, newSegment]);
+      processSegmentMedia(newSegment.id, newSegment.paragraph);
+      
+    } catch (e) {
+      console.error("Story continuation failed:", e);
+      const friendlyError = e instanceof Error ? e.message : 'An unknown error occurred during story generation.';
+      const msg = `Error: ${friendlyError} Please check your API key and try again.`;
+      setError(msg);
+      showErrorToast(friendlyError, "Story Continuation Failed");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
+  const handleRebranch = (segmentIndex: number) => {
+    if (isGenerating) return;
+    setSegments(prev => {
+      const updated = prev.slice(0, segmentIndex + 1);
+      if (updated.length > 0) {
+        updated[updated.length - 1].selectedChoice = undefined;
+      }
+      return updated;
+    });
   };
   
   const handleRegenerate = () => {
@@ -236,319 +396,138 @@ function App() {
         imageApiKey || undefined
       );
 
+      const html2canvasModule = await import('html2canvas');
+      const html2canvas = html2canvasModule.default;
+
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = settings.pdfMargin;
-      const contentWidth = pageWidth - margin * 2;
-      const template = settings.pdfTemplate || 'classic';
+      const imgWidth = 210;
+      
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.width = '794px';
+      container.style.minHeight = '1122px';
+      container.style.backgroundColor = '#FFFBF0'; 
+      document.body.appendChild(container);
 
-      const getImageDimensions = (src: string): Promise<{ width: number; height: number; ratio: number }> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, ratio: img.naturalWidth / img.naturalHeight });
-          img.onerror = reject;
-          img.src = src;
-        });
-      };
+      const renderAndCapture = async (htmlContent: string) => {
+          container.innerHTML = htmlContent;
+          const images = Array.from(container.getElementsByTagName('img'));
+          await Promise.all(images.map(img => new Promise(resolve => {
+              if (img.complete) resolve(null);
+              else { img.onload = resolve; img.onerror = resolve; }
+          })));
 
-      const sanitizeText = (text: string) => {
-        return text
-          .replace(/[\u2018\u2019]/g, "'")
-          .replace(/[\u201C\u201D]/g, '"')
-          .replace(/[\u2013\u2014]/g, '-')
-          .replace(/[^\x00-\xFF]/g, "");
-      };
-
-      // Template-specific configurations
-      const templateConfig = {
-        classic: { titleFont: 'times', bodyFont: 'times', titleSize: 32, bodySize: 14, accentColor: [0, 0, 0] as [number, number, number], bgColor: null as [number, number, number] | null },
-        modern: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 36, bodySize: 13, accentColor: [41, 98, 255] as [number, number, number], bgColor: [245, 247, 250] as [number, number, number] },
-        minimalist: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 28, bodySize: 12, accentColor: [80, 80, 80] as [number, number, number], bgColor: null as [number, number, number] | null },
-        storybook: { titleFont: 'times', bodyFont: 'times', titleSize: 34, bodySize: 15, accentColor: [139, 69, 19] as [number, number, number], bgColor: [255, 253, 240] as [number, number, number] },
-        magazine: { titleFont: 'helvetica', bodyFont: 'helvetica', titleSize: 40, bodySize: 12, accentColor: [220, 20, 60] as [number, number, number], bgColor: [250, 250, 250] as [number, number, number] },
-      };
-      const tpl = templateConfig[template];
-
-      const drawPageBg = () => {
-        if (tpl.bgColor) {
-          doc.setFillColor(tpl.bgColor[0], tpl.bgColor[1], tpl.bgColor[2]);
-          doc.rect(0, 0, pageWidth, pageHeight, 'F');
-        }
-      };
-
-      const drawPageNumber = (num: number) => {
-        doc.setFont(tpl.bodyFont, 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(150);
-        if (template === 'magazine') {
-          doc.text(String(num), pageWidth - 40, pageHeight - 20, { align: 'right' });
-        } else {
-          doc.text(String(num), pageWidth / 2, pageHeight - 20, { align: 'center' });
-        }
-        doc.setTextColor(0);
+          const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#FFFBF0' });
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          return { imgData, imgHeight };
       };
 
       // --- Cover Page ---
-      try {
-        const coverDims = await getImageDimensions(coverUrl);
-        let coverW = pageWidth;
-        let coverH = pageWidth / coverDims.ratio;
-        if (coverH < pageHeight) { coverH = pageHeight; coverW = pageHeight * coverDims.ratio; }
-        const coverX = (pageWidth - coverW) / 2;
-        const coverY = (pageHeight - coverH) / 2;
-        doc.addImage(coverUrl, 'JPEG', coverX, coverY, coverW, coverH);
-
-        // Template-specific cover overlay
-        if (template === 'modern') {
-          doc.setFillColor(0, 0, 0);
-          doc.setGState(new doc.GState({ opacity: 0.5 }));
-          doc.rect(0, pageHeight * 0.6, pageWidth, pageHeight * 0.4, 'F');
-          doc.setGState(new doc.GState({ opacity: 1 }));
-          doc.setFont(tpl.titleFont, 'bold');
-          doc.setFontSize(tpl.titleSize);
-          doc.setTextColor(255, 255, 255);
-          const coverTitleLines = doc.splitTextToSize(sanitizeText(title), pageWidth - 80);
-          doc.text(coverTitleLines, pageWidth / 2, pageHeight * 0.72, { align: 'center' });
-          doc.setTextColor(0);
-        } else if (template === 'magazine') {
-          doc.setFillColor(220, 20, 60);
-          doc.setGState(new doc.GState({ opacity: 0.85 }));
-          doc.rect(0, 0, pageWidth, 100, 'F');
-          doc.setGState(new doc.GState({ opacity: 1 }));
-          doc.setFont(tpl.titleFont, 'bold');
-          doc.setFontSize(18);
-          doc.setTextColor(255, 255, 255);
-          doc.text('STORYSPARK MAGAZINE', pageWidth / 2, 55, { align: 'center' });
-          doc.setFillColor(0, 0, 0);
-          doc.setGState(new doc.GState({ opacity: 0.6 }));
-          doc.rect(0, pageHeight - 160, pageWidth, 160, 'F');
-          doc.setGState(new doc.GState({ opacity: 1 }));
-          doc.setFont(tpl.titleFont, 'bold');
-          doc.setFontSize(tpl.titleSize);
-          doc.setTextColor(255, 255, 255);
-          const coverTitleLines = doc.splitTextToSize(sanitizeText(title), pageWidth - 80);
-          doc.text(coverTitleLines, pageWidth / 2, pageHeight - 100, { align: 'center' });
-          doc.setTextColor(0);
-        }
-      } catch (e) {
-        console.error("Could not load cover image", e);
-        // Fallback: text-only cover
-        drawPageBg();
-        doc.setFont(tpl.titleFont, 'bold');
-        doc.setFontSize(tpl.titleSize + 8);
-        doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        const coverTitleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
-        doc.text(coverTitleLines, pageWidth / 2, pageHeight / 2, { align: 'center' });
-        doc.setTextColor(0);
-      }
-
-      // --- Title Page ---
-      doc.addPage();
-      drawPageBg();
-
-      if (template === 'minimalist') {
-        doc.setDrawColor(80, 80, 80);
-        doc.setLineWidth(0.5);
-        doc.line(margin, pageHeight / 2 - 60, pageWidth - margin, pageHeight / 2 - 60);
-        doc.setFont(tpl.titleFont, 'bold');
-        doc.setFontSize(tpl.titleSize);
-        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
-        doc.text(titleLines, pageWidth / 2, pageHeight / 2, { align: 'center' });
-        doc.line(margin, pageHeight / 2 + 30, pageWidth - margin, pageHeight / 2 + 30);
-        doc.setFont(tpl.bodyFont, 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(120);
-        doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
-        doc.setTextColor(0);
-      } else if (template === 'storybook') {
-        doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        doc.setLineWidth(2);
-        doc.rect(margin - 10, margin - 10, contentWidth + 20, pageHeight - margin * 2 + 20);
-        doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
-        doc.setFont(tpl.titleFont, 'bolditalic');
-        doc.setFontSize(tpl.titleSize);
-        doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth - 20);
-        doc.text(titleLines, pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
-        doc.setFont(tpl.bodyFont, 'italic');
-        doc.setFontSize(14);
-        doc.text("~ A StorySpark Tale ~", pageWidth / 2, pageHeight / 2 + 40, { align: 'center' });
-        doc.setTextColor(0);
-      } else if (template === 'magazine') {
-        doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        doc.rect(0, 0, pageWidth, 6, 'F');
-        doc.setFont(tpl.titleFont, 'bold');
-        doc.setFontSize(tpl.titleSize);
-        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
-        doc.text(titleLines, pageWidth / 2, pageHeight / 3, { align: 'center' });
-        doc.setFont(tpl.bodyFont, 'normal');
-        doc.setFontSize(12);
-        doc.setTextColor(100);
-        doc.text("A StorySpark Publication", pageWidth / 2, pageHeight / 3 + 50, { align: 'center' });
-        doc.setDrawColor(200);
-        doc.line(margin + 80, pageHeight / 3 + 65, pageWidth - margin - 80, pageHeight / 3 + 65);
-        doc.setTextColor(0);
-      } else {
-        // Classic & Modern title pages
-        doc.setFont(tpl.titleFont, 'bold');
-        doc.setFontSize(tpl.titleSize);
-        if (template === 'modern') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        const titleLines = doc.splitTextToSize(sanitizeText(title), contentWidth);
-        const titleBlockHeight = titleLines.length * tpl.titleSize * 1.15;
-        doc.text(titleLines, pageWidth / 2, (pageHeight / 2) - (titleBlockHeight / 2), { align: 'center' });
-        doc.setTextColor(0);
-        doc.setFont(tpl.bodyFont, 'normal');
-        doc.setFontSize(12);
-        doc.text("Generated by StorySpark", pageWidth / 2, pageHeight - margin, { align: 'center' });
-      }
+      let coverHtml = `
+        <div style="position: relative; height: 1122px; width: 794px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <img src="${coverUrl}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" crossorigin="anonymous" />
+            <div style="position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.7) 100%);"></div>
+            <div style="position: relative; z-index: 10; padding: 40px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.2); border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); text-align: center; max-width: 80%;">
+              <h1 style="font-family: 'Playfair Display', serif; font-size: 64px; color: #ffffff; line-height: 1.2; text-shadow: 0 4px 12px rgba(0,0,0,0.5); margin: 0;">${title}</h1>
+            </div>
+        </div>
+      `;
+      const cover = await renderAndCapture(coverHtml);
+      doc.addImage(cover.imgData, 'JPEG', 0, 0, imgWidth, cover.imgHeight);
 
       // --- Story Pages ---
-      let pageNumber = 1;
-      let currentY = margin;
-
-      for (let si = 0; si < segments.length; si++) {
-        const segment = segments[si];
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
         doc.addPage();
-        drawPageBg();
-        drawPageNumber(pageNumber++);
-        currentY = margin;
-
-        // Template-specific decorations
-        if (template === 'storybook') {
-          doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-          doc.setLineWidth(1);
-          doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
-          currentY = margin + 10;
-        } else if (template === 'magazine') {
-          doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-          doc.rect(0, 0, pageWidth, 4, 'F');
-          currentY = margin + 10;
-        } else if (template === 'modern') {
-          doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-          doc.rect(margin, margin, 3, 30, 'F');
-          currentY = margin;
-        }
-
-        // Image
-        if (segment.imageUrl) {
-          try {
-            const imgDims = await getImageDimensions(segment.imageUrl);
-            let imgW = contentWidth;
-            let imgH = contentWidth / imgDims.ratio;
-            const maxImgHeight = pageHeight * 0.55;
-            if (imgH > maxImgHeight) { imgH = maxImgHeight; imgW = maxImgHeight * imgDims.ratio; }
-
-            if (template === 'magazine' && si % 2 === 1) {
-              // Magazine: alternate image positioning (full-bleed)
-              doc.addImage(segment.imageUrl, 'JPEG', 0, 0, pageWidth, pageHeight * 0.45);
-              currentY = pageHeight * 0.45 + 20;
-            } else if (template === 'minimalist') {
-              // Minimalist: smaller centered image
-              const smallW = contentWidth * 0.7;
-              const smallH = smallW / imgDims.ratio;
-              const clampedH = Math.min(smallH, maxImgHeight * 0.7);
-              const clampedW = clampedH === smallH ? smallW : clampedH * imgDims.ratio;
-              doc.addImage(segment.imageUrl, 'JPEG', (pageWidth - clampedW) / 2, currentY, clampedW, clampedH);
-              currentY += clampedH + 30;
-            } else {
-              const imgX = margin + (contentWidth - imgW) / 2;
-              doc.addImage(segment.imageUrl, 'JPEG', imgX, currentY, imgW, imgH);
-              currentY += imgH + 30;
-            }
-          } catch (e) {
-            console.error("Failed to load segment image", e);
-          }
-        }
-
-        // Text
-        doc.setFont(tpl.bodyFont, 'normal');
-        doc.setFontSize(tpl.bodySize);
-        const lineHeight = tpl.bodySize * 1.6;
-        const textLines = doc.splitTextToSize(sanitizeText(segment.paragraph), contentWidth);
-
-        for (let i = 0; i < textLines.length; i++) {
-          if (currentY + lineHeight > pageHeight - 40) {
-            doc.addPage();
-            drawPageBg();
-            drawPageNumber(pageNumber++);
-            if (template === 'storybook') {
-              doc.setDrawColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-              doc.setLineWidth(1);
-              doc.rect(margin - 5, margin - 5, contentWidth + 10, pageHeight - margin * 2 + 10);
-            } else if (template === 'magazine') {
-              doc.setFillColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-              doc.rect(0, 0, pageWidth, 4, 'F');
-            }
-            doc.setFont(tpl.bodyFont, 'normal');
-            doc.setFontSize(tpl.bodySize);
-            currentY = margin;
-          }
-
-          if (template === 'minimalist') {
-            doc.text(textLines[i], pageWidth / 2, currentY + 10, { align: 'center' });
-          } else {
-            doc.text(textLines[i], margin, currentY + 10);
-          }
-          currentY += lineHeight;
-        }
+        
+        let pageHtml = `
+          <div style="padding: 60px; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; background: #0f172a; color: #f8fafc;">
+              ${segment.imageUrl ? `<div style="text-align: center; margin-bottom: 40px;"><img src="${segment.imageUrl}" style="width: 100%; height: 450px; object-fit: cover; border-radius: 24px; box-shadow: 0 16px 32px rgba(0,0,0,0.4);" crossorigin="anonymous" /></div>` : ''}
+              <p style="font-family: 'Playfair Display', serif; font-size: 28px; line-height: 1.8; color: #e2e8f0; text-align: justify; padding: 0 20px;">${segment.paragraph}</p>
+              <div style="margin-top: auto; text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; color: #64748b; font-weight: bold; letter-spacing: 1px;">- ${i + 1} -</div>
+          </div>
+        `;
+        
+        const page = await renderAndCapture(pageHtml);
+        doc.addImage(page.imgData, 'JPEG', 0, 0, imgWidth, page.imgHeight);
       }
-      
-      // The End
-      const endText = template === 'storybook' ? '~ The End ~' : 'The End';
-      if (currentY + 50 < pageHeight - 40) {
-        doc.setFont(tpl.titleFont, 'italic');
-        doc.setFontSize(14);
-        if (template !== 'classic') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        doc.text(endText, pageWidth / 2, currentY + 40, { align: 'center' });
-      } else {
-        doc.addPage();
-        drawPageBg();
-        doc.setFont(tpl.titleFont, 'italic');
-        doc.setFontSize(14);
-        if (template !== 'classic') doc.setTextColor(tpl.accentColor[0], tpl.accentColor[1], tpl.accentColor[2]);
-        doc.text(endText, pageWidth / 2, pageHeight / 2, { align: 'center' });
-      }
-      doc.setTextColor(0);
+
+      // --- The End ---
+      doc.addPage();
+      let endHtml = `
+        <div style="padding: 60px; text-align: center; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #0f172a;">
+            <p style="font-family: 'Playfair Display', serif; font-style: italic; font-size: 48px; color: #94a3b8;">The End</p>
+        </div>
+      `;
+      const endPage = await renderAndCapture(endHtml);
+      doc.addImage(endPage.imgData, 'JPEG', 0, 0, imgWidth, endPage.imgHeight);
+
+      document.body.removeChild(container);
 
       const safeTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      doc.save(`${safeTitle}_${template}_ebook.pdf`);
+      doc.save(`${safeTitle}_storybook.pdf`);
 
     } catch (e) {
       console.error("Error saving PDF:", e);
-      setError('Failed to save the story as a PDF. An unexpected error occurred while generating the cover image or compiling the file.');
+      setError('Failed to save the story as a PDF. An unexpected error occurred while generating the file.');
     } finally {
       setIsSavingPdf(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center font-sans bg-[#FFFBF0] text-slate-900 selection:bg-blue-100">
+    <motion.div 
+      className="min-h-screen flex flex-col items-center font-sans text-slate-100 selection:bg-purple-500/30"
+      animate={{
+        x: vfx.shakeTrigger > 0 ? [0, -8, 8, -6, 6, -3, 3, 0] : 0,
+        y: vfx.shakeTrigger > 0 ? [0, 6, -6, 4, -4, 2, -2, 0] : 0,
+      }}
+      transition={{ duration: 0.4 }}
+    >
+      <VfxStyleInjector />
+      <VfxScreenOverlays />
+      <VfxQuickHud onOpenStudio={() => setIsVfxStudioOpen(true)} />
+      <VfxStudioPanel isOpen={isVfxStudioOpen} onClose={() => setIsVfxStudioOpen(false)} />
+
+      <BackgroundManager isGenerating={isGenerating} />
       
-      <header className="w-full p-4 sticky top-0 z-10 flex justify-between items-center bg-[#FFFBF0]/80 backdrop-blur-md border-b border-yellow-200/80">
-        <div className="text-left">
-          <h1 className="text-2xl md:text-4xl font-black text-blue-500" style={{ textShadow: '2px 2px 0px rgba(255, 251, 235, 0.8), 3px 3px 0px rgba(37, 99, 235, 0.15)' }}>
-            StorySpark
-          </h1>
-          <p className="hidden md:block mt-1 text-md text-blue-900/60">
-            Ignite your imagination.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-1 sm:gap-2">
+      <header className="w-full p-4 sticky top-0 z-10 flex flex-col gap-2 bg-white/5 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+        <div className="flex justify-between items-center w-full">
+          <div className="text-left flex items-center gap-4">
+            <div>
+              <h1 className="text-2xl md:text-4xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-300 to-indigo-300">
+                StorySpark
+              </h1>
+              <p className="hidden md:block mt-1 text-md text-purple-200/60">
+                Ignite your imagination.
+              </p>
+            </div>
+            <Link to="/library" className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-purple-200 transition-colors">
+              <BookText className="w-5 h-5" />
+              <span className="font-semibold hidden sm:inline">Library</span>
+            </Link>
+          </div>
+          
+          <div className="flex items-center gap-1 sm:gap-2">
           <div className="relative flex items-center">
-            <LanguagesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500 pointer-events-none z-10" />
+            <LanguagesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-300 pointer-events-none z-10" />
             <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="pl-10 pr-9 py-2.5 bg-blue-50/50 text-blue-800 font-semibold text-base rounded-full appearance-none focus:outline-none cursor-pointer hover:bg-blue-100/60 transition-colors"
+                className="pl-10 pr-9 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 text-white font-semibold text-base rounded-full appearance-none focus:outline-none cursor-pointer hover:bg-white/20 transition-colors shadow-inner"
                 aria-label="Select story language"
             >
-                {languages.map(lang => <option className="bg-white" key={lang} value={lang}>{lang}</option>)}
+                {languages.map(lang => <option className="bg-slate-800 text-white" key={lang} value={lang}>{lang}</option>)}
             </select>
-            <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600 pointer-events-none" />
+            <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300 pointer-events-none" />
           </div>
           
           <AnimatePresence>
@@ -563,31 +542,24 @@ function App() {
                 <button
                   onClick={handleRegenerate}
                   title="Regenerate Story"
-                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+                  className="flex items-center justify-center w-12 h-12 text-purple-200 hover:bg-white/20 hover:text-white rounded-full transition-all duration-200 hover:scale-110 active:scale-100 bg-white/5 border border-white/10"
                 >
                   <RefreshCwIcon className="w-6 h-6" />
                 </button>
                 <button
                   onClick={() => setIsVideoModalOpen(true)}
                   title="Watch Story Video"
-                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+                  className="flex items-center justify-center w-12 h-12 text-purple-200 hover:bg-white/20 hover:text-white rounded-full transition-all duration-200 hover:scale-110 active:scale-100 bg-white/5 border border-white/10"
                 >
                   <VideoIcon className="w-6 h-6" />
-                </button>
-                <button
-                  onClick={() => setIsPublishOpen(!isPublishOpen)}
-                  title="Publish & Distribute"
-                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
-                >
-                  <ShareIcon className="w-6 h-6" />
                 </button>
                 <button
                   onClick={handleSaveAsPdf}
                   disabled={isSavingPdf}
                   title="Save as PDF Book"
-                  className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+                  className="flex items-center justify-center w-12 h-12 text-purple-200 hover:bg-white/20 hover:text-white rounded-full transition-all duration-200 hover:scale-110 active:scale-100 bg-white/5 border border-white/10"
                 >
-                  {isSavingPdf ? <div className="w-5 h-5 border-2 border-t-transparent border-blue-600 rounded-full animate-spin" /> : <DownloadIcon className="w-6 h-6" />}
+                  {isSavingPdf ? <div className="w-5 h-5 border-2 border-t-transparent border-purple-200 rounded-full animate-spin" /> : <DownloadIcon className="w-6 h-6" />}
                 </button>
               </motion.div>
             )}
@@ -596,11 +568,24 @@ function App() {
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
             title="Settings"
-            className="flex items-center justify-center w-12 h-12 text-blue-600 hover:bg-blue-100/60 rounded-full transition-all duration-200 hover:scale-110 active:scale-100"
+            className="flex items-center justify-center w-12 h-12 text-purple-200 hover:bg-white/20 hover:text-white rounded-full transition-all duration-200 hover:scale-110 active:scale-100 bg-white/5 border border-white/10"
           >
             <SettingsIcon className="w-6 h-6" />
           </button>
         </div>
+        </div>
+        
+        {/* Progress Bar */}
+        {segments.length > 0 && (
+          <div className="w-full max-w-4xl mx-auto h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, (segments.length / getTargetLength()) * 100)}%` }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              className="h-full bg-gradient-to-r from-purple-400 to-indigo-400 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+            />
+          </div>
+        )}
       </header>
       
       <main className="w-full max-w-4xl flex-grow flex flex-col p-4 pt-8">
@@ -616,7 +601,6 @@ function App() {
              >
                 <SettingsPanel
                     onSave={handleSaveSettings}
-                    onAutoSave={handleAutoSave}
                     currentApiKey={userApiKey}
                     currentSettings={settings}
                 />
@@ -624,34 +608,26 @@ function App() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isPublishOpen && (
-            <motion.div
-              key="publish-panel"
-              initial={{ opacity: 0, height: 0, y: -20 }}
-              animate={{ opacity: 1, height: 'auto', y: 0 }}
-              exit={{ opacity: 0, height: 0, y: -20 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="overflow-hidden mb-8"
-            >
-              <PublishPlatforms isVisible={true} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {title && <h2 className="text-4xl sm:text-5xl font-black text-center mb-10 text-blue-900/90">{title}</h2>}
+        {title && <h2 className="text-4xl sm:text-5xl font-black text-center mb-10 text-white/90 drop-shadow-md">{title}</h2>}
         
         {segments.length > 0 ? (
           <>
-            <StoryDisplay segments={segments} />
-            {!isGenerating && <RatingSystem onRate={(rating) => console.log(`User rated: ${rating}`)} />}
+            <StoryDisplay 
+              segments={segments} 
+              onContinue={handleContinue}
+              onRebranch={handleRebranch}
+              isGenerating={isGenerating}
+            />
+            {!isGenerating && (!segments[segments.length - 1]?.choices || segments[segments.length - 1]?.choices?.length === 0) && (
+              <RatingSystem onRate={(rating) => console.log(`User rated: ${rating}`)} />
+            )}
           </>
         ) : (
           <div className="flex-grow flex flex-col items-center justify-center text-center">
              {!isGenerating && !error && (
                <>
-                 <HeroIllustration className="w-64 h-64 md:w-80 md:h-80 text-yellow-400" />
-                 <p className="mt-4 text-2xl text-slate-400">
+                 <HeroIllustration className="w-64 h-64 md:w-80 md:h-80 text-purple-300/50" />
+                 <p className="mt-4 text-2xl text-purple-200/60">
                    Tell me what your story is about...
                  </p>
                </>
@@ -659,24 +635,12 @@ function App() {
           </div>
         )}
         
-        {error && <div className="text-red-700 text-center font-bold p-4 bg-red-100 rounded-lg max-w-2xl mx-auto border border-red-200">{error}</div>}
-
-        {/* Fallback Notification */}
-        <AnimatePresence>
-          {fallbackNotice && (
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 40 }}
-              className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-yellow-100 border border-yellow-300 text-yellow-900 px-6 py-3 rounded-xl shadow-lg text-sm font-medium max-w-md text-center"
-            >
-              Provider <strong>{fallbackNotice.originalProvider}</strong> failed. Using <strong>{fallbackNotice.fallbackProvider}</strong> as fallback.
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {error && <div className="text-purple-200 text-center font-medium p-4 bg-slate-900/80 backdrop-blur-md rounded-xl max-w-2xl mx-auto border border-purple-500/30 shadow-[0_8px_32px_rgba(88,28,135,0.2)]">{error}</div>}
       </main>
 
-      <footer className="w-full p-6 sticky bottom-0 bg-gradient-to-t from-[#FFFBF0] to-transparent">
+      <AudioController segments={segments} />
+
+      <footer className="w-full p-6 sticky bottom-0 bg-gradient-to-t from-slate-950 to-transparent">
         <StoryInput 
             onGenerate={handleGenerate} 
             isGenerating={isGenerating} 
@@ -692,11 +656,25 @@ function App() {
           segments={segments}
           title={title}
           genre={settings.genre}
-          videoTemplate={settings.videoTemplate}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
 
-export default App;
+function StoryCreator() {
+  return (
+    <VfxProvider>
+      <StoryCreatorContent />
+    </VfxProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<StoryCreator />} />
+      <Route path="/library" element={<StoryLibrary />} />
+    </Routes>
+  );
+}

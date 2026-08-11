@@ -7,12 +7,21 @@ export interface StorySegment {
   audioUrl?: string;
   isLoadingImage?: boolean;
   isLoadingAudio?: boolean;
+  choices?: string[];
+  selectedChoice?: string;
+}
+
+export interface SavedStory {
+  id: string;
+  title: string;
+  timestamp: number;
+  segments: StorySegment[];
 }
 
 export interface Settings {
   storyLength: 'very_short' | 'short' | 'medium' | 'long' | 'very_long';
-  genre: 'fantasy' | 'sci-fi' | 'mystery' | 'adventure' | 'funny' | 'fairy_tale' | 'educational' | 'bedtime' | 'fable' | 'superhero';
-  imageStyle: 'whimsical' | 'cartoon' | 'realistic' | 'watercolor' | '3d_render' | 'pixel_art' | 'anime' | 'oil_painting' | 'sketch' | 'pencil_sketch' | 'claymation' | 'mosaic';
+  genre: 'fantasy' | 'sci-fi' | 'mystery' | 'adventure' | 'funny' | 'fairy_tale' | 'educational' | 'bedtime' | 'fable' | 'superhero' | 'thriller' | 'romance' | 'horror' | 'historical' | 'crime' | 'drama';
+  imageStyle: 'whimsical' | 'cartoon' | 'realistic' | 'watercolor' | '3d_render' | 'pixel_art' | 'anime' | 'oil_painting' | 'sketch' | 'pencil_sketch' | 'claymation' | 'mosaic' | 'disney_animation' | 'pixar_3d' | 'vintage_disney';
   generateAudio: boolean;
   pdfMargin: number;
   // Audio Generation
@@ -30,12 +39,6 @@ export interface Settings {
 
   // Content Settings
   targetAudience: 'children' | 'teen' | 'adult';
-
-  // PDF Template
-  pdfTemplate: 'classic' | 'modern' | 'minimalist' | 'storybook' | 'magazine';
-
-  // Video Template
-  videoTemplate: 'cinematic' | 'slideshow' | 'kenburns' | 'documentary' | 'social';
 
   // API Keys
   groqApiKey?: string;

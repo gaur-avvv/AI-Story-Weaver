@@ -2,9 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XIcon, PlayIcon, PauseIcon, DownloadIcon, AudioWaveform } from './icons';
 import { StorySegment } from '../types';
-import { getMusicForGenre } from '../services/musicService';
-
-type VideoTemplate = 'cinematic' | 'slideshow' | 'kenburns' | 'documentary' | 'social';
+import { getMusicDataUrlForGenre, getProceduralMusicBuffer } from '../services/musicService';
 
 interface VideoModalProps {
   isOpen: boolean;
@@ -12,33 +10,66 @@ interface VideoModalProps {
   segments: StorySegment[];
   title: string;
   genre?: string;
-  videoTemplate?: VideoTemplate;
 }
 
-const VIDEO_TEMPLATE_CONFIGS: Record<VideoTemplate, { label: string; width: number; height: number; textStyle: string; overlayOpacity: number; fontSize: number }> = {
-  cinematic: { label: 'Cinematic', width: 1280, height: 720, textStyle: 'italic', overlayOpacity: 0.6, fontSize: 30 },
-  slideshow: { label: 'Slideshow', width: 1280, height: 720, textStyle: 'normal', overlayOpacity: 0.7, fontSize: 28 },
-  kenburns: { label: 'Ken Burns', width: 1280, height: 720, textStyle: 'italic', overlayOpacity: 0.5, fontSize: 32 },
-  documentary: { label: 'Documentary', width: 1280, height: 720, textStyle: 'normal', overlayOpacity: 0.75, fontSize: 26 },
-  social: { label: 'Social Media', width: 720, height: 1280, textStyle: 'normal', overlayOpacity: 0.65, fontSize: 34 },
-};
+// Helper to split text into short, natural lines for subtitle presentation
+function splitIntoLines(text: string, maxWordsPerLine = 8): string[] {
+  if (!text) return [''];
+  const sentences = text.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [text];
+  const lines: string[] = [];
 
-export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segments, title, genre = 'default', videoTemplate = 'cinematic' }) => {
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    let currentLine: string[] = [];
+
+    for (const word of words) {
+      currentLine.push(word);
+      if (currentLine.length >= maxWordsPerLine) {
+        lines.push(currentLine.join(' '));
+        currentLine = [];
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push(currentLine.join(' '));
+    }
+  }
+
+  return lines.length > 0 ? lines : [text];
+}
+
+export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segments, title, genre = 'default' }) => {
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [isMusicEnabled, setIsMusicEnabled] = useState(true);
+  const [musicUrl, setMusicUrl] = useState<string>('');
+  const [transitionEffect, setTransitionEffect] = useState<'kenburns' | 'fade' | 'slide'>('kenburns');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Reset state when modal opens
+  const currentSegment = segments[currentSegmentIndex];
+  const segmentLines = currentSegment ? splitIntoLines(currentSegment.paragraph || '') : [''];
+
+  // Generate background music URL asynchronously when modal opens or genre changes
+  useEffect(() => {
+    if (isOpen && genre) {
+      getMusicDataUrlForGenre(genre, 15).then(url => {
+        setMusicUrl(url);
+      }).catch(err => {
+        console.warn("Failed to generate background music URL:", err);
+      });
+    }
+  }, [isOpen, genre]);
+
+  // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setCurrentSegmentIndex(0);
+      setCurrentLineIndex(0);
       setIsPlaying(false);
     } else {
       if (audioRef.current) {
@@ -52,83 +83,70 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
     }
   }, [isOpen]);
 
-  // Preload next segment assets
+  // Handle Playback & Line-by-Line Subtitle Timers
   useEffect(() => {
-    if (!isOpen) return;
-    const nextIndex = currentSegmentIndex + 1;
-    if (nextIndex < segments.length) {
-        const nextSegment = segments[nextIndex];
-        if (nextSegment.imageUrl) {
-            const img = new Image();
-            img.src = nextSegment.imageUrl;
-        }
-        if (nextSegment.audioUrl) {
-            const audio = new Audio();
-            audio.src = nextSegment.audioUrl.startsWith('data:') 
-                ? nextSegment.audioUrl 
-                : `data:audio/mp3;base64,${nextSegment.audioUrl}`;
-        }
+    if (!isOpen || !isPlaying || !currentSegment) return;
+
+    // Handle Background Music
+    if (musicRef.current && isMusicEnabled && musicUrl) {
+      if (musicRef.current.paused) {
+        musicRef.current.volume = 0.12;
+        musicRef.current.loop = true;
+        musicRef.current.play().catch(() => {});
+      }
+    } else if (musicRef.current) {
+      musicRef.current.pause();
     }
-  }, [currentSegmentIndex, isOpen, segments]);
 
-  // Handle Playback Logic
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const currentSegment = segments[currentSegmentIndex];
-    if (!currentSegment) return;
-
-    if (isPlaying) {
-      // Handle Background Music
-      if (musicRef.current && isMusicEnabled) {
-        if (musicRef.current.paused) {
-            musicRef.current.volume = 0.1; // Low volume for background
-            musicRef.current.loop = true;
-            musicRef.current.play().catch(e => console.error("Music play failed", e));
+    // Handle Speech Audio Narration
+    let audioDurationMs = 6000;
+    if (audioRef.current) {
+      if (currentSegment.audioUrl) {
+        const src = currentSegment.audioUrl.startsWith('data:') || currentSegment.audioUrl.startsWith('http') || currentSegment.audioUrl.startsWith('blob:')
+          ? currentSegment.audioUrl 
+          : `data:audio/mp3;base64,${currentSegment.audioUrl}`;
+         
+        if (audioRef.current.src !== src) {
+          audioRef.current.src = src;
         }
-      } else if (musicRef.current) {
-        musicRef.current.pause();
-      }
-
-      if (audioRef.current) {
-        // If audio exists, play it
-        if (currentSegment.audioUrl) {
-           // Check if it's base64 or URL
-           const src = currentSegment.audioUrl.startsWith('data:') 
-             ? currentSegment.audioUrl 
-             : `data:audio/mp3;base64,${currentSegment.audioUrl}`;
-           
-           if (audioRef.current.src !== src) {
-             audioRef.current.src = src;
-           }
-           audioRef.current.play().catch(e => console.error("Audio play failed", e));
-        } else {
-          // No audio, just wait a bit then advance (simulated duration)
-          const timer = setTimeout(() => {
-             handleNext();
-          }, 6000); // 6 seconds default
-          return () => clearTimeout(timer);
-        }
-      }
-    } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      if (musicRef.current) {
-        musicRef.current.pause();
+        audioRef.current.play().catch(e => {
+          console.warn("Speech audio play prevented or failed:", e);
+        });
       }
     }
-  }, [currentSegmentIndex, isPlaying, isOpen, segments, isMusicEnabled]);
+
+    // Line-by-Line progression timer
+    const wordsCount = (currentSegment.paragraph || '').split(/\s+/).filter(Boolean).length;
+    audioDurationMs = Math.max(4000, wordsCount * 320);
+
+    const lineIntervalMs = Math.max(1800, audioDurationMs / Math.max(1, segmentLines.length));
+    setCurrentLineIndex(0);
+
+    const lineTimer = setInterval(() => {
+      setCurrentLineIndex(prev => {
+        if (prev < segmentLines.length - 1) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, lineIntervalMs);
+
+    return () => {
+      clearInterval(lineTimer);
+    };
+  }, [currentSegmentIndex, isPlaying, isOpen, segments, isMusicEnabled, musicUrl]);
 
   const handleAudioEnded = () => {
     if (currentSegmentIndex < segments.length - 1) {
       setCurrentSegmentIndex(prev => prev + 1);
+      setCurrentLineIndex(0);
     } else {
       setIsPlaying(false);
       setCurrentSegmentIndex(0);
+      setCurrentLineIndex(0);
       if (musicRef.current) {
-          musicRef.current.pause();
-          musicRef.current.currentTime = 0;
+        musicRef.current.pause();
+        musicRef.current.currentTime = 0;
       }
     }
   };
@@ -136,239 +154,303 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
   const handleNext = () => {
     if (currentSegmentIndex < segments.length - 1) {
       setCurrentSegmentIndex(prev => prev + 1);
+      setCurrentLineIndex(0);
     } else {
       setIsPlaying(false);
       setCurrentSegmentIndex(0);
+      setCurrentLineIndex(0);
       if (musicRef.current) {
-          musicRef.current.pause();
-          musicRef.current.currentTime = 0;
+        musicRef.current.pause();
+        musicRef.current.currentTime = 0;
       }
     }
   };
 
-  const handlePrev = () => {
-    if (currentSegmentIndex > 0) {
-      setCurrentSegmentIndex(prev => prev - 1);
-    }
-  };
-
-  const handleExportVideo = async () => {
+  // Fixed & Enhanced Video Export Engine
+  const handleExportVideo = async (format: 'webm' | 'mp4' = 'webm') => {
     if (isExporting) return;
     setIsExporting(true);
     setExportProgress(0);
 
     try {
       const canvas = exportCanvasRef.current;
-      if (!canvas) throw new Error("No canvas");
+      if (!canvas) throw new Error("No export canvas element");
       
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error("No context");
+      if (!ctx) throw new Error("No 2D context");
 
-      // Setup MediaRecorder
-      const stream = canvas.captureStream(30); // 30 FPS
-      const audioDestination = new AudioContext().createMediaStreamDestination();
-      const audioCtx = new AudioContext();
+      // Web Audio Context for synchronous export stream mixing
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      const audioDestination = audioCtx.createMediaStreamDestination();
       
-      // Combine canvas video stream and audio stream
-      const combinedStream = new MediaStream([
-        ...stream.getVideoTracks(),
+      const canvasStream = canvas.captureStream(30);
+      const combinedTracks = [
+        ...canvasStream.getVideoTracks(),
         ...audioDestination.stream.getAudioTracks()
-      ]);
+      ];
+      const combinedStream = new MediaStream(combinedTracks);
 
-      const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9' });
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm';
+
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
       const chunks: Blob[] = [];
       
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+        if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.webm`;
-        a.click();
-        URL.revokeObjectURL(url);
+        
+        if (format === 'mp4') {
+          try {
+            setExportProgress(92);
+            const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+            const { fetchFile } = await import('@ffmpeg/util');
+            const ffmpeg = new FFmpeg();
+            
+            ffmpeg.on('progress', ({ progress }) => {
+              setExportProgress(92 + Math.round(progress * 8));
+            });
+
+            await ffmpeg.load({
+              coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+              wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+            });
+            
+            await ffmpeg.writeFile('input.webm', await fetchFile(blob));
+            await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4']);
+            
+            const mp4Data = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
+            const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
+            
+            const url = URL.createObjectURL(mp4Blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            console.warn("FFmpeg conversion fallback to WebM:", err);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.webm`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.webm`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
         setIsExporting(false);
+        if (audioCtx.state !== 'closed') audioCtx.close();
       };
 
       recorder.start();
 
-      // Setup Background Music for Export
+      // Background Music Layer for Export
       let musicSource: AudioBufferSourceNode | null = null;
-      if (isMusicEnabled && genre) {
-          try {
-              const musicUrl = getMusicForGenre(genre);
-              const musicResponse = await fetch(musicUrl);
-              const musicArrayBuffer = await musicResponse.arrayBuffer();
-              const musicBuffer = await audioCtx.decodeAudioData(musicArrayBuffer);
-              
-              musicSource = audioCtx.createBufferSource();
-              musicSource.buffer = musicBuffer;
-              musicSource.loop = true;
-              
-              // Create gain node for volume control
-              const gainNode = audioCtx.createGain();
-              gainNode.gain.value = 0.1; // Low volume
-              
-              musicSource.connect(gainNode);
-              gainNode.connect(audioDestination);
-              musicSource.start(0);
-          } catch (e) {
-              console.error("Failed to load music for export", e);
-          }
-      }
-
-      // Render Loop
-      for (let i = 0; i < segments.length; i++) {
-        setExportProgress(Math.round(((i) / segments.length) * 100));
-        const segment = segments[i];
-        
-        // Load Image
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = segment.imageUrl || ''; // Handle missing image?
-        });
-
-          // Draw Image to Canvas based on template
-          const tplCfg = VIDEO_TEMPLATE_CONFIGS[videoTemplate];
-          const ratio = Math.max(canvas.width / img.width, canvas.height / img.height);
-          const centerShift_x = (canvas.width - img.width * ratio) / 2;
-          const centerShift_y = (canvas.height - img.height * ratio) / 2;
-        
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          // Ken Burns: apply slight zoom effect
-          if (videoTemplate === 'kenburns') {
-            const kbScale = 1.1 + (i % 2 === 0 ? 0.05 : -0.05);
-            const kbRatio = ratio * kbScale;
-            const kbX = (canvas.width - img.width * kbRatio) / 2;
-            const kbY = (canvas.height - img.height * kbRatio) / 2;
-            ctx.drawImage(img, 0, 0, img.width, img.height, kbX, kbY, img.width * kbRatio, img.height * kbRatio);
-          } else {
-            ctx.drawImage(img, 0, 0, img.width, img.height, centerShift_x, centerShift_y, img.width * ratio, img.height * ratio);
-          }
-
-          // Template-specific text overlay
-          const overlayHeight = videoTemplate === 'social' ? 400 : videoTemplate === 'documentary' ? 200 : 300;
-          const overlayY = canvas.height - overlayHeight;
-
-          if (videoTemplate === 'documentary') {
-            // Documentary: bottom bar with accent line
-            ctx.fillStyle = `rgba(0, 0, 0, ${tplCfg.overlayOpacity})`;
-            ctx.fillRect(0, overlayY, canvas.width, overlayHeight);
-            ctx.fillStyle = '#e63946';
-            ctx.fillRect(0, overlayY, canvas.width, 4);
-          } else if (videoTemplate === 'slideshow') {
-            // Slideshow: simple clean overlay
-            ctx.fillStyle = `rgba(255, 255, 255, ${tplCfg.overlayOpacity})`;
-            ctx.fillRect(40, overlayY + 20, canvas.width - 80, overlayHeight - 40);
-          } else {
-            ctx.fillStyle = `rgba(0, 0, 0, ${tplCfg.overlayOpacity})`;
-            ctx.fillRect(0, overlayY, canvas.width, overlayHeight);
-          }
-        
-          const fontStyle = tplCfg.textStyle === 'italic' ? 'italic ' : '';
-          ctx.font = `${fontStyle}${tplCfg.fontSize}px Arial`;
-          ctx.fillStyle = videoTemplate === 'slideshow' ? '#1a1a2e' : 'white';
-          ctx.textAlign = 'center';
-        
-          // Wrap text
-          const words = segment.paragraph.split(' ');
-          let line = '';
-          let y = overlayY + 50;
-          const maxWidth = canvas.width - 100;
-          const lineHeight = tplCfg.fontSize + 10;
-
-          for(let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + ' ';
-            const metrics = ctx.measureText(testLine);
-            const testWidth = metrics.width;
-            if (testWidth > maxWidth && n > 0) {
-              ctx.fillText(line, canvas.width / 2, y);
-              line = words[n] + ' ';
-              y += lineHeight;
-            } else {
-              line = testLine;
-            }
-          }
-          ctx.fillText(line, canvas.width / 2, y);
-
-          // Documentary: add segment counter
-          if (videoTemplate === 'documentary') {
-            ctx.font = '18px Arial';
-            ctx.fillStyle = 'rgba(255,255,255,0.6)';
-            ctx.textAlign = 'right';
-            ctx.fillText(`${i + 1} / ${segments.length}`, canvas.width - 30, 40);
-            ctx.textAlign = 'center';
-          }
-
-        // Handle Audio
-        if (segment.audioUrl) {
-           try {
-             const audioSrc = segment.audioUrl.startsWith('data:') ? segment.audioUrl : `data:audio/mp3;base64,${segment.audioUrl}`;
-             const audioResponse = await fetch(audioSrc);
-             const arrayBuffer = await audioResponse.arrayBuffer();
-             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-             
-             const source = audioCtx.createBufferSource();
-             source.buffer = audioBuffer;
-             source.connect(audioDestination);
-             source.start(0);
-             
-             // Wait for audio to finish
-             await new Promise(resolve => setTimeout(resolve, audioBuffer.duration * 1000));
-           } catch (e) {
-             console.error(`Failed to process audio for segment ${i}:`, e);
-             // Fallback to 5s delay if audio fails
-             await new Promise(resolve => setTimeout(resolve, 5000));
-           }
-        } else {
-           // Wait 5 seconds if no audio
-           await new Promise(resolve => setTimeout(resolve, 5000));
+      if (isMusicEnabled) {
+        try {
+          const musicBuffer = await getProceduralMusicBuffer(audioCtx, genre, 30);
+          musicSource = audioCtx.createBufferSource();
+          musicSource.buffer = musicBuffer;
+          musicSource.loop = true;
+          
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = 0.08;
+          
+          musicSource.connect(gainNode);
+          gainNode.connect(audioDestination);
+          musicSource.start(0);
+        } catch (e) {
+          console.warn("Background music render skipped:", e);
         }
       }
 
+      // Render Each Story Segment to Canvas
+      for (let i = 0; i < segments.length; i++) {
+        setExportProgress(Math.round(((i) / segments.length) * (format === 'mp4' ? 90 : 98)));
+        const segment = segments[i];
+        
+        // Load Segment Image
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = () => resolve(null);
+          if (segment.imageUrl) img.src = segment.imageUrl;
+          else resolve(null);
+        });
+
+        // Speech Audio Decoding & Buffer Source
+        let durationMs = 6000;
+        let audioSource: AudioBufferSourceNode | null = null;
+        if (segment.audioUrl) {
+          try {
+            let audioSrc = segment.audioUrl;
+            if (!audioSrc.startsWith('data:') && !audioSrc.startsWith('http') && !audioSrc.startsWith('blob:')) {
+              audioSrc = `data:audio/mp3;base64,${segment.audioUrl}`;
+            }
+            const response = await fetch(audioSrc);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            durationMs = Math.max(3500, audioBuffer.duration * 1000);
+            audioSource = audioCtx.createBufferSource();
+            audioSource.buffer = audioBuffer;
+            audioSource.connect(audioDestination);
+          } catch (e) {
+            console.warn(`Speech audio decode fallback for segment ${i}:`, e);
+            const words = (segment.paragraph || '').split(/\s+/).filter(Boolean).length;
+            durationMs = Math.max(4000, words * 320);
+          }
+        } else {
+          const words = (segment.paragraph || '').split(/\s+/).filter(Boolean).length;
+          durationMs = Math.max(4000, words * 320);
+        }
+
+        const lines = splitIntoLines(segment.paragraph || '', 8);
+
+        if (audioSource) {
+          try { audioSource.start(0); } catch (e) {}
+        }
+
+        // Segment Frame Loop
+        await new Promise(resolve => {
+          let start: number | null = null;
+          function drawFrame(now: number) {
+            if (!start) start = now;
+            const elapsed = now - start;
+            const progress = Math.min(1, elapsed / durationMs);
+
+            if (elapsed >= durationMs) {
+              resolve(null);
+              return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Render Background / Image with Ken Burns / Transition Pan
+            if (img.complete && img.naturalWidth > 0) {
+              const ratio = Math.max(canvas.width / img.width, canvas.height / img.height);
+              const baseWidth = img.width * ratio;
+              const baseHeight = img.height * ratio;
+              
+              let zoom = 1 + (progress * 0.08);
+              let panX = (canvas.width - baseWidth) / 2 - (progress * 20);
+              let panY = (canvas.height - baseHeight) / 2;
+
+              if (transitionEffect === 'slide') {
+                panX += (1 - Math.min(1, elapsed / 500)) * 100;
+              }
+
+              const currentWidth = baseWidth * zoom;
+              const currentHeight = baseHeight * zoom;
+
+              ctx.drawImage(img, panX, panY, currentWidth, currentHeight);
+            } else {
+              const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+              gradient.addColorStop(0, '#0f172a');
+              gradient.addColorStop(0.5, '#1e1b4b');
+              gradient.addColorStop(1, '#020617');
+              ctx.fillStyle = gradient;
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // Vignette Gradient at Bottom
+            const botGrad = ctx.createLinearGradient(0, canvas.height - 180, 0, canvas.height);
+            botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            botGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
+            ctx.fillStyle = botGrad;
+            ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
+
+            // Active Line Calculation (Line-by-Line Subtitle Rendering)
+            const activeLineIdx = Math.min(lines.length - 1, Math.floor(progress * lines.length));
+            const currentTextLine = lines[activeLineIdx] || '';
+
+            // Subtitle Box
+            ctx.font = 'bold 32px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const boxWidth = Math.min(canvas.width - 120, ctx.measureText(currentTextLine).width + 80);
+            const boxHeight = 64;
+            const boxX = (canvas.width - boxWidth) / 2;
+            const boxY = canvas.height - boxHeight - 40;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+            ctx.beginPath();
+            ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 16);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 6;
+            ctx.fillText(currentTextLine, canvas.width / 2, boxY + boxHeight / 2);
+            ctx.shadowBlur = 0;
+
+            requestAnimationFrame(drawFrame);
+          }
+          requestAnimationFrame(drawFrame);
+        });
+      }
+
       if (musicSource) {
-          musicSource.stop();
+        try { musicSource.stop(); } catch (e) {}
       }
       recorder.stop();
       setExportProgress(100);
 
     } catch (e) {
-      console.error("Export failed", e);
+      console.error("Export error:", e);
       setIsExporting(false);
-      alert("Failed to export video. Please try again.");
+      alert("Video export encountered an issue. Please try again.");
     }
   };
 
   if (!isOpen) return null;
 
-  const currentSegment = segments[currentSegmentIndex];
-  const musicUrl = genre ? getMusicForGenre(genre) : '';
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+      <div className="relative w-full max-w-4xl bg-slate-900/60 backdrop-blur-2xl border border-white/20 rounded-3xl overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.6)] flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-10">
-          <h3 className="text-white font-bold text-lg drop-shadow-md">{title}</h3>
-          <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
-            <XIcon className="w-6 h-6" />
-          </button>
+          <h3 className="text-white font-bold text-lg drop-shadow-md truncate max-w-md">{title}</h3>
+          <div className="flex items-center gap-2">
+            <select
+              value={transitionEffect}
+              onChange={(e) => setTransitionEffect(e.target.value as any)}
+              className="bg-black/50 border border-white/20 text-xs text-white px-2.5 py-1.5 rounded-lg focus:outline-none backdrop-blur-md"
+            >
+              <option value="kenburns">Ken Burns Pan</option>
+              <option value="fade">Smooth Fade</option>
+              <option value="slide">Slide Transition</option>
+            </select>
+            <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-full text-white transition-colors">
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="relative flex-grow bg-gray-900 flex items-center justify-center overflow-hidden aspect-video">
+        {/* Main Cinema Viewport */}
+        <div className="relative flex-grow bg-black/80 flex items-center justify-center overflow-hidden aspect-video">
            <AnimatePresence mode="popLayout">
              <motion.div 
                key={currentSegmentIndex}
-               initial={{ opacity: 0, scale: 1.05 }}
+               initial={{ opacity: 0, scale: transitionEffect === 'kenburns' ? 1.08 : 1 }}
                animate={{ opacity: 1, scale: 1 }}
                exit={{ opacity: 0 }}
                transition={{ duration: 0.8, ease: "easeInOut" }}
@@ -385,67 +467,88 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
              </motion.div>
            </AnimatePresence>
 
-           {/* Subtitles */}
-           <div className="absolute bottom-0 left-0 right-0 p-8 text-center z-20">
-              <motion.div 
-                key={`bubble-${currentSegmentIndex}`}
-                initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className="relative bg-black/60 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-2xl max-w-2xl mx-auto"
-              >
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-black/60 border-b border-r border-white/10 rotate-45"></div>
-                <p className="text-white text-lg md:text-xl font-medium leading-relaxed">
-                  {currentSegment?.paragraph}
-                </p>
-              </motion.div>
+           {/* Line-by-Line Subtitle Overlay */}
+           <div className="absolute bottom-6 left-0 right-0 p-4 text-center z-20 flex justify-center">
+              <AnimatePresence mode="wait">
+                <motion.div 
+                  key={`line-${currentSegmentIndex}-${currentLineIndex}`}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.25 }}
+                  className="bg-slate-950/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 shadow-2xl max-w-xl mx-auto"
+                >
+                  <p className="text-white text-base md:text-lg font-semibold leading-snug tracking-wide drop-shadow-md">
+                    {segmentLines[currentLineIndex] || currentSegment?.paragraph}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
            </div>
         </div>
 
-        {/* Controls */}
-        <div className="p-6 bg-gray-900 border-t border-gray-800 flex items-center justify-between">
-           <div className="flex items-center gap-4">
+        {/* Controls Bar */}
+        <div className="p-4 bg-white/5 border-t border-white/10 flex items-center justify-between backdrop-blur-md">
+           <div className="flex items-center gap-3">
               <button 
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="w-12 h-12 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-all hover:scale-105 active:scale-95"
+                className="w-11 h-11 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
               >
-                {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-1" />}
+                {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
               </button>
               
               <button
                 onClick={() => setIsMusicEnabled(!isMusicEnabled)}
-                className={`p-3 rounded-full transition-colors ${isMusicEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-800 text-gray-500'}`}
+                className={`p-2.5 rounded-full transition-colors border ${isMusicEnabled ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'}`}
                 title="Toggle Background Music"
               >
                 <AudioWaveform className="w-5 h-5" />
               </button>
 
-              <div className="text-gray-400 text-sm font-mono">
-                {currentSegmentIndex + 1} / {segments.length}
+              <div className="text-white/60 text-xs font-mono font-bold">
+                Segment {currentSegmentIndex + 1} / {segments.length}
               </div>
            </div>
 
-           <button 
-             onClick={handleExportVideo}
-             disabled={isExporting}
-             className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors disabled:opacity-50"
-           >
-             {isExporting ? (
-               <>
-                 <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin" />
-                 <span>Exporting {exportProgress}%</span>
-               </>
-             ) : (
-               <>
-                 <DownloadIcon className="w-4 h-4" />
-                 <span>Save Video</span>
-               </>
-             )}
-           </button>
+           <div className="flex items-center gap-2.5">
+             <button 
+               onClick={() => handleExportVideo('webm')}
+               disabled={isExporting}
+               className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors disabled:opacity-50 text-xs font-semibold backdrop-blur-md shadow-md"
+             >
+               {isExporting ? (
+                 <>
+                   <div className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                   <span>Exporting {exportProgress}%</span>
+                 </>
+               ) : (
+                 <>
+                   <DownloadIcon className="w-4 h-4" />
+                   <span>Save WebM</span>
+                 </>
+               )}
+             </button>
+             
+             <button 
+               onClick={() => handleExportVideo('mp4')}
+               disabled={isExporting}
+               className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl transition-colors disabled:opacity-50 text-xs font-semibold shadow-md"
+             >
+               {isExporting ? (
+                 <>
+                   <div className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                   <span>Exporting...</span>
+                 </>
+               ) : (
+                 <>
+                   <DownloadIcon className="w-4 h-4" />
+                   <span>Save MP4</span>
+                 </>
+               )}
+             </button>
+           </div>
         </div>
 
-        {/* Hidden Audio Element for Preview */}
+        {/* Hidden Speech Audio Element */}
         <audio 
           ref={audioRef} 
           onEnded={handleAudioEnded}
@@ -453,20 +556,22 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
         />
         
         {/* Background Music Element */}
-        <audio
+        {musicUrl && (
+          <audio
             ref={musicRef}
             src={musicUrl}
             loop
             className="hidden"
-        />
+          />
+        )}
 
-            {/* Hidden Canvas for Export */}
-            <canvas 
-              ref={exportCanvasRef}
-              width={VIDEO_TEMPLATE_CONFIGS[videoTemplate].width}
-              height={VIDEO_TEMPLATE_CONFIGS[videoTemplate].height}
-              className="hidden"
-            />
+        {/* Hidden Canvas for Video Rendering & Export */}
+        <canvas 
+          ref={exportCanvasRef}
+          width={1280}
+          height={720}
+          className="hidden"
+        />
 
       </div>
     </div>

@@ -26,10 +26,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
 
   const handleKeyChange = (provider: string, value: string) => {
     setTempKeys(prev => ({ ...prev, [provider]: value }));
-  };
-
-  const handleSave = (provider: string) => {
-    onSave(provider, tempKeys[provider as keyof typeof tempKeys] || '');
+    onSave(provider, value);
   };
 
   const handleTest = async (provider: string) => {
@@ -52,29 +49,29 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
   };
 
   const providers = [
-    { id: 'gemini', name: 'Google Gemini', icon: '✨' },
-    { id: 'openai', name: 'OpenAI', icon: '🤖' },
-    { id: 'groq', name: 'Groq', icon: '⚡' },
-    { id: 'openrouter', name: 'OpenRouter', icon: '🔗' },
-    { id: 'siliconflow', name: 'SiliconFlow', icon: '🌊' },
-    { id: 'pollinations', name: 'Pollinations.ai', icon: '🌸' },
-    { id: 'others', name: 'Other Providers', icon: '🌐' },
+    { id: 'gemini', name: 'Google Gemini' },
+    { id: 'openai', name: 'OpenAI' },
+    { id: 'groq', name: 'Groq' },
+    { id: 'openrouter', name: 'OpenRouter' },
+    { id: 'siliconflow', name: 'SiliconFlow' },
+    { id: 'pollinations', name: 'Pollinations.ai' },
+    { id: 'others', name: 'Other Providers' },
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-blue-100 overflow-hidden">
-      <div className="flex border-b border-blue-100 overflow-x-auto">
+    <div className="bg-white/5 backdrop-blur-md rounded-xl border border-white/20 overflow-hidden">
+      <div className="flex border-b border-white/10 overflow-x-auto">
         {providers.map(p => (
           <button
             key={p.id}
             onClick={() => setActiveTab(p.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === p.id 
-                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500' 
-                : 'text-gray-600 hover:bg-gray-50'
+                ? 'bg-white/10 text-white border-b-2 border-purple-400' 
+                : 'text-purple-200/70 hover:bg-white/5 hover:text-white'
             }`}
           >
-            <span>{p.icon}</span>
+            <KeyIcon className="w-4 h-4 opacity-70" />
             {p.name}
           </button>
         ))}
@@ -83,16 +80,16 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
       <div className="p-6">
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <label className="text-sm font-semibold text-gray-700">
+            <label className="text-sm font-semibold text-purple-100">
               API Key for {providers.find(p => p.id === activeTab)?.name}
             </label>
             {testStatus[activeTab] === 'success' && (
-                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
                     <CheckIcon className="w-3 h-3" /> Verified
                 </span>
             )}
              {testStatus[activeTab] === 'error' && (
-                <span className="flex items-center gap-1 text-xs text-red-600 font-medium">
+                <span className="flex items-center gap-1 text-xs text-red-400 font-medium">
                     <AlertTriangleIcon className="w-3 h-3" /> Invalid
                 </span>
             )}
@@ -104,9 +101,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
               value={tempKeys[activeTab as keyof typeof tempKeys] || ''}
               onChange={(e) => handleKeyChange(activeTab, e.target.value)}
               placeholder={`sk-...`}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-slate-900/60 border border-slate-700/50 rounded-lg focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/30 outline-none transition-all text-slate-100 placeholder-slate-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]"
             />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50">
               <KeyIcon className="w-4 h-4" />
             </div>
           </div>
@@ -115,19 +112,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
             <button
               onClick={() => handleTest(activeTab)}
               disabled={!tempKeys[activeTab as keyof typeof tempKeys] || testStatus[activeTab] === 'testing'}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-lg hover:bg-white/20 disabled:opacity-50 border border-white/10 transition-colors"
             >
               {testStatus[activeTab] === 'testing' ? 'Testing...' : 'Test Key'}
             </button>
-            <button
-              onClick={() => handleSave(activeTab)}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors ml-auto"
-            >
-              Save {providers.find(p => p.id === activeTab)?.name} Key
-            </button>
           </div>
           
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-purple-300/60 mt-2">
             Keys are stored locally in your browser.
           </p>
         </div>
