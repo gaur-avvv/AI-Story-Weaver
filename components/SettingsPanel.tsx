@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyIcon, CheckIcon, AlertTriangleIcon, BookText, Paintbrush, Theater, AudioWaveform, ChevronDownIcon } from './icons';
-import { Sparkles, Wand2, Sliders, Eye, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle } from 'lucide-react';
+import { Sparkles, Wand2, Sliders, Eye, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle, Type } from 'lucide-react';
 import { testApiKey } from '../services/geminiService';
 import type { Settings } from '../types';
 import { ApiKeyManager } from './ApiKeyManager';
@@ -457,7 +457,17 @@ export const SettingsPanel: React.FC<{
         </div>
 
         <div className="space-y-4">
-          <SectionHeader title="Appearance" />
+          <SectionHeader title="Appearance & Reading" />
+          <SettingRow icon={<Type className="w-6 h-6 text-purple-400" />} label="Reading Font">
+            <CustomSelect 
+              value={localSettings.fontFamilyPreference || 'serif'} 
+              onChange={handleSettingChange('fontFamilyPreference')}
+            >
+              <option value="serif">Serif (Classic Storybook)</option>
+              <option value="sans">Sans-Serif (Modern Clean)</option>
+              <option value="mono">Monospace (Typewriter / Retro)</option>
+            </CustomSelect>
+          </SettingRow>
           <SettingRow icon={<Paintbrush className="w-6 h-6" />} label="Image Style">
               <CustomSelect value={localSettings.imageStyle} onChange={handleSettingChange('imageStyle')}>
               <option value="whimsical">Whimsical</option>

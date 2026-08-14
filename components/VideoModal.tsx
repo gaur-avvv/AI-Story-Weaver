@@ -281,14 +281,32 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
         setExportProgress(Math.round(((i) / segments.length) * (format === 'mp4' ? 90 : 98)));
         const segment = segments[i];
         
-        // Load Segment Image
+        // Load Segment Image safely via Blob ObjectURL to prevent CORS canvas tainting
+        let tempObjectUrl: string | null = null;
         const img = new Image();
-        img.crossOrigin = "anonymous";
+        
         await new Promise((resolve) => {
-          img.onload = resolve;
+          img.onload = () => resolve(null);
           img.onerror = () => resolve(null);
-          if (segment.imageUrl) img.src = segment.imageUrl;
-          else resolve(null);
+
+          if (segment.imageUrl) {
+            if (segment.imageUrl.startsWith('data:')) {
+              img.src = segment.imageUrl;
+            } else {
+              fetch(segment.imageUrl, { mode: 'cors' })
+                .then(res => res.blob())
+                .then(blob => {
+                  tempObjectUrl = URL.createObjectURL(blob);
+                  img.src = tempObjectUrl;
+                })
+                .catch(() => {
+                  img.crossOrigin = "anonymous";
+                  img.src = segment.imageUrl!;
+                });
+            }
+          } else {
+            resolve(null);
+          }
         });
 
         // Speech Audio Decoding & Buffer Source
@@ -324,16 +342,30 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
           try { audioSource.start(0); } catch (e) {}
         }
 
-        // Segment Frame Loop
+        // Segment Frame Loop with background tab safeguard
         await new Promise(resolve => {
           let start: number | null = null;
+          let frameId: number | null = null;
+          let isResolved = false;
+
+          const finish = () => {
+            if (isResolved) return;
+            isResolved = true;
+            if (frameId) cancelAnimationFrame(frameId);
+            if (tempObjectUrl) {
+              URL.revokeObjectURL(tempObjectUrl);
+            }
+            resolve(null);
+          };
+
           function drawFrame(now: number) {
+            if (isResolved) return;
             if (!start) start = now;
             const elapsed = now - start;
             const progress = Math.min(1, elapsed / durationMs);
 
             if (elapsed >= durationMs) {
-              resolve(null);
+              finish();
               return;
             }
 
@@ -401,9 +433,18 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             ctx.fillText(currentTextLine, canvas.width / 2, boxY + boxHeight / 2);
             ctx.shadowBlur = 0;
 
-            requestAnimationFrame(drawFrame);
+            frameId = requestAnimationFrame(drawFrame);
           }
-          requestAnimationFrame(drawFrame);
+
+          // Fallback interval check for background tabs
+          const checkTimer = setInterval(() => {
+            if (start && (performance.now() - start >= durationMs + 200)) {
+              clearInterval(checkTimer);
+              finish();
+            }
+          }, 250);
+
+          frameId = requestAnimationFrame(drawFrame);
         });
       }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { StorySegment } from '../types';
 import { ParagraphCard } from './ParagraphCard';
+import { SegmentSkeleton } from './SegmentSkeleton';
 import { motion } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 
@@ -9,24 +10,25 @@ interface StoryDisplayProps {
   onContinue: (choice: string) => void;
   onRebranch: (segmentIndex: number) => void;
   isGenerating: boolean;
+  fontFamilyPreference?: 'serif' | 'sans' | 'mono';
 }
 
-export const StoryDisplay: React.FC<StoryDisplayProps> = ({ segments, onContinue, onRebranch, isGenerating }) => {
-  const { theme, vfx } = useVfx();
+export const StoryDisplay: React.FC<StoryDisplayProps> = ({ segments, onContinue, onRebranch, isGenerating, fontFamilyPreference }) => {
+  const { theme } = useVfx();
   const endOfStoryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endOfStoryRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [segments]);
+  }, [segments, isGenerating]);
 
   const lastSegment = segments[segments.length - 1];
 
   return (
-    <div className="w-full flex-grow overflow-y-auto p-4 md:p-8">
+    <div className="w-full flex-grow overflow-y-auto p-2 sm:p-4 md:p-8 story-container">
       <div className="space-y-8 pb-12">
         {segments.map((segment, index) => (
           <div key={segment.id} className="space-y-6">
-            <ParagraphCard segment={segment} />
+            <ParagraphCard segment={segment} fontFamilyPreference={fontFamilyPreference} />
             {segment.selectedChoice && (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -46,6 +48,14 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({ segments, onContinue
             )}
           </div>
         ))}
+
+        {/* Refined Skeleton Loader when a new segment is generating */}
+        {isGenerating && (
+          <SegmentSkeleton 
+            showChoices={false} 
+            statusMessage="Weaving the next chapter..." 
+          />
+        )}
         
         {lastSegment?.choices && !lastSegment.selectedChoice && lastSegment.choices.length > 0 && !isGenerating && (
           <motion.div 
@@ -60,13 +70,13 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({ segments, onContinue
                 <button
                   key={index}
                   onClick={() => onContinue(choice)}
-                  className={`w-full text-left p-4 rounded-xl border transition-all duration-300 group hover:scale-[1.01] active:scale-[0.99] ${theme.buttonStyle}`}
+                  className={`w-full text-left p-4 rounded-xl border transition-all duration-300 group hover:scale-[1.01] active:scale-[0.99] choice-button ${theme.buttonStyle}`}
                 >
                   <span className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/70 group-hover:bg-white/20 text-sm transition-colors font-mono font-bold">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/70 group-hover:bg-white/20 text-sm transition-colors font-mono font-bold flex-shrink-0">
                       {index + 1}
                     </span>
-                    <span className={`leading-relaxed ${theme.fontFamily}`}>{choice}</span>
+                    <span className={`leading-relaxed choice-text ${theme.fontFamily}`}>{choice}</span>
                   </span>
                 </button>
               ))}
@@ -78,3 +88,4 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({ segments, onContinue
     </div>
   );
 };
+

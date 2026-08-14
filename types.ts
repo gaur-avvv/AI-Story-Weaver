@@ -39,6 +39,7 @@ export interface Settings {
 
   // Content Settings
   targetAudience: 'children' | 'teen' | 'adult';
+  fontFamilyPreference?: 'serif' | 'sans' | 'mono';
 
   // API Keys
   groqApiKey?: string;
