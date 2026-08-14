@@ -1,19 +1,63 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlayIcon, PauseIcon, AudioWaveform } from './icons';
-import { Volume2, VolumeX, SlidersHorizontal, Sparkles, Wind, CloudRain, Orbit, Ghost, Music, Waves, Mic } from 'lucide-react';
+import { PlayIcon, PauseIcon } from './icons';
+import { 
+  Volume2, 
+  VolumeX, 
+  SlidersHorizontal, 
+  Sparkles, 
+  Wind, 
+  CloudRain, 
+  Orbit, 
+  Ghost, 
+  Music, 
+  Waves, 
+  Mic, 
+  Flame, 
+  Droplets, 
+  Zap, 
+  Shield, 
+  Clock, 
+  Wand2 
+} from 'lucide-react';
 import type { StorySegment } from '../types';
 import { useVfx } from '../vfx/VfxContext';
 import { vfxAudioSynth, SoundscapeType } from '../vfx/VfxAudioEffects';
 
 interface AudioControllerProps {
   segments: StorySegment[];
+  activeSegmentIndex?: number;
+  onActiveSegmentChange?: (index: number) => void;
+  onPlayStateChange?: (isPlaying: boolean) => void;
+  onAudioProgressUpdate?: (currentTime: number, duration: number, progressRatio: number) => void;
+  seekAudioRequest?: { segmentIndex: number; progressRatio: number; timestamp: number } | null;
 }
 
-export const AudioController: React.FC<AudioControllerProps> = ({ segments }) => {
+export const AudioController: React.FC<AudioControllerProps> = ({ 
+  segments,
+  activeSegmentIndex: controlledActiveIndex,
+  onActiveSegmentChange,
+  onPlayStateChange,
+  onAudioProgressUpdate,
+  seekAudioRequest,
+}) => {
   const { vfx } = useVfx();
-  const [activeSegmentIndex, setActiveSegmentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [internalActiveSegmentIndex, setInternalActiveSegmentIndex] = useState(0);
+  const activeSegmentIndex = controlledActiveIndex !== undefined ? controlledActiveIndex : internalActiveSegmentIndex;
+
+  const setActiveSegmentIndex = (indexOrUpdater: number | ((prev: number) => number)) => {
+    const nextIdx = typeof indexOrUpdater === 'function' ? indexOrUpdater(activeSegmentIndex) : indexOrUpdater;
+    setInternalActiveSegmentIndex(nextIdx);
+    onActiveSegmentChange?.(nextIdx);
+  };
+
+  const [isPlaying, setInternalIsPlaying] = useState(false);
+
+  const setIsPlaying = (playingOrUpdater: boolean | ((prev: boolean) => boolean)) => {
+    const nextPlaying = typeof playingOrUpdater === 'function' ? playingOrUpdater(isPlaying) : playingOrUpdater;
+    setInternalIsPlaying(nextPlaying);
+    onPlayStateChange?.(nextPlaying);
+  };
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [pulseIntensity, setPulseIntensity] = useState(0);
@@ -22,6 +66,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
   const [ambienceVolume, setAmbienceVolume] = useState(0.35);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [selectedAmbience, setSelectedAmbience] = useState<SoundscapeType>('forest_wind');
+  const [isDynamicAutoSelect, setIsDynamicAutoSelect] = useState<boolean>(true);
   const [showAmbiencePanel, setShowAmbiencePanel] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -33,22 +78,19 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
-  // Auto-sync background soundscape based on story genre, location & weather
+  const activeSegment = segments[activeSegmentIndex];
+
+  // Dynamic Auto-sync background soundscape based on story text, genre, location & weather
   useEffect(() => {
-    let autoType: SoundscapeType = 'forest_wind';
-    if (vfx.weather === 'rainy' || vfx.weather === 'stormy') {
-      autoType = 'rain';
-    } else if (vfx.genre === 'sci-fi' || vfx.location === 'space') {
-      autoType = 'space_hum';
-    } else if (vfx.genre === 'horror' || vfx.genre === 'thriller') {
-      autoType = 'dark_drone';
-    } else if (vfx.genre === 'fantasy' || vfx.genre === 'romance') {
-      autoType = 'ethereal_pad';
-    } else if (vfx.location === 'underwater' || vfx.location === 'beach') {
-      autoType = 'ocean_waves';
-    } else if (vfx.weather === 'windy' || vfx.genre === 'historical' || vfx.genre === 'western') {
-      autoType = 'forest_wind';
-    }
+    if (!isDynamicAutoSelect) return;
+
+    const currentText = activeSegment?.paragraph || '';
+    const autoType = vfxAudioSynth.determineOptimalSoundscape(
+      vfx.genre, 
+      currentText, 
+      vfx.weather, 
+      vfx.location
+    );
     
     setSelectedAmbience(autoType);
     
@@ -60,7 +102,16 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
         console.warn('Failed to auto-play background ambience soundscape:', e);
       }
     }
-  }, [vfx.genre, vfx.weather, vfx.location, vfx.isAudioAtmosphereEnabled]);
+  }, [
+    activeSegmentIndex, 
+    activeSegment?.paragraph, 
+    vfx.genre, 
+    vfx.weather, 
+    vfx.location, 
+    vfx.isAudioAtmosphereEnabled, 
+    isDynamicAutoSelect,
+    isPlaying
+  ]);
 
   // Adjust soundscape volume dynamically
   useEffect(() => {
@@ -76,8 +127,6 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
       setActiveSegmentIndex(segments.length - 1);
     }
   }, [segments.length, activeSegmentIndex]);
-
-  const activeSegment = segments[activeSegmentIndex];
 
   // Initialize Web Audio API safely with error handling
   const initWebAudio = useCallback(() => {
@@ -308,6 +357,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
   };
 
   const handleSelectAmbience = (type: SoundscapeType) => {
+    setIsDynamicAutoSelect(false);
     setSelectedAmbience(type);
     try {
       vfxAudioSynth.playSoundscape(type);
@@ -331,10 +381,35 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setProgress(audioRef.current.currentTime);
-      setDuration(audioRef.current.duration || 0);
+      const cur = audioRef.current.currentTime || 0;
+      const dur = audioRef.current.duration || 0;
+      setProgress(cur);
+      setDuration(dur);
+      const ratio = dur > 0 ? Math.min(1, Math.max(0, cur / dur)) : 0;
+      onAudioProgressUpdate?.(cur, dur, ratio);
     }
   };
+
+  // Handle external seek requests (e.g. user clicking on a specific word in story display)
+  useEffect(() => {
+    if (!seekAudioRequest || !audioRef.current) return;
+    
+    if (seekAudioRequest.segmentIndex !== activeSegmentIndex) {
+      setActiveSegmentIndex(seekAudioRequest.segmentIndex);
+    }
+
+    const dur = audioRef.current.duration || duration || 0;
+    if (dur > 0) {
+      const targetTime = Math.min(dur, Math.max(0, seekAudioRequest.progressRatio * dur));
+      audioRef.current.currentTime = targetTime;
+      setProgress(targetTime);
+      onAudioProgressUpdate?.(targetTime, dur, seekAudioRequest.progressRatio);
+      if (!isPlaying) {
+        initWebAudio();
+        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+    }
+  }, [seekAudioRequest]);
 
   const handleEnded = () => {
     if (activeSegmentIndex < segments.length - 1) {
@@ -342,6 +417,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
     } else {
       setIsPlaying(false);
       setProgress(0);
+      onAudioProgressUpdate?.(0, duration || 0, 0);
       if (audioRef.current) audioRef.current.currentTime = 0;
     }
   };
@@ -349,7 +425,12 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
     setProgress(time);
-    if (audioRef.current) audioRef.current.currentTime = time;
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      const dur = audioRef.current.duration || duration || 0;
+      const ratio = dur > 0 ? Math.min(1, Math.max(0, time / dur)) : 0;
+      onAudioProgressUpdate?.(time, dur, ratio);
+    }
   };
 
   const jumpToSegment = (index: number) => {
@@ -371,10 +452,15 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
   const ambienceList: { type: SoundscapeType; label: string; icon: React.ReactNode }[] = [
     { type: 'forest_wind', label: 'Forest Wind', icon: <Wind className="w-3.5 h-3.5 text-emerald-400" /> },
     { type: 'rain', label: 'Rain & Storm', icon: <CloudRain className="w-3.5 h-3.5 text-cyan-400" /> },
-    { type: 'space_hum', label: 'Space Hum', icon: <Orbit className="w-3.5 h-3.5 text-blue-400" /> },
-    { type: 'dark_drone', label: 'Dark Drone', icon: <Ghost className="w-3.5 h-3.5 text-red-400" /> },
-    { type: 'ethereal_pad', label: 'Ethereal Pad', icon: <Music className="w-3.5 h-3.5 text-purple-400" /> },
+    { type: 'campfire', label: 'Campfire', icon: <Flame className="w-3.5 h-3.5 text-amber-400" /> },
     { type: 'ocean_waves', label: 'Ocean Waves', icon: <Waves className="w-3.5 h-3.5 text-teal-400" /> },
+    { type: 'river_stream', label: 'River Stream', icon: <Droplets className="w-3.5 h-3.5 text-sky-400" /> },
+    { type: 'ethereal_pad', label: 'Ethereal Pad', icon: <Music className="w-3.5 h-3.5 text-purple-400" /> },
+    { type: 'space_hum', label: 'Space Hum', icon: <Orbit className="w-3.5 h-3.5 text-blue-400" /> },
+    { type: 'cyberpunk_city', label: 'Cyberpunk', icon: <Zap className="w-3.5 h-3.5 text-fuchsia-400" /> },
+    { type: 'medieval_tavern', label: 'Tavern / Lute', icon: <Shield className="w-3.5 h-3.5 text-orange-400" /> },
+    { type: 'dark_drone', label: 'Dark Drone', icon: <Ghost className="w-3.5 h-3.5 text-rose-400" /> },
+    { type: 'mystery_clock', label: 'Mystery Clock', icon: <Clock className="w-3.5 h-3.5 text-yellow-400" /> },
     { type: 'off', label: 'None', icon: <VolumeX className="w-3.5 h-3.5 text-slate-400" /> },
   ];
 
@@ -573,41 +659,65 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
               </div>
 
               {/* Integrated Ambience Mixer Panel */}
-              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-white/10 mt-1 flex flex-col gap-2">
+              <div className="bg-slate-950/70 p-3 rounded-2xl border border-white/10 mt-1 flex flex-col gap-2.5 shadow-inner">
                 <div className="flex items-center justify-between text-xs font-bold text-purple-200">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Background Soundscape</span>
+                    <span>Atmospheric Soundscape</span>
                   </div>
-                  <span className="text-[10px] uppercase font-mono text-purple-300/60">
-                    {selectedAmbience}
-                  </span>
+                  
+                  {/* Dynamic Auto-Select Mode Toggle */}
+                  <button
+                    onClick={() => {
+                      const next = !isDynamicAutoSelect;
+                      setIsDynamicAutoSelect(next);
+                      if (next) {
+                        const autoType = vfxAudioSynth.determineOptimalSoundscape(
+                          vfx.genre, 
+                          activeSegment?.paragraph || '', 
+                          vfx.weather, 
+                          vfx.location
+                        );
+                        setSelectedAmbience(autoType);
+                        vfxAudioSynth.playSoundscape(autoType);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1.5 border transition-all ${
+                      isDynamicAutoSelect 
+                        ? 'bg-purple-500/30 text-purple-200 border-purple-400/80 shadow-[0_0_12px_rgba(168,85,247,0.4)]'
+                        : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                    title="Automatically picks the soundscape based on story mood, setting, and keywords"
+                  >
+                    <Wand2 className={`w-3 h-3 ${isDynamicAutoSelect ? 'text-purple-300 animate-pulse' : 'text-slate-400'}`} />
+                    <span>{isDynamicAutoSelect ? '✨ Auto-Sync ON' : 'Auto-Sync OFF'}</span>
+                  </button>
                 </div>
 
-                {/* Soundscape Selector Pills */}
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1">
+                {/* Soundscape Selector Responsive Grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
                   {ambienceList.map(a => (
                     <button
                       key={a.type}
                       onClick={() => handleSelectAmbience(a.type)}
                       title={a.label}
-                      className={`flex flex-col items-center justify-center p-1.5 rounded-lg border text-[10px] font-semibold transition-all ${
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-[11px] font-medium transition-all ${
                         selectedAmbience === a.type
-                          ? 'bg-purple-500/30 border-purple-400 text-white shadow-sm'
-                          : 'bg-white/5 border-white/5 text-slate-400 hover:text-slate-200'
+                          ? 'bg-purple-500/30 border-purple-400 text-white shadow-[0_0_10px_rgba(168,85,247,0.3)] ring-1 ring-purple-400/50'
+                          : 'bg-white/5 border-white/5 text-slate-300 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      {a.icon}
-                      <span className="mt-0.5 truncate w-full text-center text-[9px]">{a.label}</span>
+                      <span className="shrink-0">{a.icon}</span>
+                      <span className="truncate w-full text-left">{a.label}</span>
                     </button>
                   ))}
                 </div>
 
-                {/* Dual Volume Sliders */}
-                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/5 text-[11px]">
+                {/* Dual Volume Sliders with Value Display */}
+                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/5 text-[11px]">
                   <div className="flex items-center gap-2">
                     <Mic className="w-3.5 h-3.5 text-purple-300 shrink-0" />
-                    <span className="text-slate-300 text-[10px]">Narration</span>
+                    <span className="text-slate-300 text-[10px] whitespace-nowrap">Voice {Math.round(narrationVolume * 100)}%</span>
                     <input
                       type="range"
                       min="0"
@@ -620,7 +730,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({ segments }) =>
                   </div>
                   <div className="flex items-center gap-2">
                     <Music className="w-3.5 h-3.5 text-purple-300 shrink-0" />
-                    <span className="text-slate-300 text-[10px]">Ambience</span>
+                    <span className="text-slate-300 text-[10px] whitespace-nowrap">Ambience {Math.round(ambienceVolume * 100)}%</span>
                     <input
                       type="range"
                       min="0"

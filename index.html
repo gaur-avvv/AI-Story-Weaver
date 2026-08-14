@@ -8,20 +8,47 @@
     <title>AI Storyteller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://js.puter.com/v2/"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
     <style>
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
       body {
         font-family: 'Plus Jakarta Sans', sans-serif;
-        background-color: #0f172a; /* Fallback dark background */
+        background-color: #0b0f19; /* Deep refined dark slate */
+        color: #f1f5f9;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        overflow-x: hidden;
       }
       .font-display {
         font-family: 'Playfair Display', serif;
       }
+      /* Minimal custom scrollbars */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.4);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(168, 85, 247, 0.25);
+        border-radius: 9999px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(168, 85, 247, 0.5);
+      }
       @keyframes gradient-xy {
         0%, 100% {
-            background-size: 400% 400%;
+            background-size: 300% 300%;
             background-position: left center;
         }
         50% {
@@ -37,7 +64,7 @@
       }
       @keyframes pulse-slow {
         0%, 100% { opacity: 0.2; transform: scale(1); }
-        50% { opacity: 0.6; transform: scale(1.1); }
+        50% { opacity: 0.6; transform: scale(1.05); }
       }
       .animate-pulse-slow {
         animation: pulse-slow 8s ease-in-out infinite;
@@ -99,6 +126,65 @@
         }
         .choice-text {
           font-size: 0.95rem !important;
+        }
+      }
+
+      /* Clean Print Stylesheet */
+      @media print {
+        @page {
+          margin: 1.5cm;
+          size: auto;
+        }
+        body {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .no-print,
+        header,
+        nav,
+        footer,
+        .AudioController,
+        .SettingsPanel,
+        .VfxQuickHud,
+        .VfxStudioPanel,
+        .VfxScreenOverlays,
+        .story-input-container,
+        .action-button-bar,
+        .toast-container,
+        .modal-overlay,
+        button,
+        input,
+        select {
+          display: none !important;
+        }
+        .story-container {
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        .paragraph-card-container {
+          box-shadow: none !important;
+          background: #ffffff !important;
+          border: 1px solid #cbd5e1 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          margin-bottom: 2rem !important;
+          border-radius: 1.25rem !important;
+        }
+        .card-paragraph-text {
+          color: #0f172a !important;
+          text-shadow: none !important;
+          font-size: 1.25rem !important;
+          line-height: 1.8 !important;
+        }
+        .card-media-frame {
+          box-shadow: none !important;
+          border: 1px solid #e2e8f0 !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
       }
     </style>

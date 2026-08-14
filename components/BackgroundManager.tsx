@@ -17,6 +17,12 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ isGenerati
   const springX = useSpring(mouseX, { damping: 25, stiffness: 120 });
   const springY = useSpring(mouseY, { damping: 25, stiffness: 120 });
 
+  const sentiment = vfx.sentiment;
+  const activeAura = sentiment?.palette?.auraGlow || theme.auraGlow;
+  const moodGradient = sentiment?.palette 
+    ? `${sentiment.palette.bgFrom} ${sentiment.palette.bgVia} ${sentiment.palette.bgTo}`
+    : theme.bgGradient;
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX - 400);
@@ -39,26 +45,40 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ isGenerati
 
   return (
     <div className="fixed inset-0 -z-20 overflow-hidden pointer-events-none bg-slate-950">
-      {/* Genre Theme Dynamic Background Gradient */}
+      {/* Genre & Sentiment Theme Dynamic Background Gradient */}
       <div 
-        className={`absolute inset-0 transition-all duration-1000 bg-gradient-to-br ${theme.bgGradient} ${
+        className={`absolute inset-0 transition-all duration-1000 bg-gradient-to-br ${moodGradient} ${
           isGenerating ? 'opacity-100 scale-105 animate-pulse' : 'opacity-90'
         }`}
       />
 
+      {/* Dynamic Sentiment Mood Ambient Glow Overlay */}
+      {sentiment?.palette?.accent && (
+        <motion.div
+          key={`bg-sentiment-${sentiment.tone}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.35 }}
+          transition={{ duration: 1.5 }}
+          className="absolute inset-0 transition-colors duration-1000"
+          style={{
+            background: `radial-gradient(circle at 50% 30%, ${sentiment.palette.accent}22 0%, transparent 70%)`
+          }}
+        />
+      )}
+
       {/* Particle Canvas Layer */}
       <VfxCanvasBackground />
       
-      {/* Mouse tracking glow tailored to theme aura */}
+      {/* Mouse tracking glow tailored to theme aura & sentiment */}
       <motion.div 
-        className="absolute w-[800px] h-[800px] rounded-full blur-[140px] pointer-events-none mix-blend-screen"
+        className="absolute w-[800px] h-[800px] rounded-full blur-[140px] pointer-events-none mix-blend-screen transition-all duration-700"
         style={{
           x: springX,
           y: springY,
-          background: `radial-gradient(circle, ${theme.auraGlow} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, ${activeAura} 0%, transparent 70%)`,
         }}
         animate={{
-          opacity: isHovering || isGenerating ? 1 : 0.4,
+          opacity: isHovering || isGenerating ? 1 : 0.45,
         }}
         transition={{ opacity: { duration: 0.7 } }}
       />

@@ -48,6 +48,42 @@ export type VfxMoralAlignment = 'good' | 'neutral' | 'evil';
 
 export type VfxTwist = 'none' | 'reveal' | 'betrayal' | 'mystery' | 'sacrifice';
 
+export type SentimentTone = 
+  | 'triumphant'
+  | 'ominous'
+  | 'serene'
+  | 'melancholic'
+  | 'fiery_action'
+  | 'mystical'
+  | 'whimsical'
+  | 'suspenseful'
+  | 'romantic'
+  | 'neutral';
+
+export interface MoodPalette {
+  name: string;
+  bgFrom: string;
+  bgVia: string;
+  bgTo: string;
+  accent: string;
+  overlayTint: string;
+  auraGlow: string;
+  vignetteStyle: string;
+}
+
+export interface StorySentimentAnalysis {
+  tone: SentimentTone;
+  label: string;
+  score: number; // -1 (very dark/negative) to +1 (very uplifting/positive)
+  tensionScore: number; // 0 to 1
+  energyScore: number; // 0 (calm) to 1 (explosive)
+  dominantKeywords: string[];
+  suggestedWeather?: VfxWeather;
+  suggestedTimeOfDay?: VfxTimeOfDay;
+  suggestedParticles?: ('ember' | 'petal' | 'leaf' | 'cosmic' | 'rain' | 'snow')[];
+  palette: MoodPalette;
+}
+
 export interface VfxState {
   genre: VfxGenre;
   tension: VfxTension;
@@ -61,6 +97,9 @@ export interface VfxState {
   supernatural: VfxSupernatural;
   moralAlignment: VfxMoralAlignment;
   activeTwist: VfxTwist;
+  
+  // Real-time Sentiment & Environmental Mood
+  sentiment: StorySentimentAnalysis;
   
   // Cinematic Scene Effect Toggles
   showFireEmbers: boolean;

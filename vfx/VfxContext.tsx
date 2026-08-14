@@ -13,9 +13,10 @@ import {
   VfxSupernatural, 
   VfxMoralAlignment, 
   VfxTwist,
-  GenreThemeConfig
+  GenreThemeConfig,
+  StorySentimentAnalysis,
 } from './types';
-import { analyzeStoryParagraph } from './storyAnalyzer';
+import { analyzeStoryParagraph, DEFAULT_SENTIMENT_PALETTES } from './storyAnalyzer';
 import { vfxAudioSynth } from './VfxAudioEffects';
 
 export const GENRE_THEMES: Record<VfxGenre, GenreThemeConfig> = {
@@ -194,11 +195,20 @@ const defaultVfxState: VfxState = {
   supernatural: 'none',
   moralAlignment: 'neutral',
   activeTwist: 'none',
+  sentiment: {
+    tone: 'neutral',
+    label: 'Atmospheric Storyscape',
+    score: 0,
+    tensionScore: 0.2,
+    energyScore: 0.3,
+    dominantKeywords: [],
+    palette: DEFAULT_SENTIMENT_PALETTES.neutral,
+  },
   showFireEmbers: false,
-  showFlowerPetals: true,
-  showLushPlants: true,
-  showHorizonHills: true,
-  showRiverWater: true,
+  showFlowerPetals: false,
+  showLushPlants: false,
+  showHorizonHills: false,
+  showRiverWater: false,
   showCosmicDust: false,
   isAutoAnalyzeEnabled: true,
   isAudioAtmosphereEnabled: false,
@@ -214,9 +224,6 @@ export const VfxProvider: React.FC<{ children: ReactNode; initialGenre?: string 
     return { 
       ...defaultVfxState, 
       genre: validGenre,
-      showFlowerPetals: validGenre === 'fantasy' || validGenre === 'romance',
-      showCosmicDust: validGenre === 'sci-fi',
-      showFireEmbers: validGenre === 'action' || validGenre === 'horror' || validGenre === 'western',
     };
   });
 

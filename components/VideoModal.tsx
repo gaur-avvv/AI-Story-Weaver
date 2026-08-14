@@ -99,7 +99,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
     }
 
     // Handle Speech Audio Narration
-    let audioDurationMs = 6000;
+    let fallbackDurationMs = 6000;
     if (audioRef.current) {
       if (currentSegment.audioUrl) {
         const src = currentSegment.audioUrl.startsWith('data:') || currentSegment.audioUrl.startsWith('http') || currentSegment.audioUrl.startsWith('blob:')
@@ -112,29 +112,43 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
         audioRef.current.play().catch(e => {
           console.warn("Speech audio play prevented or failed:", e);
         });
+      } else {
+        // No speech audio present: use a timed fallback to advance lines and segments
+        const wordsCount = (currentSegment.paragraph || '').split(/\s+/).filter(Boolean).length;
+        fallbackDurationMs = Math.max(4000, wordsCount * 300);
+        setCurrentLineIndex(0);
+
+        const lineIntervalMs = Math.max(1600, fallbackDurationMs / Math.max(1, segmentLines.length));
+        const lineTimer = setInterval(() => {
+          setCurrentLineIndex(prev => {
+            if (prev < segmentLines.length - 1) return prev + 1;
+            return prev;
+          });
+        }, lineIntervalMs);
+
+        const segmentTimer = setTimeout(() => {
+          handleNext();
+        }, fallbackDurationMs);
+
+        return () => {
+          clearInterval(lineTimer);
+          clearTimeout(segmentTimer);
+        };
       }
     }
-
-    // Line-by-Line progression timer
-    const wordsCount = (currentSegment.paragraph || '').split(/\s+/).filter(Boolean).length;
-    audioDurationMs = Math.max(4000, wordsCount * 320);
-
-    const lineIntervalMs = Math.max(1800, audioDurationMs / Math.max(1, segmentLines.length));
-    setCurrentLineIndex(0);
-
-    const lineTimer = setInterval(() => {
-      setCurrentLineIndex(prev => {
-        if (prev < segmentLines.length - 1) {
-          return prev + 1;
-        }
-        return prev;
-      });
-    }, lineIntervalMs);
-
-    return () => {
-      clearInterval(lineTimer);
-    };
   }, [currentSegmentIndex, isPlaying, isOpen, segments, isMusicEnabled, musicUrl]);
+
+  // Audio timeupdate handler for 100% precise live subtitle synchronisation
+  const handleTimeUpdate = () => {
+    if (!audioRef.current || !segmentLines.length) return;
+    const cur = audioRef.current.currentTime;
+    const dur = audioRef.current.duration;
+    if (dur && dur > 0) {
+      const progressRatio = Math.min(0.999, Math.max(0, cur / dur));
+      const lineIdx = Math.min(segmentLines.length - 1, Math.floor(progressRatio * segmentLines.length));
+      setCurrentLineIndex(lineIdx);
+    }
+  };
 
   const handleAudioEnded = () => {
     if (currentSegmentIndex < segments.length - 1) {
@@ -208,24 +222,34 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
         if (format === 'mp4') {
           try {
             setExportProgress(92);
-            const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-            const { fetchFile } = await import('@ffmpeg/util');
-            const ffmpeg = new FFmpeg();
             
-            ffmpeg.on('progress', ({ progress }) => {
-              setExportProgress(92 + Math.round(progress * 8));
-            });
+            // Timeout-guarded FFmpeg loading & conversion (max 6 seconds)
+            const ffmpegPromise = (async () => {
+              const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+              const { fetchFile } = await import('@ffmpeg/util');
+              const ffmpeg = new FFmpeg();
+              
+              ffmpeg.on('progress', ({ progress }) => {
+                setExportProgress(92 + Math.round(progress * 8));
+              });
 
-            await ffmpeg.load({
-              coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-              wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
-            });
-            
-            await ffmpeg.writeFile('input.webm', await fetchFile(blob));
-            await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4']);
-            
-            const mp4Data = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
-            const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
+              await ffmpeg.load({
+                coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+                wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+              });
+              
+              await ffmpeg.writeFile('input.webm', await fetchFile(blob));
+              await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4']);
+              
+              const mp4Data = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
+              return new Blob([mp4Data.buffer], { type: 'video/mp4' });
+            })();
+
+            const timeoutPromise = new Promise<Blob>((_, reject) => 
+              setTimeout(() => reject(new Error("FFmpeg timeout")), 6000)
+            );
+
+            const mp4Blob = await Promise.race([ffmpegPromise, timeoutPromise]);
             
             const url = URL.createObjectURL(mp4Blob);
             const a = document.createElement('a');
@@ -234,7 +258,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             a.click();
             URL.revokeObjectURL(url);
           } catch (err) {
-            console.warn("FFmpeg conversion fallback to WebM:", err);
+            console.warn("FFmpeg conversion fallback to WebM (smooth & fast):", err);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -592,6 +616,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
         {/* Hidden Speech Audio Element */}
         <audio 
           ref={audioRef} 
+          onTimeUpdate={handleTimeUpdate}
           onEnded={handleAudioEnded}
           className="hidden"
         />

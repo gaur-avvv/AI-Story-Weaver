@@ -130,7 +130,7 @@ export const VfxCanvasBackground: React.FC = () => {
       oscillationSpeed: 0.02,
     });
 
-    // Populate particles based on situational story conditions & weather
+    // Populate lightweight particles for high FPS smoothness and minimal CPU
     const isEmbersActive = vfx.showFireEmbers || vfx.tension === 'climax' || vfx.location === 'desert' || vfx.genre === 'action' || vfx.genre === 'horror' || vfx.genre === 'western';
     const isPetalsActive = vfx.showFlowerPetals && (vfx.genre === 'romance' || vfx.genre === 'fantasy' || vfx.genre === 'comedy' || vfx.emotion === 'in_love' || vfx.emotion === 'happy' || vfx.emotion === 'calm');
     const isLeavesActive = vfx.showLushPlants && (vfx.location === 'forest' || vfx.location === 'default' || vfx.weather === 'windy');
@@ -139,27 +139,27 @@ export const VfxCanvasBackground: React.FC = () => {
     const isSnowActive = vfx.weather === 'snowy';
 
     if (isEmbersActive) {
-      for (let i = 0; i < 40; i++) particles.push(createEmber());
+      for (let i = 0; i < 20; i++) particles.push(createEmber());
     }
     if (isPetalsActive) {
-      for (let i = 0; i < 35; i++) particles.push(createPetal());
+      for (let i = 0; i < 18; i++) particles.push(createPetal());
     }
     if (isLeavesActive) {
-      for (let i = 0; i < 25; i++) particles.push(createLeaf());
+      for (let i = 0; i < 14; i++) particles.push(createLeaf());
     }
     if (isCosmicActive) {
-      for (let i = 0; i < 45; i++) particles.push(createCosmic());
+      for (let i = 0; i < 24; i++) particles.push(createCosmic());
     }
     if (isRainActive) {
-      for (let i = 0; i < 80; i++) particles.push(createRain());
+      for (let i = 0; i < 35; i++) particles.push(createRain());
     }
     if (isSnowActive) {
-      for (let i = 0; i < 60; i++) particles.push(createSnow());
+      for (let i = 0; i < 25; i++) particles.push(createSnow());
     }
 
     // Gentle baseline dust if no intense weather active
-    if (particles.length < 15) {
-      for (let i = 0; i < 20; i++) particles.push(createCosmic());
+    if (particles.length < 12) {
+      for (let i = 0; i < 16; i++) particles.push(createCosmic());
     }
 
     let time = 0;
@@ -210,7 +210,7 @@ export const VfxCanvasBackground: React.FC = () => {
           }
         }
 
-        // Render shapes with 2D transformations
+        // Render shapes with 2D transformations (clean, no heavy shadowBlur)
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rotation);
@@ -219,7 +219,6 @@ export const VfxCanvasBackground: React.FC = () => {
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.opacity;
           ctx.beginPath();
-          // Draw soft cherry blossom petal path
           ctx.ellipse(0, 0, p.size, p.size * 0.5, Math.PI / 4, 0, Math.PI * 2);
           ctx.fill();
         } else if (p.type === 'leaf') {
@@ -240,9 +239,7 @@ export const VfxCanvasBackground: React.FC = () => {
           ctx.stroke();
         } else if (p.type === 'ember') {
           ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.opacity * (0.6 + Math.sin(time * 5 + p.oscillationOffset) * 0.4);
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = p.color;
+          ctx.globalAlpha = p.opacity * (0.6 + Math.sin(time * 4 + p.oscillationOffset) * 0.4);
           ctx.beginPath();
           ctx.arc(0, 0, p.size, 0, Math.PI * 2);
           ctx.fill();

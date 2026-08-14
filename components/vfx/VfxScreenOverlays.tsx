@@ -15,6 +15,19 @@ export const VfxScreenOverlays: React.FC = () => {
     }
   }, [vfx.lightningTrigger]);
 
+  const sentiment = vfx.sentiment || {
+    tone: 'neutral',
+    label: 'Atmospheric Storyscape',
+    score: 0,
+    tensionScore: 0.2,
+    palette: {
+      accent: theme.primaryColor,
+      overlayTint: 'rgba(139, 92, 246, 0.05)',
+      auraGlow: theme.auraGlow,
+      vignetteStyle: 'radial-gradient(ellipse at center, transparent 50%, rgba(2, 6, 23, 0.7) 100%)',
+    }
+  };
+
   // Contextual condition checks based on story location, weather, and genre
   const shouldShowPlants = vfx.showLushPlants && vfx.location !== 'space' && vfx.location !== 'office' && vfx.location !== 'city';
   const shouldShowHills = vfx.showHorizonHills && vfx.location !== 'space' && vfx.location !== 'underwater';
@@ -22,7 +35,74 @@ export const VfxScreenOverlays: React.FC = () => {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-10 overflow-hidden">
-      {/* 1. Cinematic Lightning Flash (Weather / Climax) */}
+      {/* 1. Dynamic Sentiment & Mood Atmospheric Color Tint */}
+      <motion.div
+        key={`sentiment-tint-${sentiment.tone}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.2, ease: 'easeInOut' }}
+        className="absolute inset-0 pointer-events-none mix-blend-color transition-colors duration-1000"
+        style={{
+          backgroundColor: sentiment.palette.overlayTint || 'rgba(0,0,0,0)',
+        }}
+      />
+
+      {/* 2. Emotional Mood Vignette */}
+      <motion.div
+        key={`sentiment-vignette-${sentiment.tone}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.5, ease: 'easeInOut' }}
+        className="absolute inset-0 pointer-events-none transition-all duration-1000"
+        style={{
+          background: sentiment.palette.vignetteStyle,
+        }}
+      />
+
+      {/* 3. Specialized Sentiment Overlays */}
+      {/* Triumphant / Golden Celestial Rays */}
+      {sentiment.tone === 'triumphant' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.2, 0.45, 0.2] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute -top-24 inset-x-0 h-96 bg-gradient-to-b from-amber-400/20 via-yellow-300/10 to-transparent pointer-events-none mix-blend-screen"
+        />
+      )}
+
+      {/* Ominous / Pulse of Dread */}
+      {sentiment.tone === 'ominous' && (
+        <motion.div
+          animate={{ opacity: [0.15, 0.4, 0.15] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute inset-0 bg-red-950/20 pointer-events-none mix-blend-multiply border-4 border-red-900/30"
+        />
+      )}
+
+      {/* Fiery Action / Heat Haze */}
+      {sentiment.tone === 'fiery_action' && (
+        <motion.div
+          animate={{ opacity: [0.2, 0.4, 0.2], y: [0, -6, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-orange-600/20 via-red-600/10 to-transparent pointer-events-none mix-blend-screen"
+        />
+      )}
+
+      {/* Mystical / Arcane Star Shimmer */}
+      {sentiment.tone === 'mystical' && (
+        <motion.div
+          animate={{ opacity: [0.2, 0.5, 0.2] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute inset-0 bg-gradient-to-tr from-purple-900/15 via-indigo-900/10 to-violet-900/20 pointer-events-none mix-blend-screen"
+        />
+      )}
+
+      {/* Melancholic / Rain Haze */}
+      {sentiment.tone === 'melancholic' && (
+        <div className="absolute inset-0 bg-slate-900/30 pointer-events-none backdrop-blur-[0.5px] mix-blend-luminosity" />
+      )}
+
+      {/* 4. Cinematic Lightning Flash (Weather / Climax) */}
       <AnimatePresence>
         {showLightning && (
           <motion.div
@@ -35,7 +115,7 @@ export const VfxScreenOverlays: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* 2. Lush Plants & Foliage Framing (Corner Vines & Leaf Silhouettes) */}
+      {/* 5. Lush Plants & Foliage Framing (Corner Vines & Leaf Silhouettes) */}
       {shouldShowPlants && (
         <>
           {/* Top-Left Swaying Foliage */}
@@ -65,16 +145,14 @@ export const VfxScreenOverlays: React.FC = () => {
         </>
       )}
 
-      {/* 3. Rolling Horizon Hills & Mountain Silhouettes */}
+      {/* 6. Rolling Horizon Hills & Mountain Silhouettes */}
       {shouldShowHills && (
         <div className="absolute inset-x-0 bottom-0 h-48 sm:h-64 pointer-events-none opacity-45 mix-blend-multiply">
           <svg viewBox="0 0 1200 300" preserveAspectRatio="none" className="w-full h-full">
-            {/* Distant Mountain Range */}
             <path
               d="M 0 300 L 0 180 Q 200 120, 400 160 Q 600 80, 800 150 Q 1000 100, 1200 170 L 1200 300 Z"
               fill="rgba(15, 23, 42, 0.7)"
             />
-            {/* Foreground Rolling Hills */}
             <path
               d="M 0 300 L 0 210 Q 300 160, 600 220 Q 900 150, 1200 230 L 1200 300 Z"
               fill="rgba(2, 6, 23, 0.9)"
@@ -83,13 +161,10 @@ export const VfxScreenOverlays: React.FC = () => {
         </div>
       )}
 
-      {/* 4. Serene River & Water Wave Reflections Layer */}
+      {/* 7. Serene River & Water Wave Reflections Layer */}
       {shouldShowRiver && (
         <div className="absolute inset-x-0 bottom-0 h-28 pointer-events-none overflow-hidden">
-          {/* Water Horizon Glow */}
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-cyan-900/30 via-teal-900/15 to-transparent" />
-
-          {/* Animated Water Ripples */}
           <motion.div
             animate={{ x: [-20, 20, -20] }}
             transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
@@ -111,7 +186,7 @@ export const VfxScreenOverlays: React.FC = () => {
         </div>
       )}
 
-      {/* 5. Soft Atmospheric Sunlight / Moonlight Volumetric Rays */}
+      {/* 8. Soft Atmospheric Sunlight / Moonlight Volumetric Rays */}
       <div 
         className="absolute inset-0 bg-gradient-to-b from-purple-500/5 via-transparent to-slate-950/40 pointer-events-none" 
       />

@@ -1,5 +1,6 @@
 {
   "name": "AI Storyteller",
   "description": "An interactive AI-powered storyteller that generates illustrated stories paragraph by paragraph using Google Gemini. Features AI-generated images and text-to-speech narration for an immersive experience.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

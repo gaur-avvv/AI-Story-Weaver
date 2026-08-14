@@ -27,16 +27,148 @@ export async function withRetry<T>(
   }
 }
 
+// Helper to safely extract and parse JSON from any AI output (handling markdown fences, reasoning tags, etc.)
+export function extractJson<T = any>(rawText: string): T {
+  if (!rawText) throw new Error("Empty AI response received.");
+  
+  let cleaned = rawText.trim();
+  // Strip DeepSeek / Qwen reasoning <think>...</think> blocks
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  
+  // Try direct parse first
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // Strip markdown code fences (```json ... ``` or ``` ...)
+  const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {}
+  }
+
+  // Extract from the first '{' to the last '}'
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const jsonSubstring = cleaned.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(jsonSubstring);
+    } catch {}
+    try {
+      const sanitized = jsonSubstring
+        .replace(/,\s*([\]}])/g, '$1')
+        .replace(/[\u0000-\u001F]+/g, " ");
+      return JSON.parse(sanitized);
+    } catch {}
+  }
+
+  // Extract from the first '[' to the last ']' for array responses
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+    const jsonSubstring = cleaned.substring(firstBracket, lastBracket + 1);
+    try {
+      return JSON.parse(jsonSubstring);
+    } catch {}
+  }
+
+  throw new Error(`Failed to parse valid JSON from AI response: ${cleaned.slice(0, 150)}...`);
+}
+
+// Call Puter AI Chat (100% Free, no API key required)
+async function callPuterAiChat(prompt: string, systemPrompt: string, model: string = 'openai/gpt-5.4-nano'): Promise<string> {
+  if (typeof window === 'undefined' || !(window as any).puter?.ai) {
+    throw new Error("Puter.js AI is not initialized. Please ensure your internet connection is active.");
+  }
+  const puter = (window as any).puter;
+  const fullPrompt = `${systemPrompt}\n\nUser Request:\n${prompt}\n\nIMPORTANT: Respond with ONLY a valid JSON object matching the requested schema. Do not enclose in markdown explanation outside the JSON.`;
+  
+  const response = await puter.ai.chat(fullPrompt, { model });
+  if (typeof response === 'string') return response;
+  if (Array.isArray(response?.message?.content)) {
+    return response.message.content.map((c: any) => (typeof c === 'string' ? c : c?.text || '')).join('');
+  }
+  if (typeof response?.message?.content === 'string') return response.message.content;
+  if (response?.text) return response.text;
+  if (response?.content) return typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+  if (response?.toString && typeof response.toString === 'function' && response.toString() !== '[object Object]') {
+    return response.toString();
+  }
+  return JSON.stringify(response);
+}
+
 // Helper to get the correct AI client instance
 const getAiClient = (apiKey?: string | null): GoogleGenAI => {
   // The app is designed to allow a user-provided API key, which takes precedence.
   // If not provided, it attempts to fall back to the environment variable.
-  const keyToUse = apiKey || process.env.API_KEY;
+  const keyToUse = apiKey || process.env.API_KEY || (process.env as any)?.GEMINI_API_KEY || (import.meta as any)?.env?.VITE_GEMINI_API_KEY || (import.meta as any)?.env?.GEMINI_API_KEY;
   if (!keyToUse) {
     throw new Error("API key is not configured. Please provide your Gemini API key in the settings.");
   }
   return new GoogleGenAI({ apiKey: keyToUse });
 };
+
+export function getOpenAIProviderConfig(
+  provider: string,
+  options?: { apiKey?: string; customBaseUrl?: string; cloudflareAccountId?: string }
+): { baseURL: string; effectiveApiKey: string } {
+  let baseURL = '';
+  switch (provider) {
+    case 'zai':
+      baseURL = 'https://api.z.ai/api/paas/v4';
+      break;
+    case 'inception':
+      baseURL = 'https://api.inceptionlabs.ai/v1';
+      break;
+    case 'groq':
+      baseURL = 'https://api.groq.com/openai/v1';
+      break;
+    case 'cerebras':
+      baseURL = 'https://api.cerebras.ai/v1';
+      break;
+    case 'mistral':
+      baseURL = 'https://api.mistral.ai/v1';
+      break;
+    case 'cohere':
+      baseURL = 'https://api.cohere.com/compatibility/v1';
+      break;
+    case 'nvidia':
+      baseURL = 'https://integrate.api.nvidia.com/v1';
+      break;
+    case 'openrouter':
+      baseURL = 'https://openrouter.ai/api/v1';
+      break;
+    case 'requesty':
+      baseURL = 'https://router.requesty.ai/v1';
+      break;
+    case 'huggingface':
+      baseURL = 'https://router.huggingface.co/novita/v1';
+      break;
+    case 'cloudflare': {
+      const accountId = options?.cloudflareAccountId || 'your-account-id';
+      baseURL = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
+      break;
+    }
+    case 'siliconflow':
+      baseURL = 'https://api.siliconflow.cn/v1';
+      break;
+    case 'pollinations':
+      baseURL = 'https://gen.pollinations.ai/v1';
+      break;
+    case 'openai':
+      baseURL = 'https://api.openai.com/v1';
+      break;
+    case 'others':
+    default:
+      baseURL = options?.customBaseUrl?.trim() || 'https://api.openai.com/v1';
+      break;
+  }
+
+  const effectiveApiKey = options?.apiKey || (provider === 'pollinations' ? 'dummy' : '');
+  return { baseURL, effectiveApiKey };
+}
 
 const getOpenAIClient = (apiKey: string, baseURL: string): OpenAI => {
   return new OpenAI({
@@ -89,9 +221,10 @@ export const generateStory = async (
   genre: string,
   length: 'very_short' | 'short' | 'medium' | 'long' | 'very_long',
   model: string = 'gemini-2.5-flash',
-  provider: 'gemini' | 'groq' | 'openrouter' | 'siliconflow' | 'pollinations' | 'others' = 'gemini',
+  provider: string = 'gemini',
   otherApiKey?: string, // For non-Gemini providers
-  targetAudience: 'children' | 'teen' | 'adult' = 'children'
+  targetAudience: 'children' | 'teen' | 'adult' = 'children',
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<{ title: string; paragraphs: string[] }> => {
   
   const lengthDescription = getLengthDescription(length);
@@ -138,36 +271,28 @@ export const generateStory = async (
       if (!responseText) {
         throw new Error("The AI model returned an empty response. Please try generating the story again.");
       }
-      const jsonString = responseText.trim();
-      try {
-        return JSON.parse(jsonString);
-      } catch (error) {
-        console.error("Failed to parse story JSON from model response:", jsonString);
-        throw new Error("The AI returned an invalid story format. Please try generating the story again.");
-      }
+      return extractJson(responseText);
+    } else if (provider === 'puter') {
+      // Puter.js 100% Free AI
+      const raw = await callPuterAiChat(`The story should be about: "${prompt}"`, systemInstruction, model || 'openai/gpt-5.4-nano');
+      return extractJson(raw);
     } else {
-      // OpenAI Compatible Providers (Groq, OpenRouter, SiliconFlow, Pollinations, Others)
+      // OpenAI Compatible Providers (Groq, OpenRouter, Z.AI, Cerebras, Mistral, Cohere, NVIDIA, Requesty, Hugging Face, Cloudflare, SiliconFlow, Pollinations, OpenAI, Others)
       if (!otherApiKey && provider !== 'pollinations') {
-        throw new Error(`API Key for ${provider} is missing.`);
+        throw new Error(`API Key for ${provider} is missing. Please provide it in Settings.`);
       }
 
-      let baseURL = '';
-      switch (provider) {
-        case 'groq': baseURL = 'https://api.groq.com/openai/v1'; break;
-        case 'openrouter': baseURL = 'https://openrouter.ai/api/v1'; break;
-        case 'siliconflow': baseURL = 'https://api.siliconflow.cn/v1'; break;
-        case 'pollinations': baseURL = 'https://gen.pollinations.ai/v1'; break;
-        case 'others': baseURL = 'https://api.openai.com/v1'; break; // Default to OpenAI compatible for others
-      }
-
-      // Pollinations might work without a key for some endpoints, but let's use it if provided or a dummy one if required by library
-      const effectiveApiKey = otherApiKey || (provider === 'pollinations' ? 'dummy' : '');
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+        apiKey: otherApiKey,
+        customBaseUrl: options?.customBaseUrl,
+        cloudflareAccountId: options?.cloudflareAccountId,
+      });
 
       const openai = getOpenAIClient(effectiveApiKey, baseURL);
 
       try {
         const completion = await openai.chat.completions.create({
-          model: model === 'gemini-2.5-flash' ? 'gpt-3.5-turbo' : model, // Fallback if using non-gemini provider with default model
+          model: model === 'gemini-2.5-flash' ? 'gpt-3.5-turbo' : model,
           messages: [
             { role: 'system', content: systemInstruction },
             { role: 'user', content: `The story should be about: "${prompt}". Return ONLY valid JSON.` }
@@ -178,7 +303,7 @@ export const generateStory = async (
         const content = completion.choices[0].message.content;
         if (!content) throw new Error('No content returned from AI');
         
-        return JSON.parse(content);
+        return extractJson(content);
       } catch (error: any) {
         console.error(`${provider} generation failed:`, error);
         throw new Error(`${provider} generation failed: ${error.message}`);
@@ -211,7 +336,8 @@ export const generateStorySegment = async (
   otherApiKey?: string,
   targetAudience: string = 'children',
   isLastSegment: boolean = false,
-  isFirstSegment: boolean = false
+  isFirstSegment: boolean = false,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<{ title?: string; paragraph: string; choices?: string[] }> => {
   let audienceInstruction = '';
   switch (targetAudience) {
@@ -264,29 +390,22 @@ export const generateStorySegment = async (
       if (!responseText) {
         throw new Error("The AI model returned an empty response. Please try generating again.");
       }
-      const jsonString = responseText.trim();
-      try {
-        return JSON.parse(jsonString);
-      } catch (error) {
-        console.error("Failed to parse segment JSON from model response:", jsonString);
-        throw new Error("The AI returned an invalid story format. Please try generating again.");
-      }
+      return extractJson(responseText);
+    } else if (provider === 'puter') {
+      const raw = await callPuterAiChat(fullPrompt, systemInstruction, model || 'openai/gpt-5.4-nano');
+      return extractJson(raw);
     } else {
       // OpenAI Compatible Providers
       if (!otherApiKey && provider !== 'pollinations') {
-        throw new Error(`API Key for ${provider} is missing.`);
+        throw new Error(`API Key for ${provider} is missing. Please provide it in Settings.`);
       }
 
-      let baseURL = '';
-      switch (provider) {
-        case 'groq': baseURL = 'https://api.groq.com/openai/v1'; break;
-        case 'openrouter': baseURL = 'https://openrouter.ai/api/v1'; break;
-        case 'siliconflow': baseURL = 'https://api.siliconflow.cn/v1'; break;
-        case 'pollinations': baseURL = 'https://gen.pollinations.ai/v1'; break;
-        case 'others': baseURL = 'https://api.openai.com/v1'; break; 
-      }
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+        apiKey: otherApiKey,
+        customBaseUrl: options?.customBaseUrl,
+        cloudflareAccountId: options?.cloudflareAccountId,
+      });
 
-      const effectiveApiKey = otherApiKey || (provider === 'pollinations' ? 'dummy' : '');
       const openai = getOpenAIClient(effectiveApiKey, baseURL);
 
       try {
@@ -302,11 +421,128 @@ export const generateStorySegment = async (
         const content = completion.choices[0].message.content;
         if (!content) throw new Error('No content returned from AI');
         
-        return JSON.parse(content);
+        return extractJson(content);
       } catch (error: any) {
         console.error(`${provider} generation failed:`, error);
         throw new Error(`${provider} generation failed: ${error.message}`);
       }
+    }
+  });
+};
+
+const chapterResponseSchema = {
+  type: "object",
+  properties: {
+    chapterTitle: { 
+      type: "string", 
+      description: "The title or subtitle of this chapter (e.g. 'Chapter 2: The Lost Temple')." 
+    },
+    paragraphs: {
+      type: "array",
+      items: { type: "string" },
+      description: "The sequence of paragraphs advancing the chapter according to the requested length."
+    },
+    choices: {
+      type: "array",
+      items: { type: "string" },
+      description: "Three exciting narrative choices for what can happen next."
+    }
+  },
+  required: ["chapterTitle", "paragraphs"]
+};
+
+export const generateNextChapter = async (
+  previousParagraphs: string[],
+  storyTitle: string,
+  chapterNumber: number,
+  language: string,
+  apiKey: string | null,
+  genre: string,
+  length: 'very_short' | 'short' | 'medium' | 'long' | 'very_long',
+  model: string = 'gemini-2.5-flash',
+  provider: string = 'gemini',
+  otherApiKey?: string,
+  targetAudience: string = 'children',
+  userGuidance?: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
+): Promise<{ chapterTitle: string; paragraphs: string[]; choices?: string[] }> => {
+  const lengthDescription = getLengthDescription(length);
+  
+  let audienceInstruction = '';
+  switch (targetAudience) {
+    case 'children':
+      audienceInstruction = 'Ensure the story is imaginative, engaging, and easy for a child to understand. Use simple language, positive themes, and a clear moral or lesson. Avoid scary or inappropriate content.';
+      break;
+    case 'teen':
+      audienceInstruction = 'The story should be engaging for teenagers, with slightly more complex themes and vocabulary. It can include elements of adventure, mystery, or coming-of-age. The tone should be relatable to young adults.';
+      break;
+    case 'adult':
+      audienceInstruction = 'The story is for an adult audience. It can explore mature themes, complex character development, and sophisticated vocabulary. The tone should be appropriate for the genre, whether it be dark, romantic, or intellectual.';
+      break;
+  }
+
+  const systemInstruction = `You are a master storyteller writing the next chapter of an epic story titled "${storyTitle}".
+Genre: ${genre}, Language: ${language}
+Target Audience: ${targetAudience}
+${audienceInstruction}
+
+Instructions:
+- Write Chapter ${chapterNumber} of the story.
+- Generate an imaginative chapter title (e.g. "Chapter ${chapterNumber}: <Subtitle>").
+- Provide exactly ${lengthDescription} connected, vivid narrative paragraphs that continue the plot seamlessly from previous events.
+- Provide exactly THREE exciting narrative choices for future branches in the "choices" field.
+
+Output Format:
+Return a JSON object with:
+- "chapterTitle": String
+- "paragraphs": Array of strings (each string is one paragraph)
+- "choices": Array of 3 strings (interactive options)`;
+
+  const historyContext = `Previous story events so far:\n${previousParagraphs.slice(-6).join('\n\n')}`;
+  const guidance = userGuidance ? `\n\nDirect user guidance for this chapter: "${userGuidance}"` : '';
+  const fullPrompt = `${historyContext}${guidance}\n\nWrite Chapter ${chapterNumber} now.`;
+
+  return withRetry(async () => {
+    if (provider === 'gemini') {
+      const ai = getAiClient(apiKey);
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: fullPrompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: chapterResponseSchema as any,
+        },
+      });
+      const responseText = response.text;
+      if (!responseText) throw new Error("The AI model returned an empty response.");
+      return extractJson(responseText);
+    } else if (provider === 'puter') {
+      const raw = await callPuterAiChat(fullPrompt, systemInstruction, model || 'openai/gpt-5.4-nano');
+      return extractJson(raw);
+    } else {
+      if (!otherApiKey && provider !== 'pollinations') {
+        throw new Error(`API Key for ${provider} is missing. Please provide it in Settings.`);
+      }
+
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+        apiKey: otherApiKey,
+        customBaseUrl: options?.customBaseUrl,
+        cloudflareAccountId: options?.cloudflareAccountId,
+      });
+
+      const openai = getOpenAIClient(effectiveApiKey, baseURL);
+      const completion = await openai.chat.completions.create({
+        model: model === 'gemini-2.5-flash' ? 'gpt-3.5-turbo' : model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `${fullPrompt}. Return valid JSON.` }
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('No content returned from AI');
+      return extractJson(content);
     }
   });
 };
@@ -316,8 +552,9 @@ export const generateImage = async (
   apiKey: string | null,
   imageStyle: string,
   model: string = 'gemini-3.1-flash-lite-image',
-  provider: 'gemini' | 'pollinations' | 'siliconflow' = 'gemini',
-  otherApiKey?: string
+  provider: string = 'gemini',
+  otherApiKey?: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<string> => {
   
   let stylePrompt = '';
@@ -421,35 +658,70 @@ export const generateImage = async (
 
     throw new Error('Image generation failed: No image data returned.');
 
-  } else if (provider === 'pollinations') {
-    // Pollinations.ai (Free, URL-based)
-    const encodedPrompt = encodeURIComponent(fullPrompt);
-    // Add a random seed to prevent caching of the same prompt
-    const seed = Math.floor(Math.random() * 1000000);
-    const url = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=flux`;
-    return url; // Return the URL directly
-
-  } else if (provider === 'siliconflow') {
-    if (!otherApiKey) throw new Error("SiliconFlow API Key is required.");
+  } else if (provider === 'puter') {
+    // Support Nano Banana models (Nano Banana, Lite, 2, 2 Lite, Pro, Ultra) and Flux on Puter
+    const imgModel = model && model !== 'puter-txt2img' ? model : 'nanobanana-2-lite';
     
-    const openai = getOpenAIClient(otherApiKey, 'https://api.siliconflow.cn/v1');
+    // Check if Puter AI has txt2img
+    if (typeof window !== 'undefined' && (window as any).puter?.ai?.txt2img) {
+      try {
+        const img = await (window as any).puter.ai.txt2img(fullPrompt, { model: imgModel });
+        if (img?.src) return img.src;
+        if (typeof img === 'string') return img;
+      } catch (err) {
+        console.warn("Puter txt2img fallback to Pollinations:", err);
+      }
+    }
+    // Fallback smoothly to Pollinations with the requested Nano Banana / Flux model
+    const encodedPrompt = encodeURIComponent(fullPrompt);
+    const seed = Math.floor(Math.random() * 1000000);
+    return `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=${imgModel}`;
+
+  } else if (provider === 'pollinations') {
+    // Pollinations.ai (Free, URL-based) - supporting all Nano Banana and Flux suites
+    const encodedPrompt = encodeURIComponent(fullPrompt);
+    const seed = Math.floor(Math.random() * 1000000);
+    const pollinationsModel = model || 'nanobanana-2-lite';
+    const url = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=${pollinationsModel}`;
+    return url;
+
+  } else if (provider === 'zai' || provider === 'openai' || provider === 'siliconflow' || provider === 'huggingface' || provider === 'cloudflare') {
+    if (!otherApiKey && provider !== 'cloudflare') {
+      throw new Error(`${provider} API Key is required for image generation.`);
+    }
+    
+    const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+      apiKey: otherApiKey,
+      customBaseUrl: options?.customBaseUrl,
+      cloudflareAccountId: options?.cloudflareAccountId,
+    });
+    
+    const openai = getOpenAIClient(effectiveApiKey, baseURL);
     
     try {
       const response = await openai.images.generate({
         model: model,
         prompt: fullPrompt,
         n: 1,
-        size: "1024x1024", // Standard size
+        size: "1024x1024",
       });
       
-      return response.data[0].url || '';
+      const imageUrl = response.data[0]?.url || (response.data[0] as any)?.b64_json ? `data:image/png;base64,${(response.data[0] as any).b64_json}` : '';
+      if (imageUrl) return imageUrl;
+      throw new Error('No image URL returned.');
     } catch (error: any) {
-      console.error("SiliconFlow image generation failed:", error);
-      throw new Error(`SiliconFlow image generation failed: ${error.message}`);
+      console.error(`${provider} image generation failed:`, error);
+      // Fallback gracefully to Pollinations Nano Banana
+      const encodedPrompt = encodeURIComponent(fullPrompt);
+      const seed = Math.floor(Math.random() * 1000000);
+      return `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=nanobanana-2-lite`;
     }
   }
 
-  throw new Error(`Provider ${provider} not supported for images.`);
+  // Fallback to Pollinations
+  const encodedPrompt = encodeURIComponent(fullPrompt);
+  const seed = Math.floor(Math.random() * 1000000);
+  return `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=nanobanana-2-lite`;
 };
 
 export const generateCoverImage = async (
@@ -457,11 +729,11 @@ export const generateCoverImage = async (
   apiKey: string | null,
   imageStyle: string,
   model: string = 'gemini-3.1-flash-lite-image',
-  provider: 'gemini' | 'pollinations' | 'siliconflow' = 'gemini',
-  otherApiKey?: string
+  provider: string = 'gemini',
+  otherApiKey?: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<string> => {
-    // This function is specifically for the PDF cover, but can reuse the main image generation logic.
-    return generateImage(prompt, apiKey, imageStyle, model, provider, otherApiKey);
+    return generateImage(prompt, apiKey, imageStyle, model, provider, otherApiKey, options);
 };
 
 // Helper to convert 16-bit PCM (sample rate 24000, 1 channel) to WAV Base64
@@ -618,9 +890,10 @@ export const generateTTSAudio = async (
 export const enhancePrompt = async (
   prompt: string,
   apiKey: string | null,
-  provider: 'gemini' | 'groq' | 'openrouter' | 'siliconflow' | 'pollinations' | 'others' = 'gemini',
+  provider: string = 'gemini',
   otherApiKey?: string,
-  model: string = 'gemini-2.5-flash'
+  model: string = 'gemini-2.5-flash',
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<string> => {
   const systemInstruction = `You are a creative writing assistant. Your task is to take a simple story idea and expand it into a rich, detailed, and engaging prompt for a story generator. 
   Keep the enhanced prompt under 3 sentences but make it evocative and specific. 
@@ -637,30 +910,33 @@ export const enhancePrompt = async (
     });
     const responseText = response.text;
     return responseText ? responseText.trim() : prompt;
+  } else if (provider === 'puter') {
+    try {
+      const resp = await callPuterAiChat(`Enhance this story idea: "${prompt}"`, systemInstruction, model || 'openai/gpt-5.4-nano');
+      return resp.trim();
+    } catch {
+      return prompt;
+    }
   } else {
     // OpenAI Compatible Providers
     if (!otherApiKey && provider !== 'pollinations') {
-        throw new Error(`API Key for ${provider} is missing.`);
+        throw new Error(`API Key for ${provider} is missing. Please provide it in Settings.`);
     }
     
-    let baseURL = '';
-    switch (provider) {
-      case 'groq': baseURL = 'https://api.groq.com/openai/v1'; break;
-      case 'openrouter': baseURL = 'https://openrouter.ai/api/v1'; break;
-      case 'siliconflow': baseURL = 'https://api.siliconflow.cn/v1'; break;
-      case 'pollinations': baseURL = 'https://gen.pollinations.ai/v1'; break;
-      case 'others': baseURL = 'https://api.openai.com/v1'; break; // Default to OpenAI compatible for others
-    }
+    const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+      apiKey: otherApiKey,
+      customBaseUrl: options?.customBaseUrl,
+      cloudflareAccountId: options?.cloudflareAccountId,
+    });
 
-    const effectiveApiKey = otherApiKey || (provider === 'pollinations' ? 'dummy' : '');
     const openai = getOpenAIClient(effectiveApiKey, baseURL);
     
     // Fallback model if the provided model is not compatible with the provider
     let effectiveModel = model;
-    if (provider === 'pollinations' && !['openai', 'openai-fast', 'openai-large', 'qwen-coder', 'mistral'].includes(model)) {
+    if (provider === 'pollinations' && !['openai', 'openai-fast', 'openai-large', 'qwen-coder', 'mistral', 'deepseek', 'deepseek-v3', 'llama', 'gemini'].includes(model)) {
         effectiveModel = 'openai';
-    } else if (provider === 'others' && model.startsWith('gemini')) {
-        effectiveModel = 'gpt-4o-mini'; // Fallback for OpenAI-compatible providers
+    } else if ((provider === 'others' || provider === 'openai') && model.startsWith('gemini')) {
+        effectiveModel = 'gpt-4o-mini';
     }
     
     const completion = await openai.chat.completions.create({
@@ -699,6 +975,64 @@ export const testApiKey = async (apiKey: string): Promise<{ success: boolean; me
     return { 
         success: false, 
         message: `${userMessage} ${linkText}`
+    };
+  }
+};
+
+export const testProviderKey = async (
+  provider: string,
+  key: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
+): Promise<{ success: boolean; message: string }> => {
+  if (provider === 'puter' || provider === 'pollinations') {
+    return { success: true, message: 'Free provider - no API key required!' };
+  }
+  if (!key) return { success: false, message: 'API Key cannot be empty.' };
+
+  if (provider === 'gemini') {
+    return testApiKey(key);
+  }
+
+  try {
+    const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+      apiKey: key,
+      customBaseUrl: options?.customBaseUrl,
+      cloudflareAccountId: options?.cloudflareAccountId,
+    });
+    const openai = getOpenAIClient(effectiveApiKey, baseURL);
+    
+    // Choose a very lightweight model for rapid verification
+    let testModel = 'gpt-3.5-turbo';
+    if (provider === 'groq') testModel = 'llama-3.1-8b-instant';
+    else if (provider === 'inception') testModel = 'mercury-2';
+    else if (provider === 'cerebras') testModel = 'llama3.1-8b';
+    else if (provider === 'mistral') testModel = 'mistral-small-latest';
+    else if (provider === 'cohere') testModel = 'command-r-08-2024';
+    else if (provider === 'nvidia') testModel = 'meta/llama-3.3-70b-instruct';
+    else if (provider === 'openrouter') testModel = 'meta-llama/llama-3.2-3b-instruct:free';
+    else if (provider === 'requesty') testModel = 'meta-llama/llama-3.3-70b';
+    else if (provider === 'zai') testModel = 'glm-4-flash';
+    else if (provider === 'siliconflow') testModel = 'Qwen/Qwen2.5-7B-Instruct';
+    else if (provider === 'huggingface') testModel = 'meta-llama/Llama-3.3-70B-Instruct';
+    else if (provider === 'cloudflare') testModel = '@cf/meta/llama-3.3-70b-instruct';
+    else if (provider === 'openai') testModel = 'gpt-4o-mini';
+
+    await openai.chat.completions.create({
+      model: testModel,
+      messages: [{ role: 'user', content: 'test connection' }],
+      max_tokens: 2,
+    });
+
+    return { success: true, message: `Success! ${provider.toUpperCase()} API Key is verified and ready to use.` };
+  } catch (err: any) {
+    console.error(`Test key failed for ${provider}:`, err);
+    return { 
+      success: false, 
+      message: err.message?.includes('401') 
+        ? 'Invalid API Key or unauthorized.' 
+        : err.message?.includes('429') 
+          ? 'Rate limit reached or quota exceeded.' 
+          : `Connection test result: ${err.message || 'Check key and parameters.'}` 
     };
   }
 };
