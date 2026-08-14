@@ -10,16 +10,6 @@
 
 ---
 
-## 📌 Project Identity
-
-### **Project Name**
-> `StorySpark: Multi-Modal AI Storyteller & Studio`
-
-### **Elevator Pitch**
-> `Create interactive illustrated storybooks with branching plots, contextual AI art, voice narration, ambient soundscapes, MCP agent toolkits, EPUB & video exports.`
-
----
-
 ## 📖 Overview
 
 **StorySpark** is an interactive, multi-modal generative AI storytelling platform and creative studio. Built with **React 19**, **TypeScript**, **Google Gemini**, and the **Model Context Protocol (MCP)**, StorySpark harmonizes natural language generation, real-time contextual illustration, expressive voice synthesis, adaptive VFX ambient soundscapes, branching narrative decision trees, automated EPUB publishing, and dynamic video reels.
@@ -189,8 +179,8 @@ curl -X POST http://localhost:3000/api/mcp \
 ### Installation
 ```bash
 # Clone repository
-git clone https://github.com/your-username/ai-storyteller.git
-cd ai-storyteller
+git clone [https://github.com/your-username/ai-storyteller.git](https://github.com/gaur-avvv/AI-Story-Weaver)
+cd AI-Story-Weaver
 
 # Install dependencies
 npm install
