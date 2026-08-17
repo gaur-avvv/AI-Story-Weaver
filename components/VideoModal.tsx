@@ -595,16 +595,38 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
                animate={{ opacity: 1, scale: 1 }}
                exit={{ opacity: 0 }}
                transition={{ duration: 0.8, ease: "easeInOut" }}
-               className="absolute inset-0 w-full h-full"
+               className="absolute inset-0 w-full h-full overflow-hidden"
              >
                {currentSegment?.imageUrl && (
-                 <img 
+                 <motion.img 
+                   key={`reel-img-${currentSegmentIndex}-${currentSegment.imageUrl}`}
                    src={currentSegment.imageUrl} 
                    alt="Story scene" 
-                   className="w-full h-full object-cover"
+                   className="w-full h-full object-cover origin-center"
+                   initial={{ opacity: 0, scale: 0.94, filter: 'blur(8px)' }}
+                   animate={{ 
+                     opacity: 1, 
+                     filter: 'blur(0px)',
+                     scale: isPlaying ? [0.98, 1.08, 1.03] : [0.98, 1.04, 1],
+                     x: isPlaying ? [0, 8, -6, 0] : [0, 3, 0],
+                     y: isPlaying ? [0, -6, 5, 0] : [0, -2, 0],
+                   }}
+                   transition={{ 
+                     opacity: { duration: 0.85, ease: [0.16, 1, 0.3, 1] },
+                     filter: { duration: 0.8, ease: 'easeOut' },
+                     scale: { duration: isPlaying ? 16 : 22, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
+                     x: { duration: isPlaying ? 16 : 22, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
+                     y: { duration: isPlaying ? 16 : 22, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
+                   }}
                  />
                )}
-               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+               {/* Atmospheric cinematic vignette & dynamic light flare overlay */}
+               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 pointer-events-none" />
+               <motion.div 
+                 className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-500/10 via-transparent to-transparent pointer-events-none"
+                 animate={{ opacity: isPlaying ? [0.3, 0.7, 0.4] : 0.3 }}
+                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+               />
              </motion.div>
            </AnimatePresence>
 

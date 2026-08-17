@@ -7,7 +7,7 @@ import { Volume2, Sparkles, BookOpen } from 'lucide-react';
 
 interface ParagraphCardProps {
   segment: StorySegment;
-  fontFamilyPreference?: 'serif' | 'sans' | 'mono';
+  fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
   isAudioActive?: boolean;
   audioProgress?: number;
   onSeekWord?: (progressRatio: number) => void;
@@ -22,13 +22,23 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
 
-  const fontClass = fontFamilyPreference === 'serif' 
-    ? 'font-display' 
-    : fontFamilyPreference === 'mono' 
-    ? 'font-mono' 
-    : fontFamilyPreference === 'sans' 
-    ? 'font-sans' 
-    : theme.fontFamily;
+  const getFontClass = () => {
+    switch (fontFamilyPreference) {
+      case 'serif': return 'font-display font-serif';
+      case 'cinzel': return 'font-cinzel';
+      case 'merriweather': return 'font-merriweather';
+      case 'lora': return 'font-lora';
+      case 'sans': return 'font-sans';
+      case 'outfit': return 'font-outfit';
+      case 'inter': return 'font-inter';
+      case 'fantasy': return 'font-fantasy';
+      case 'handwriting': return 'font-handwriting';
+      case 'mono': return 'font-mono';
+      default: return theme.fontFamily || 'font-display font-serif';
+    }
+  };
+
+  const fontClass = getFontClass();
 
   useEffect(() => {
     if (isAudioActive && segment.paragraph) {
@@ -147,9 +157,13 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
             </span>
           </div>
         ) : segment.imageUrl ? (
-          <img
+          <motion.img
+            key={segment.imageUrl}
             src={segment.imageUrl}
             alt="Story illustration"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
           />
         ) : (

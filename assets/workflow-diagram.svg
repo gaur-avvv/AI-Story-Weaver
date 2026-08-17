@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 380" width="100%" height="100%">
+  <defs>
+    <linearGradient id="flowBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e0a1f" />
+      <stop offset="100%" stop-color="#160e2e" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#241544" />
+      <stop offset="100%" stop-color="#180c32" />
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="380" rx="16" fill="url(#flowBg)" stroke="#3b1d6e" stroke-width="1.5" />
+
+  <!-- Header Section -->
+  <text x="550" y="45" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="22" font-weight="700" fill="#ffffff">
+    Novellaio End-to-End Generative Storytelling Lifecycle
+  </text>
+  <text x="550" y="70" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="14" fill="#94a3b8">
+    From prompt ideation to interactive branching, contextual multimedia synthesis, and multi-format publishing
+  </text>
+
+  <!-- Step 1: Prompt & Calibration -->
+  <g transform="translate(30, 95)">
+    <rect width="180" height="230" rx="12" fill="url(#cardGrad)" stroke="#a855f7" stroke-width="1.5" />
+    <circle cx="90" cy="40" r="22" fill="#7e22ce" />
+    <text x="90" y="46" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff" font-weight="bold">1</text>
+    <text x="90" y="85" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#f3e8ff">Prompt &amp; Settings</text>
+    <text x="20" y="115" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Premise / Voice Dictation</text>
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#cbd5e1">• 16 Genres &amp; 15 Art Styles</text>
+    <text x="20" y="155" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Audience (Child/Teen/Adult)</text>
+    <text x="20" y="175" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Story Length Calibration</text>
+    <text x="20" y="195" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Multi-Model Selector</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 215 210 L 245 210" stroke="url(#arrowGrad)" stroke-width="3" fill="none" marker-end="url(#arrow)" />
+  <polygon points="245,205 255,210 245,215" fill="#a855f7" />
+
+  <!-- Step 2: Multi-Modal Gen -->
+  <g transform="translate(245, 95)">
+    <rect width="180" height="230" rx="12" fill="url(#cardGrad)" stroke="#6366f1" stroke-width="1.5" />
+    <circle cx="90" cy="40" r="22" fill="#4338ca" />
+    <text x="90" y="46" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff" font-weight="bold">2</text>
+    <text x="90" y="85" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#e0e7ff">Chapter Synthesis</text>
+    <text x="20" y="115" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Gemini / Puter / OpenRouter</text>
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Paragraph Streaming</text>
+    <text x="20" y="155" font-family="sans-serif" font-size="12" fill="#cbd5e1">• 2-4 Branching CYOA Choices</text>
+    <text x="20" y="175" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Scene Visual Prompt Synth</text>
+    <text x="20" y="195" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Synchronized TTS Voice</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <polygon points="460,205 470,210 460,215" fill="#6366f1" />
+
+  <!-- Step 3: Lore Graph & VFX -->
+  <g transform="translate(460, 95)">
+    <rect width="180" height="230" rx="12" fill="url(#cardGrad)" stroke="#06b6d4" stroke-width="1.5" />
+    <circle cx="90" cy="40" r="22" fill="#0891b2" />
+    <text x="90" y="46" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff" font-weight="bold">3</text>
+    <text x="90" y="85" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#cffafe">Lore Graph &amp; VFX</text>
+    <text x="20" y="115" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Entity Triple Extraction</text>
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Emotional Arc Tracking</text>
+    <text x="20" y="155" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Adaptive WebAudio Sound</text>
+    <text x="20" y="175" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Reactive Aura Glow</text>
+    <text x="20" y="195" font-family="sans-serif" font-size="12" fill="#cbd5e1">• AI Plot Twist Generator</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 -->
+  <polygon points="675,205 685,210 675,215" fill="#06b6d4" />
+
+  <!-- Step 4: Interactive Reading -->
+  <g transform="translate(675, 95)">
+    <rect width="180" height="230" rx="12" fill="url(#cardGrad)" stroke="#10b981" stroke-width="1.5" />
+    <circle cx="90" cy="40" r="22" fill="#059669" />
+    <text x="90" y="46" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff" font-weight="bold">4</text>
+    <text x="90" y="85" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#d1fae5">Reading &amp; Rewind</text>
+    <text x="20" y="115" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Split-View Illustrated Cards</text>
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Scrubbable Audio Waveform</text>
+    <text x="20" y="155" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Branch Rewind &amp; Forking</text>
+    <text x="20" y="175" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Chapter Outline Drawer</text>
+    <text x="20" y="195" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Typography &amp; Font Switch</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 -->
+  <polygon points="890,205 900,210 890,215" fill="#10b981" />
+
+  <!-- Step 5: Export & Agents -->
+  <g transform="translate(890, 95)">
+    <rect width="180" height="230" rx="12" fill="url(#cardGrad)" stroke="#ec4899" stroke-width="1.5" />
+    <circle cx="90" cy="40" r="22" fill="#be185d" />
+    <text x="90" y="46" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff" font-weight="bold">5</text>
+    <text x="90" y="85" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="#fce7f3">Publish &amp; MCP</text>
+    <text x="20" y="115" font-family="sans-serif" font-size="12" fill="#cbd5e1">• EPUB 3.0 (Kindle/Apple)</text>
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Worker-Rendered PDF</text>
+    <text x="20" y="155" font-family="sans-serif" font-size="12" fill="#cbd5e1">• 9:16 / 16:9 Video Reels</text>
+    <text x="20" y="175" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Claude/Cursor MCP Server</text>
+    <text x="20" y="195" font-family="sans-serif" font-size="12" fill="#cbd5e1">• Google Docs &amp; Discord</text>
+  </g>
+</svg>

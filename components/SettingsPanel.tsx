@@ -711,14 +711,21 @@ export const SettingsPanel: React.FC<{
                   </CustomSelect>
                 </SettingRow>
 
-                <SettingRow icon={<Type className="w-4 h-4 text-purple-400" />} label="Reading Font" description="Typography style for reading paragraphs">
+                <SettingRow icon={<Type className="w-4 h-4 text-purple-400" />} label="Reading Font" description="Typography style for reading paragraphs & PDF">
                   <CustomSelect 
                     value={localSettings.fontFamilyPreference || 'serif'} 
                     onChange={handleSettingChange('fontFamilyPreference')}
                   >
-                    <option value="serif">Serif (Playfair Display Storybook)</option>
-                    <option value="sans">Sans-Serif (Plus Jakarta Sans)</option>
-                    <option value="mono">Monospace (Typewriter / Script)</option>
+                    <option value="serif">Playfair Display (Storybook Serif)</option>
+                    <option value="cinzel">Cinzel (Mythic & Epic Classical)</option>
+                    <option value="merriweather">Merriweather (Literary Editorial)</option>
+                    <option value="lora">Lora (Contemporary Novelist)</option>
+                    <option value="sans">Plus Jakarta Sans (Modern Clean)</option>
+                    <option value="outfit">Outfit (Geometric Minimalist)</option>
+                    <option value="inter">Inter (Crisp Contemporary)</option>
+                    <option value="fantasy">MedievalSharp (Fairytale Fantasy)</option>
+                    <option value="handwriting">Caveat (Whimsical Script)</option>
+                    <option value="mono">JetBrains Mono (Vintage Typewriter)</option>
                   </CustomSelect>
                 </SettingRow>
 
@@ -766,11 +773,13 @@ export const SettingsPanel: React.FC<{
                 </SettingRow>
 
                 <SettingRow icon={<Paintbrush className="w-4 h-4" />} label="PDF Export Theme" description="Color palette theme for exported storybook PDF">
-                  <CustomSelect value={localSettings.pdfTheme || 'classic_ivory'} onChange={handleSettingChange('pdfTheme' as any)}>
-                    <option value="classic_ivory">Classic Ivory</option>
-                    <option value="midnight">Midnight Slate</option>
-                    <option value="emerald_parchment">Emerald Parchment</option>
-                    <option value="cyberpunk">Cyberpunk Neon</option>
+                  <CustomSelect value={localSettings.pdfTheme || 'midnight'} onChange={handleSettingChange('pdfTheme' as any)}>
+                    <option value="midnight">Midnight Obsidian (Dark Slate & Violet)</option>
+                    <option value="classic_ivory">Classic Ivory (Warm Parchment & Gold)</option>
+                    <option value="emerald_parchment">Emerald Parchment (Deep Forest & Mint)</option>
+                    <option value="royal_slate">Royal Slate (Charcoal & Amber Gold)</option>
+                    <option value="cyberpunk">Cyberpunk Neon (Synthwave Pink & Cyan)</option>
+                    <option value="sunset_crimson">Sunset Velvet (Velvet Crimson & Rose)</option>
                   </CustomSelect>
                 </SettingRow>
               </div>

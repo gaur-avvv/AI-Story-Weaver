@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 420" width="100%" height="100%">
+  <defs>
+    <linearGradient id="matrixBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c071b" />
+      <stop offset="100%" stop-color="#170d30" />
+    </linearGradient>
+    <linearGradient id="colHeader1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7e22ce" />
+      <stop offset="100%" stop-color="#9333ea" />
+    </linearGradient>
+    <linearGradient id="colHeader2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4338ca" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="colHeader3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0e7490" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="colHeader4" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#be185d" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="420" rx="16" fill="url(#matrixBg)" stroke="#381b6a" stroke-width="1.5" />
+
+  <text x="550" y="42" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="22" font-weight="700" fill="#ffffff">
+    Novellaio Multi-Modal Architecture &amp; Uniqueness
+  </text>
+  <text x="550" y="66" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="13.5" fill="#94a3b8">
+    A unified multi-model studio bridging generative storytelling, computer graphics, audio synthesis, and autonomous agent protocols
+  </text>
+
+  <!-- Column 1: Multi-Model Intelligence -->
+  <g transform="translate(30, 90)">
+    <rect width="245" height="300" rx="10" fill="#1b1134" stroke="#a855f7" stroke-width="1" />
+    <rect width="245" height="40" rx="10" fill="url(#colHeader1)" />
+    <text x="122" y="26" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff">16+ Text &amp; LLM Engines</text>
+    <g transform="translate(15, 60)" font-family="sans-serif" font-size="12" fill="#e2e8f0">
+      <text y="0" font-weight="600" fill="#c084fc">Supported Providers:</text>
+      <text y="22">• Google Gemini (2.5 Flash, 2.5 Pro)</text>
+      <text y="42">• Puter.js (Zero-config free tier)</text>
+      <text y="62">• Groq (Llama 3.3 70B &amp; Mixtral)</text>
+      <text y="82">• OpenAI (GPT-4o, o3-mini)</text>
+      <text y="102">• Mistral, Cohere, Cerebras, ZAI</text>
+      <text y="122">• OpenRouter &amp; HuggingFace</text>
+      <text y="142">• SiliconFlow &amp; Cloudflare AI</text>
+      <text y="162">• Custom OpenAI-compatible URL</text>
+      <text y="195" font-weight="600" fill="#c084fc">Specialization:</text>
+      <text y="215">• Dynamic Branching Memory</text>
+    </g>
+  </g>
+
+  <!-- Column 2: Visual & Artistic Studio -->
+  <g transform="translate(295, 90)">
+    <rect width="245" height="300" rx="10" fill="#13153c" stroke="#6366f1" stroke-width="1" />
+    <rect width="245" height="40" rx="10" fill="url(#colHeader2)" />
+    <text x="122" y="26" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff">15 Art Styles &amp; Image AI</text>
+    <g transform="translate(15, 60)" font-family="sans-serif" font-size="12" fill="#e2e8f0">
+      <text y="0" font-weight="600" fill="#818cf8">Image Generators:</text>
+      <text y="22">• Google Gemini (Imagen 3)</text>
+      <text y="42">• Pollinations.ai (Flux, SDXL)</text>
+      <text y="62">• SiliconFlow (FLUX.1-schnell)</text>
+      <text y="82">• OpenAI DALL-E 3 &amp; Puter</text>
+      <text y="115" font-weight="600" fill="#818cf8">Curated Art Styles:</text>
+      <text y="135">• Whimsical, Anime/Manga</text>
+      <text y="155">• 3D Pixar/Disney, Claymation</text>
+      <text y="175">• Watercolor, Cyberpunk, Noir</text>
+      <text y="195">• 16-Bit Pixel Art, Oil Painting</text>
+      <text y="215">• Architectural Pencil Sketch</text>
+    </g>
+  </g>
+
+  <!-- Column 3: Audio & Soundscapes -->
+  <g transform="translate(560, 90)">
+    <rect width="245" height="300" rx="10" fill="#0f2233" stroke="#06b6d4" stroke-width="1" />
+    <rect width="245" height="40" rx="10" fill="url(#colHeader3)" />
+    <text x="122" y="26" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff">Voice &amp; Procedural Audio</text>
+    <g transform="translate(15, 60)" font-family="sans-serif" font-size="12" fill="#e2e8f0">
+      <text y="0" font-weight="600" fill="#22d3ee">Speech &amp; Narration:</text>
+      <text y="22">• Gemini Expressive TTS</text>
+      <text y="42">• OpenAI Voices (Alloy, Fable, etc.)</text>
+      <text y="62">• Pollinations Voice Timbre</text>
+      <text y="82">• Continuous Audio Playlist</text>
+      <text y="115" font-weight="600" fill="#22d3ee">Dynamic Soundscapes:</text>
+      <text y="135">• Web Audio Synth Engine</text>
+      <text y="155">• Mood-Adaptive Drone Pads</text>
+      <text y="175">• Procedural Rain, Wind, Chords</text>
+      <text y="195">• Zero External Audio Files</text>
+      <text y="215">• Speed &amp; Volume Modulation</text>
+    </g>
+  </g>
+
+  <!-- Column 4: MCP Agents & Exports -->
+  <g transform="translate(825, 90)">
+    <rect width="245" height="300" rx="10" fill="#260f22" stroke="#ec4899" stroke-width="1" />
+    <rect width="245" height="40" rx="10" fill="url(#colHeader4)" />
+    <text x="122" y="26" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff">MCP Protocol &amp; Exports</text>
+    <g transform="translate(15, 60)" font-family="sans-serif" font-size="12" fill="#e2e8f0">
+      <text y="0" font-weight="600" fill="#f472b6">Autonomous Agent Tools:</text>
+      <text y="22">• JSON-RPC 2.0 MCP Server</text>
+      <text y="42">• Claude Desktop &amp; Cursor IDE</text>
+      <text y="62">• Gemini ADK Agent Hooks</text>
+      <text y="82">• Story Pacing &amp; Readability Audit</text>
+      <text y="115" font-weight="600" fill="#f472b6">Multi-Format Publishing:</text>
+      <text y="135">• Standard EPUB 3.0 (Kindle/Apple)</text>
+      <text y="155">• Worker-Rendered Multi-Theme PDF</text>
+      <text y="175">• 9:16 Social Video Reels</text>
+      <text y="195">• Google Docs &amp; Discord Webhook</text>
+      <text y="215">• JSON Full Story Tree Backup</text>
+    </g>
+  </g>
+</svg>

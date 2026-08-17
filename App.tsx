@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { StoryInput } from './components/StoryInput';
 import { StoryDisplay } from './components/StoryDisplay';
-import { generateStorySegment, generateNextChapter, generateImage, generateTTSAudio, generateCoverImage } from './services/geminiService';
+import { generateStorySegment, generateNextChapter, generateImage, generateTTSAudio, generateCoverImage, translateStoryContent } from './services/geminiService';
 import { StorySegment, Settings, SavedStory } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
 import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, BookText, EyeIcon, Maximize2Icon, Minimize2Icon, CrystalPrismIcon } from './components/icons';
@@ -16,7 +16,7 @@ import { BackgroundManager } from './components/BackgroundManager';
 import { StoryLibrary } from './components/StoryLibrary';
 import { AudioController } from './components/AudioController';
 import { useToast } from './components/ToastContext';
-import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic } from 'lucide-react';
+import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2 } from 'lucide-react';
 import { extractChapters, setChapterAtSegment, removeChapterAtSegment, getChapterStats } from './utils/chapterUtils';
 import { AuthCallback } from './components/AuthCallback';
 import { VoicePromptModal } from './components/VoicePromptModal';
@@ -74,6 +74,15 @@ function StoryCreatorContent() {
   const [initialPrompt, setInitialPrompt] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isSavingPdf, setIsSavingPdf] = useState<boolean>(false);
+  const [isTranslatingLanguage, setIsTranslatingLanguage] = useState<boolean>(false);
+  const [lastSavedTimestamp, setLastSavedTimestamp] = useState<number | null>(() => {
+    try {
+      const saved = localStorage.getItem('user-saved-stories');
+      if (saved) return Date.now();
+    } catch {}
+    return null;
+  });
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'idle'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('English');
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
@@ -249,7 +258,8 @@ function StoryCreatorContent() {
   // Save story whenever segments update and we have a title
   const segmentsFingerprint = segments.map(s => `${s.id}:${s.paragraph.length}:${s.imageUrl ? 1 : 0}:${s.audioUrl ? 1 : 0}`).join('|');
   useEffect(() => {
-    if (segments.length > 0 && title && !isGenerating) {
+    if (segments.length > 0 && title && !isGenerating && !isTranslatingLanguage) {
+      setSaveState('saving');
       const saved = localStorage.getItem('user-saved-stories');
       let stories: SavedStory[] = [];
       if (saved) {
@@ -274,12 +284,55 @@ function StoryCreatorContent() {
         stories.push(newStory);
       }
       
-      const success = saveStoriesSafelyWithQuotaProtection(stories);
-      if (!success) {
+      const res = saveStoriesSafelyWithQuotaProtection(stories);
+      if (!res.success) {
         showWarningToast("Storage quota limit reached. Current story is active in memory but older library items were trimmed.", "Storage Notice");
+        setSaveState('idle');
+      } else {
+        setLastSavedTimestamp(Date.now());
+        setSaveState('saved');
       }
     }
-  }, [segmentsFingerprint, title, isGenerating]);
+  }, [segmentsFingerprint, title, isGenerating, isTranslatingLanguage]);
+
+  const handleLanguageChange = async (newLang: string) => {
+    if (newLang === language) return;
+    const prevLang = language;
+    setLanguage(newLang);
+
+    // If story segments exist, translate existing paragraphs instead of restarting from scratch!
+    if (segments.length > 0 && !isGenerating && !isTranslatingLanguage) {
+      setIsTranslatingLanguage(true);
+      showSuccessToast(`Translating story into ${newLang}...`, 'Language Localization');
+      try {
+        const textApiKey = getApiKeyForProvider(settings.textProvider);
+        const result = await translateStoryContent(
+          title,
+          segments,
+          newLang,
+          userApiKey,
+          settings.textProvider,
+          settings.textModel,
+          textApiKey || undefined,
+          {
+            customBaseUrl: settings.customBaseUrl,
+            cloudflareAccountId: settings.cloudflareAccountId,
+          }
+        );
+
+        if (result && result.segments && result.segments.length > 0) {
+          if (result.title) setTitle(result.title);
+          setSegments(result.segments);
+          showSuccessToast(`Story translated into ${newLang}!`, 'Translation Complete');
+        }
+      } catch (err: any) {
+        console.error('Translation error:', err);
+        showWarningToast(`Translation encountered an issue: ${err.message || 'Check network or keys'}. Retaining original text.`, 'Translation Notice');
+      } finally {
+        setIsTranslatingLanguage(false);
+      }
+    }
+  };
 
   const handleSaveSettings = (key: string | null, newSettings: Settings) => {
     const newKey = key?.trim() || null;
@@ -623,33 +676,620 @@ function StoryCreatorContent() {
     setIsSavingPdf(true);
     setError(null);
 
-    try {
-      showSuccessToast('Generating PDF Storybook using background Web Worker...');
+    let container: HTMLDivElement | null = null;
 
-      const pdfBlob = await generatePdfWithWorker({
-        title,
-        genre: settings.genre || 'Story',
-        audience: settings.targetAudience || 'General',
-        segments,
-        pdfMargin: settings.pdfMargin || 20,
-        pdfTheme: 'classic_ivory',
-        onProgress: (progress, message) => {
-          if (progress === 100) {
-            showSuccessToast('PDF Storybook generated successfully!');
+    try {
+      showSuccessToast('Preparing high-quality PDF Storybook...');
+
+      const imageApiKey = getApiKeyForProvider(settings.imageProvider);
+      let coverUrl = '';
+      try {
+        coverUrl = await generateCoverImage({
+          title: title,
+          genre: settings.genre,
+          targetAudience: settings.targetAudience,
+          imageStyle: settings.imageStyle,
+          storyPrompt: initialPrompt || segments[0]?.paragraph || '',
+          apiKey: userApiKey,
+          model: settings.imageModel,
+          provider: settings.imageProvider,
+          otherApiKey: imageApiKey || undefined,
+          options: {
+            customBaseUrl: settings.customBaseUrl,
+            cloudflareAccountId: settings.cloudflareAccountId,
+          }
+        });
+      } catch (err) {
+        console.warn("Cover image generation fallback:", err);
+        coverUrl = segments[0]?.imageUrl || '';
+      }
+
+      // Helper to process and scale/crop images to precise target dimensions with 0% distortion
+      const processImageForPdfCanvas = async (
+        rawUrl: string,
+        targetWidth: number,
+        targetHeight: number,
+        fit: 'cover' | 'contain' = 'cover',
+        backgroundColor: string = '#0f172a'
+      ): Promise<string> => {
+        if (!rawUrl) return '';
+        
+        let srcUrl = rawUrl;
+        if (!rawUrl.startsWith('data:')) {
+          try {
+            const res = await fetch(rawUrl, { mode: 'cors' });
+            if (res.ok) {
+              const blob = await res.blob();
+              srcUrl = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve((reader.result as string) || rawUrl);
+                reader.onerror = () => resolve(rawUrl);
+                reader.readAsDataURL(blob);
+              });
+            }
+          } catch {
+            srcUrl = rawUrl;
           }
         }
+
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const scaleFactor = 2; // 2x density for ultra-crisp print rendering
+              canvas.width = Math.round(targetWidth * scaleFactor);
+              canvas.height = Math.round(targetHeight * scaleFactor);
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                resolve(srcUrl);
+                return;
+              }
+
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+
+              // Fill canvas background
+              ctx.fillStyle = backgroundColor;
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+              const nw = img.naturalWidth || img.width || targetWidth;
+              const nh = img.naturalHeight || img.height || targetHeight;
+
+              let drawW: number;
+              let drawH: number;
+              let drawX: number;
+              let drawY: number;
+
+              if (fit === 'cover') {
+                const scale = Math.max(canvas.width / nw, canvas.height / nh);
+                drawW = nw * scale;
+                drawH = nh * scale;
+                drawX = (canvas.width - drawW) / 2;
+                drawY = (canvas.height - drawH) / 2;
+              } else {
+                const scale = Math.min(canvas.width / nw, canvas.height / nh);
+                drawW = nw * scale;
+                drawH = nh * scale;
+                drawX = (canvas.width - drawW) / 2;
+                drawY = (canvas.height - drawH) / 2;
+              }
+
+              ctx.drawImage(img, drawX, drawY, drawW, drawH);
+              resolve(canvas.toDataURL('image/jpeg', 0.92));
+            } catch (err) {
+              console.warn('Canvas image processing fallback:', err);
+              resolve(srcUrl);
+            }
+          };
+          img.onerror = () => resolve(srcUrl);
+          img.src = srcUrl;
+        });
+      };
+
+      const coverDataUrl = coverUrl ? await processImageForPdfCanvas(coverUrl, 794, 1122, 'cover') : '';
+
+      const html2canvasModule = await import('html2canvas');
+      const html2canvas = html2canvasModule.default;
+
+      // Safely resolve jsPDF class
+      let JsPDFClass: any;
+      try {
+        const jspdfModule = await import('jspdf');
+        JsPDFClass = (jspdfModule as any).jsPDF || (jspdfModule as any).default?.jsPDF || (jspdfModule as any).default;
+      } catch {
+        JsPDFClass = window.jspdf?.jsPDF || (window as any).jspdf;
+      }
+
+      if (!JsPDFClass) {
+        throw new Error("Unable to load PDF generation library.");
+      }
+
+      const doc = new JsPDFClass({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
 
-      const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      downloadBlobAsFile(pdfBlob, `${sanitizedTitle}.pdf`);
+      // Update jsPDF Document Properties and Metadata
+      const pdfMetadata = {
+        title: title,
+        author: 'AI Storyteller',
+        subject: `Interactive Illustrated Story: ${title}`,
+        keywords: `ai storyteller, illustrated book, ${settings.genre}, ${settings.imageStyle}`,
+        creator: 'AI Storyteller Studio',
+        creationDate: new Date(),
+      };
 
-      showSuccessToast('PDF Storybook exported successfully!');
+      if (typeof doc.setDocumentProperties === 'function') {
+        doc.setDocumentProperties(pdfMetadata);
+      }
+      if (typeof doc.setProperties === 'function') {
+        doc.setProperties(pdfMetadata);
+      }
 
-    } catch (e) {
+      const imgWidth = 210;
+
+      // Map selected PDF theme to comprehensive color & styling tokens
+      const PDF_THEME_STYLES: Record<string, {
+        bg: string;
+        cardBg: string;
+        headerBg: string;
+        headerBorder: string;
+        titleColor: string;
+        textColor: string;
+        mutedColor: string;
+        subtextColor: string;
+        accentColor: string;
+        badgeBg: string;
+        badgeColor: string;
+        badgeBorder: string;
+        dividerColor: string;
+        imgBorder: string;
+        coverOverlay: string;
+        coverSubtitleColor: string;
+        pageBadgeBg: string;
+        pageBadgeColor: string;
+      }> = {
+        midnight: {
+          bg: '#0f172a',
+          cardBg: 'rgba(30, 41, 59, 0.75)',
+          headerBg: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+          headerBorder: 'rgba(168, 85, 247, 0.35)',
+          titleColor: '#ffffff',
+          textColor: '#f1f5f9',
+          mutedColor: '#94a3b8',
+          subtextColor: '#64748b',
+          accentColor: '#c084fc',
+          badgeBg: 'rgba(168, 85, 247, 0.2)',
+          badgeColor: '#c084fc',
+          badgeBorder: 'rgba(168, 85, 247, 0.3)',
+          dividerColor: 'rgba(255, 255, 255, 0.08)',
+          imgBorder: 'rgba(255, 255, 255, 0.12)',
+          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 28%, rgba(15, 23, 42, 0.1) 50%, rgba(15, 23, 42, 0) 100%)',
+          coverSubtitleColor: '#f1f5f9',
+          pageBadgeBg: 'rgba(255, 255, 255, 0.08)',
+          pageBadgeColor: '#e2e8f0',
+        },
+        classic_ivory: {
+          bg: '#faf6ee',
+          cardBg: 'rgba(243, 236, 224, 0.9)',
+          headerBg: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(217, 119, 6, 0.08) 100%)',
+          headerBorder: 'rgba(124, 58, 237, 0.25)',
+          titleColor: '#1e293b',
+          textColor: '#334155',
+          mutedColor: '#64748b',
+          subtextColor: '#94a3b8',
+          accentColor: '#7c3aed',
+          badgeBg: 'rgba(124, 58, 237, 0.1)',
+          badgeColor: '#7c3aed',
+          badgeBorder: 'rgba(124, 58, 237, 0.25)',
+          dividerColor: 'rgba(0, 0, 0, 0.08)',
+          imgBorder: 'rgba(0, 0, 0, 0.1)',
+          coverOverlay: 'linear-gradient(to top, rgba(250, 246, 238, 0.98) 0%, rgba(250, 246, 238, 0.65) 30%, rgba(250, 246, 238, 0.1) 50%, rgba(250, 246, 238, 0) 100%)',
+          coverSubtitleColor: '#475569',
+          pageBadgeBg: 'rgba(124, 58, 237, 0.08)',
+          pageBadgeColor: '#475569',
+        },
+        emerald_parchment: {
+          bg: '#041f18',
+          cardBg: 'rgba(6, 44, 34, 0.85)',
+          headerBg: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.18) 100%)',
+          headerBorder: 'rgba(52, 211, 153, 0.35)',
+          titleColor: '#ffffff',
+          textColor: '#ecfdf5',
+          mutedColor: '#6ee7b7',
+          subtextColor: '#059669',
+          accentColor: '#34d399',
+          badgeBg: 'rgba(16, 185, 129, 0.2)',
+          badgeColor: '#6ee7b7',
+          badgeBorder: 'rgba(52, 211, 153, 0.3)',
+          dividerColor: 'rgba(52, 211, 153, 0.12)',
+          imgBorder: 'rgba(52, 211, 153, 0.2)',
+          coverOverlay: 'linear-gradient(to top, rgba(4, 31, 24, 0.96) 0%, rgba(4, 31, 24, 0.6) 28%, rgba(4, 31, 24, 0.1) 50%, rgba(4, 31, 24, 0) 100%)',
+          coverSubtitleColor: '#a7f3d0',
+          pageBadgeBg: 'rgba(16, 185, 129, 0.15)',
+          pageBadgeColor: '#a7f3d0',
+        },
+        royal_slate: {
+          bg: '#0f172a',
+          cardBg: 'rgba(30, 41, 59, 0.85)',
+          headerBg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.18) 100%)',
+          headerBorder: 'rgba(251, 191, 36, 0.4)',
+          titleColor: '#ffffff',
+          textColor: '#f8fafc',
+          mutedColor: '#cbd5e1',
+          subtextColor: '#94a3b8',
+          accentColor: '#fbbf24',
+          badgeBg: 'rgba(245, 158, 11, 0.2)',
+          badgeColor: '#fbbf24',
+          badgeBorder: 'rgba(251, 191, 36, 0.35)',
+          dividerColor: 'rgba(255, 255, 255, 0.08)',
+          imgBorder: 'rgba(251, 191, 36, 0.2)',
+          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.96) 0%, rgba(15, 23, 42, 0.6) 28%, rgba(15, 23, 42, 0.1) 50%, rgba(15, 23, 42, 0) 100%)',
+          coverSubtitleColor: '#fde68a',
+          pageBadgeBg: 'rgba(245, 158, 11, 0.12)',
+          pageBadgeColor: '#fde68a',
+        },
+        cyberpunk: {
+          bg: '#09090b',
+          cardBg: 'rgba(24, 24, 27, 0.88)',
+          headerBg: 'linear-gradient(135deg, rgba(244, 63, 94, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%)',
+          headerBorder: 'rgba(6, 182, 212, 0.45)',
+          titleColor: '#ffffff',
+          textColor: '#fafafa',
+          mutedColor: '#a1a1aa',
+          subtextColor: '#71717a',
+          accentColor: '#f43f5e',
+          badgeBg: 'rgba(244, 63, 94, 0.22)',
+          badgeColor: '#fb7185',
+          badgeBorder: 'rgba(244, 63, 94, 0.4)',
+          dividerColor: 'rgba(255, 255, 255, 0.1)',
+          imgBorder: 'rgba(6, 182, 212, 0.3)',
+          coverOverlay: 'linear-gradient(to top, rgba(9, 9, 11, 0.97) 0%, rgba(9, 9, 11, 0.65) 28%, rgba(9, 9, 11, 0.1) 50%, rgba(9, 9, 11, 0) 100%)',
+          coverSubtitleColor: '#f43f5e',
+          pageBadgeBg: 'rgba(6, 182, 212, 0.15)',
+          pageBadgeColor: '#22d3ee',
+        },
+        sunset_crimson: {
+          bg: '#1c0d18',
+          cardBg: 'rgba(45, 18, 38, 0.88)',
+          headerBg: 'linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(251, 146, 60, 0.18) 100%)',
+          headerBorder: 'rgba(251, 113, 133, 0.38)',
+          titleColor: '#ffffff',
+          textColor: '#fff1f2',
+          mutedColor: '#fda4af',
+          subtextColor: '#e11d48',
+          accentColor: '#fb7185',
+          badgeBg: 'rgba(244, 63, 94, 0.2)',
+          badgeColor: '#fecdd3',
+          badgeBorder: 'rgba(251, 113, 133, 0.35)',
+          dividerColor: 'rgba(251, 113, 133, 0.12)',
+          imgBorder: 'rgba(251, 113, 133, 0.22)',
+          coverOverlay: 'linear-gradient(to top, rgba(28, 13, 24, 0.96) 0%, rgba(28, 13, 24, 0.6) 28%, rgba(28, 13, 24, 0.1) 50%, rgba(28, 13, 24, 0) 100%)',
+          coverSubtitleColor: '#fecdd3',
+          pageBadgeBg: 'rgba(244, 63, 94, 0.15)',
+          pageBadgeColor: '#fecdd3',
+        }
+      };
+
+      const selectedTheme = PDF_THEME_STYLES[settings.pdfTheme || 'midnight'] || PDF_THEME_STYLES.midnight;
+
+      container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '794px';
+      container.style.minHeight = '1122px';
+      container.style.backgroundColor = selectedTheme.bg; 
+      document.body.appendChild(container);
+
+      // High-quality canvas scaling & JPEG blob compression helper
+      const compressCanvasToBlobDataUrl = async (
+        sourceCanvas: HTMLCanvasElement, 
+        maxWidth: number = 1588, // 2x A4 pixel density for crisp retina printing
+        quality: number = 0.88
+      ): Promise<string> => {
+        let targetCanvas = sourceCanvas;
+        if (sourceCanvas.width > maxWidth) {
+          const scale = maxWidth / sourceCanvas.width;
+          const offscreen = document.createElement('canvas');
+          offscreen.width = maxWidth;
+          offscreen.height = Math.round(sourceCanvas.height * scale);
+          const ctx = offscreen.getContext('2d', { alpha: false });
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(sourceCanvas, 0, 0, offscreen.width, offscreen.height);
+            targetCanvas = offscreen;
+          }
+        }
+
+        return new Promise((resolve) => {
+          if (targetCanvas.toBlob) {
+            targetCanvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  resolve(targetCanvas.toDataURL('image/jpeg', quality));
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => resolve(targetCanvas.toDataURL('image/jpeg', quality));
+                reader.readAsDataURL(blob);
+              },
+              'image/jpeg',
+              quality
+            );
+          } else {
+            resolve(targetCanvas.toDataURL('image/jpeg', quality));
+          }
+        });
+      };
+
+      const renderAndCapture = async (htmlContent: string) => {
+        if (!container) throw new Error("No container element");
+        container.innerHTML = htmlContent;
+        const images = Array.from(container.getElementsByTagName('img'));
+        await Promise.all(images.map(img => new Promise(resolve => {
+            if (img.complete) resolve(null);
+            else { img.onload = resolve; img.onerror = resolve; }
+        })));
+
+        const canvas = await html2canvas(container, { 
+          scale: 2, 
+          useCORS: true, 
+          backgroundColor: selectedTheme.bg,
+          logging: false,
+        });
+
+        const imgData = await compressCanvasToBlobDataUrl(canvas, 1588, 0.88);
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        return { imgData, imgHeight };
+      };
+
+      const getPdfFontFamily = (pref?: string) => {
+        switch (pref) {
+          case 'cinzel': return "'Cinzel', serif";
+          case 'merriweather': return "'Merriweather', serif";
+          case 'lora': return "'Lora', serif";
+          case 'sans': return "'Plus Jakarta Sans', sans-serif";
+          case 'outfit': return "'Outfit', sans-serif";
+          case 'inter': return "'Inter', sans-serif";
+          case 'fantasy': return "'MedievalSharp', cursive";
+          case 'handwriting': return "'Caveat', cursive";
+          case 'mono': return "'JetBrains Mono', monospace";
+          default: return "'Playfair Display', serif";
+        }
+      };
+
+      const pdfFontCss = getPdfFontFamily(settings.fontFamilyPreference);
+
+      // --- Cover Page (Pristine Art with Story Title Only) ---
+      let coverHtml = `
+        <div style="position: relative; height: 1122px; width: 794px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background-color: ${selectedTheme.bg}; padding: 56px 40px;">
+            ${coverDataUrl ? `
+              <img src="${coverDataUrl}" style="position: absolute; inset: 0; width: 794px; height: 1122px; object-fit: cover; display: block;" />
+              <div style="position: absolute; inset: 0; background: ${selectedTheme.coverOverlay};"></div>
+            ` : ''}
+
+            <!-- Bottom Story Title & Studio Badge -->
+            <div style="position: relative; z-index: 10; text-align: center; max-width: 90%; margin-bottom: 28px;">
+              <h1 style="font-family: ${pdfFontCss}; font-size: 48px; color: ${selectedTheme.titleColor}; line-height: 1.15; margin: 0 0 10px 0; font-weight: 900; text-shadow: 0 4px 24px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.9); word-wrap: break-word;">
+                ${title}
+              </h1>
+              <p style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 3.5px; text-transform: uppercase; color: ${selectedTheme.accentColor}; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.95); opacity: 0.95;">
+                ✦ NOVELLAIO STORY STUDIO ✦
+              </p>
+            </div>
+        </div>
+      `;
+      const cover = await renderAndCapture(coverHtml);
+      doc.addImage(cover.imgData, 'JPEG', 0, 0, imgWidth, cover.imgHeight);
+
+      // --- Extract Chapters & Map Page Numbers ---
+      const chapters = extractChapters(segments);
+      const totalPages = segments.length + 3; // 1 (Cover) + 1 (TOC) + segments.length + 1 (The End)
+
+      // Calculate starting page in PDF for each chapter (Story pages start on Page 3)
+      const chaptersWithPages = await Promise.all(chapters.map(async (chap) => {
+        const stats = getChapterStats(segments, chap);
+        const firstSegment = segments[chap.startIndex];
+        let thumbDataUrl = '';
+        if (firstSegment?.imageUrl) {
+          try {
+            thumbDataUrl = await processImageForPdfCanvas(firstSegment.imageUrl, 160, 160, 'cover');
+          } catch (e) {
+            console.warn('TOC thumbnail generation fallback:', e);
+          }
+        }
+        return {
+          ...chap,
+          pdfPageNumber: chap.startIndex + 3,
+          stats,
+          thumbDataUrl,
+        };
+      }));
+
+      const totalWords = segments.reduce((sum, s) => sum + s.paragraph.split(/\s+/).filter(Boolean).length, 0);
+      const totalReadingMinutes = Math.max(1, Math.ceil(totalWords / 180));
+
+      // --- Page 2: Auto-Generated Enhanced Table of Contents (TOC) Page with Scene Thumbnails ---
+      doc.addPage();
+      let tocItemsHtml = chaptersWithPages.map((chap) => `
+        <div style="display: flex; align-items: center; gap: 16px; padding: 12px 16px; margin-bottom: 12px; background: ${selectedTheme.cardBg}; border: 1px solid ${selectedTheme.headerBorder}; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+          <!-- Chapter First Scene Thumbnail Preview -->
+          <div style="width: 64px; height: 64px; min-width: 64px; border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.25); border: 1.5px solid ${selectedTheme.imgBorder || selectedTheme.headerBorder}; display: flex; align-items: center; justify-content: center; position: relative;">
+            ${chap.thumbDataUrl ? `
+              <img src="${chap.thumbDataUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+            ` : `
+              <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; color: ${selectedTheme.accentColor}; opacity: 0.6;">
+                #${chap.chapterNumber}
+              </div>
+            `}
+          </div>
+
+          <!-- Chapter Title, Tag & Metadata Spacing -->
+          <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: ${selectedTheme.badgeColor}; background: ${selectedTheme.badgeBg}; border: 1px solid ${selectedTheme.badgeBorder}; padding: 2px 8px; border-radius: 6px;">Chapter ${chap.chapterNumber}</span>
+              <h3 style="font-family: ${pdfFontCss}; font-size: 18px; font-weight: bold; color: ${selectedTheme.titleColor}; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${chap.title.replace(/^Chapter\s*\d+\s*:\s*/i, '')}</h3>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-top: 2px;">
+              <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: ${selectedTheme.mutedColor}; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                ✦ ${chap.stats.sceneCount} ${chap.stats.sceneCount === 1 ? 'Scene' : 'Scenes'}
+              </span>
+              <span style="color: ${selectedTheme.dividerColor}; font-size: 10px;">•</span>
+              <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: ${selectedTheme.mutedColor}; font-weight: 500;">
+                ${chap.stats.totalWords} Words
+              </span>
+              <span style="color: ${selectedTheme.dividerColor}; font-size: 10px;">•</span>
+              <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: ${selectedTheme.accentColor}; font-weight: 600;">
+                ~${chap.stats.readingMinutes} min read
+              </span>
+            </div>
+          </div>
+
+          <!-- Page Indicator Badge -->
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            <div style="border-bottom: 2px dotted ${selectedTheme.dividerColor}; width: 36px; height: 1px;"></div>
+            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 800; color: ${selectedTheme.pageBadgeColor}; background: ${selectedTheme.pageBadgeBg}; border: 1px solid ${selectedTheme.headerBorder}; padding: 6px 12px; border-radius: 10px; white-space: nowrap; letter-spacing: 0.5px;">Page ${chap.pdfPageNumber}</span>
+          </div>
+        </div>
+      `).join('');
+
+      let tocHtml = `
+        <div style="padding: 44px 50px; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; background: ${selectedTheme.bg}; color: ${selectedTheme.textColor}; position: relative;">
+          <!-- TOC Header -->
+          <div style="text-align: center; margin-bottom: 24px; border-bottom: 1px solid ${selectedTheme.dividerColor}; padding-bottom: 20px;">
+            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 3.5px; color: ${selectedTheme.accentColor}; display: inline-block; margin-bottom: 8px; background: ${selectedTheme.badgeBg}; padding: 4px 14px; border-radius: 20px; border: 1px solid ${selectedTheme.badgeBorder};">Illustrated Story Outline</span>
+            <h2 style="font-family: ${pdfFontCss}; font-size: 34px; font-weight: 900; color: ${selectedTheme.titleColor}; margin: 4px 0 14px 0; letter-spacing: -0.5px;">Table of Contents</h2>
+            
+            <!-- Quick Metrics Grid Bar -->
+            <div style="display: flex; justify-content: center; gap: 14px; margin-top: 10px;">
+              <div style="background: ${selectedTheme.cardBg}; border: 1px solid ${selectedTheme.headerBorder}; padding: 7px 16px; border-radius: 12px; display: flex; align-items: center; gap: 6px;">
+                <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; font-weight: 600;">Chapters:</span>
+                <strong style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: ${selectedTheme.titleColor}; font-weight: 800;">${chapters.length}</strong>
+              </div>
+              <div style="background: ${selectedTheme.cardBg}; border: 1px solid ${selectedTheme.headerBorder}; padding: 7px 16px; border-radius: 12px; display: flex; align-items: center; gap: 6px;">
+                <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; font-weight: 600;">Scenes:</span>
+                <strong style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: ${selectedTheme.titleColor}; font-weight: 800;">${segments.length}</strong>
+              </div>
+              <div style="background: ${selectedTheme.cardBg}; border: 1px solid ${selectedTheme.headerBorder}; padding: 7px 16px; border-radius: 12px; display: flex; align-items: center; gap: 6px;">
+                <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; font-weight: 600;">Word Count:</span>
+                <strong style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: ${selectedTheme.titleColor}; font-weight: 800;">${totalWords.toLocaleString()}</strong>
+              </div>
+              <div style="background: ${selectedTheme.cardBg}; border: 1px solid ${selectedTheme.headerBorder}; padding: 7px 16px; border-radius: 12px; display: flex; align-items: center; gap: 6px;">
+                <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; font-weight: 600;">Reading Time:</span>
+                <strong style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: ${selectedTheme.accentColor}; font-weight: 800;">~${totalReadingMinutes} min</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chapter Section List -->
+          <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px;">
+            ${tocItemsHtml}
+          </div>
+
+          <!-- TOC Summary Box & Footer -->
+          <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid ${selectedTheme.dividerColor}; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.subtextColor}; font-weight: 700; letter-spacing: 1px;">✦ NOVELLAIO AI STORY STUDIO ✦</span>
+            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.subtextColor}; font-weight: bold; letter-spacing: 1.5px;">Page 2 of ${totalPages}</span>
+          </div>
+        </div>
+      `;
+
+      const tocPage = await renderAndCapture(tocHtml);
+      doc.addImage(tocPage.imgData, 'JPEG', 0, 0, imgWidth, tocPage.imgHeight);
+
+      // --- Story Pages (Grouped into Logical Chapter Sections) ---
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        const pageNumber = i + 3;
+        doc.addPage();
+        
+        // Identify which chapter this segment belongs to
+        const currentChapter = chapters.slice().reverse().find(c => i >= c.startIndex) || chapters[0];
+        const isChapterStart = chapters.some(c => c.startIndex === i);
+        const sceneIndexInChapter = (i - currentChapter.startIndex) + 1;
+
+        // Dynamic font size and image height adjustment based on paragraph length and chapter header
+        const paraLength = segment.paragraph.length;
+        const fontSize = paraLength > 450 ? '16px' : paraLength > 300 ? '19px' : '22px';
+        const targetImageWidth = 698;
+        const targetImageHeight = isChapterStart 
+          ? (paraLength > 350 ? 290 : 330)
+          : (paraLength > 350 ? 350 : 390);
+        const imageMarginBottom = isChapterStart ? '16px' : '22px';
+
+        const segmentImageDataUrl = segment.imageUrl 
+          ? await processImageForPdfCanvas(segment.imageUrl, targetImageWidth, targetImageHeight, 'cover')
+          : '';
+
+        let pageHtml = `
+          <div style="padding: 36px 48px; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; background: ${selectedTheme.bg}; color: ${selectedTheme.textColor}; position: relative;">
+              <!-- Running Header -->
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: ${isChapterStart ? '14px' : '18px'}; border-bottom: 1px solid ${selectedTheme.dividerColor}; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; text-transform: uppercase; letter-spacing: 1.5px;">
+                <span>${title}</span>
+                <span>${currentChapter.title} • Scene ${sceneIndexInChapter} of ${currentChapter.segmentCount}</span>
+              </div>
+
+              ${isChapterStart ? `
+                <!-- Chapter Section Hero Header -->
+                <div style="margin-bottom: 18px; padding: 14px 20px; background: ${selectedTheme.headerBg}; border: 1px solid ${selectedTheme.headerBorder}; border-radius: 14px; text-align: center;">
+                  <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 2.5px; color: ${selectedTheme.accentColor}; display: block; margin-bottom: 3px;">Section • Chapter ${currentChapter.chapterNumber}</span>
+                  <h2 style="font-family: ${pdfFontCss}; font-size: 25px; font-weight: bold; color: ${selectedTheme.titleColor}; margin: 0;">${currentChapter.title}</h2>
+                </div>
+              ` : ''}
+
+              ${segmentImageDataUrl ? `
+                <div style="text-align: center; margin-bottom: ${imageMarginBottom}; width: 100%; display: flex; justify-content: center;">
+                  <img src="${segmentImageDataUrl}" style="width: ${targetImageWidth}px; height: ${targetImageHeight}px; border-radius: 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); border: 1px solid ${selectedTheme.imgBorder}; display: block;" />
+                </div>
+              ` : ''}
+
+              <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start;">
+                <p style="font-family: ${pdfFontCss}; font-size: ${fontSize}; line-height: 1.75; color: ${selectedTheme.textColor}; text-align: justify; padding: 0 6px; margin: 0;">${segment.paragraph}</p>
+              </div>
+
+              <!-- Running Footer -->
+              <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid ${selectedTheme.dividerColor}; display: flex; justify-content: space-between; align-items: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: ${selectedTheme.subtextColor}; font-weight: 600;">
+                <span>Chapter ${currentChapter.chapterNumber}: ${currentChapter.title.replace(/^Chapter\s*\d+\s*:\s*/i, '')}</span>
+                <span style="font-weight: bold; letter-spacing: 1.5px;">- Page ${pageNumber} of ${totalPages} -</span>
+              </div>
+          </div>
+        `;
+        
+        const page = await renderAndCapture(pageHtml);
+        doc.addImage(page.imgData, 'JPEG', 0, 0, imgWidth, page.imgHeight);
+      }
+
+      // --- The End ---
+      doc.addPage();
+      let endHtml = `
+        <div style="padding: 60px; text-align: center; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; background: ${selectedTheme.bg};">
+            <p style="font-family: ${pdfFontCss}; font-style: italic; font-size: 52px; color: ${selectedTheme.accentColor}; text-shadow: 0 0 24px ${selectedTheme.badgeBg}; margin-bottom: 12px;">The End</p>
+            <p style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 600; color: ${selectedTheme.mutedColor}; letter-spacing: 1px;">Crafted with Novellaio AI Multi-Modal Engine</p>
+            <p style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: ${selectedTheme.subtextColor}; margin-top: 24px;">- Page ${totalPages} of ${totalPages} -</p>
+        </div>
+      `;
+      const endPage = await renderAndCapture(endHtml);
+      doc.addImage(endPage.imgData, 'JPEG', 0, 0, imgWidth, endPage.imgHeight);
+
+      const cleanFilename = `${(title || 'story').toLowerCase().replace(/[^a-z0-9]+/g, '_')}.pdf`;
+      doc.save(cleanFilename);
+      showSuccessToast(`PDF Storybook (${selectedTheme.titleColor === '#ffffff' ? 'Dark' : 'Light'} Theme) downloaded!`);
+
+    } catch (e: any) {
       console.error("Error saving PDF:", e);
-      showErrorToast('Failed to save the story as a PDF. Please try again.');
-      setError('Failed to save the story as a PDF. An unexpected error occurred while generating the file.');
+      const friendlyError = e instanceof Error ? e.message : 'An unexpected error occurred while generating the PDF.';
+      showErrorToast(`Failed to save PDF: ${friendlyError}`);
+      setError(`Failed to save the story as a PDF. ${friendlyError}`);
     } finally {
+      if (container && document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
       setIsSavingPdf(false);
     }
   };
@@ -712,15 +1352,39 @@ function StoryCreatorContent() {
                 <BookText className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Library</span>
               </Link>
+
+              {/* LocalStorage Persistence State Indicator */}
+              <div 
+                id="storage-persistence-badge"
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all bg-slate-900/60 border border-white/10 text-slate-300"
+                title={lastSavedTimestamp ? `Story automatically preserved in LocalStorage at ${new Date(lastSavedTimestamp).toLocaleTimeString()}` : "Auto-saved in browser LocalStorage"}
+              >
+                {saveState === 'saving' || isTranslatingLanguage ? (
+                  <>
+                    <RefreshCwIcon className="w-3 h-3 text-amber-400 animate-spin" />
+                    <span className="text-amber-300">{isTranslatingLanguage ? 'Translating...' : 'Saving...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span className="text-slate-300">Saved</span>
+                  </>
+                )}
+              </div>
             </div>
             
             <div className="flex items-center gap-1.5 sm:gap-2">
               <div className="relative flex items-center">
-                <LanguagesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300 pointer-events-none z-10" />
+                {isTranslatingLanguage ? (
+                  <RefreshCwIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300 pointer-events-none z-10 animate-spin" />
+                ) : (
+                  <LanguagesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300 pointer-events-none z-10" />
+                )}
                 <select
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    className="pl-8 pr-7 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-xs rounded-full appearance-none focus:outline-none cursor-pointer transition-colors shadow-inner"
+                    disabled={isTranslatingLanguage || isGenerating}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
+                    className="pl-8 pr-7 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-60 border border-white/10 text-white font-medium text-xs rounded-full appearance-none focus:outline-none cursor-pointer transition-colors shadow-inner"
                     aria-label="Select story language"
                 >
                     {languages.map(lang => <option className="bg-slate-900 text-white" key={lang} value={lang}>{lang}</option>)}

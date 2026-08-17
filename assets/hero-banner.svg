@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0716" />
+      <stop offset="40%" stop-color="#140c2b" />
+      <stop offset="70%" stop-color="#1a0e38" />
+      <stop offset="100%" stop-color="#090514" />
+    </linearGradient>
+
+    <!-- Radial Aura Glow -->
+    <radialGradient id="centerAura" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.35" />
+      <stop offset="45%" stop-color="#6366f1" stop-opacity="0.18" />
+      <stop offset="80%" stop-color="#0b0716" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Prism Gem Gradients -->
+    <linearGradient id="prismFaceLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e9d5ff" />
+      <stop offset="50%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#7e22ce" />
+    </linearGradient>
+    <linearGradient id="prismFaceRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="50%" stop-color="#9333ea" />
+      <stop offset="100%" stop-color="#4c1d95" />
+    </linearGradient>
+    <linearGradient id="prismFaceBottom" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#581c87" />
+      <stop offset="100%" stop-color="#3b0764" />
+    </linearGradient>
+
+    <!-- Glowing Lines -->
+    <linearGradient id="glowLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0" />
+      <stop offset="50%" stop-color="#c084fc" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0" />
+    </linearGradient>
+
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="strongGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="16" result="blur1" />
+      <feGaussianBlur stdDeviation="30" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="480" fill="url(#bgGrad)" />
+  <rect width="1200" height="480" fill="url(#centerAura)" />
+
+  <!-- Subtle Grid Lines -->
+  <g stroke="#ffffff" stroke-opacity="0.03" stroke-width="1">
+    <line x1="100" y1="0" x2="100" y2="480" />
+    <line x1="200" y1="0" x2="200" y2="480" />
+    <line x1="300" y1="0" x2="300" y2="480" />
+    <line x1="400" y1="0" x2="400" y2="480" />
+    <line x1="500" y1="0" x2="500" y2="480" />
+    <line x1="600" y1="0" x2="600" y2="480" />
+    <line x1="700" y1="0" x2="700" y2="480" />
+    <line x1="800" y1="0" x2="800" y2="480" />
+    <line x1="900" y1="0" x2="900" y2="480" />
+    <line x1="1000" y1="0" x2="1000" y2="480" />
+    <line x1="1100" y1="0" x2="1100" y2="480" />
+    <line x1="0" y1="80" x2="1200" y2="80" />
+    <line x1="0" y1="160" x2="1200" y2="160" />
+    <line x1="0" y1="240" x2="1200" y2="240" />
+    <line x1="0" y1="320" x2="1200" y2="320" />
+    <line x1="0" y1="400" x2="1200" y2="400" />
+  </g>
+
+  <!-- Ambient Particles -->
+  <g fill="#c084fc" opacity="0.6">
+    <circle cx="240" cy="120" r="1.5" />
+    <circle cx="380" cy="80" r="2" />
+    <circle cx="180" cy="340" r="1.5" />
+    <circle cx="880" cy="110" r="2.5" />
+    <circle cx="980" cy="280" r="1.5" />
+    <circle cx="760" cy="90" r="2" />
+    <circle cx="1040" cy="150" r="1.8" />
+    <circle cx="150" cy="220" r="2" />
+  </g>
+  <g fill="#818cf8" opacity="0.5">
+    <circle cx="310" cy="200" r="2" />
+    <circle cx="920" cy="220" r="1.5" />
+    <circle cx="830" cy="350" r="2" />
+    <circle cx="290" cy="390" r="2.5" />
+  </g>
+
+  <!-- Compass / Star Reticle Lines Behind Logo -->
+  <g stroke="#a855f7" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="4 4">
+    <line x1="600" y1="40" x2="600" y2="220" />
+    <line x1="470" y1="130" x2="730" y2="130" />
+    <circle cx="600" cy="130" r="75" fill="none" stroke="#c084fc" stroke-opacity="0.2" stroke-width="1" />
+  </g>
+
+  <!-- Glowing Crystal Prism Logo (Centered) -->
+  <g filter="url(#strongGlow)">
+    <!-- Apex Sparkle Beam -->
+    <circle cx="600" cy="80" r="6" fill="#ffffff" filter="url(#glow)" />
+    <circle cx="600" cy="80" r="12" fill="#c084fc" opacity="0.5" />
+    
+    <!-- Prism Body Facets -->
+    <!-- Left Facet -->
+    <polygon points="600,85 540,165 600,150" fill="url(#prismFaceLeft)" />
+    <!-- Right Facet -->
+    <polygon points="600,85 600,150 660,165" fill="url(#prismFaceRight)" />
+    <!-- Under Base Facet -->
+    <polygon points="540,165 600,150 660,165 600,185" fill="url(#prismFaceBottom)" opacity="0.9" />
+    <!-- Crystal Edges -->
+    <polygon points="600,85 540,165 600,185 660,165" fill="none" stroke="#f3e8ff" stroke-width="1.5" opacity="0.8" />
+  </g>
+
+  <!-- Main Title -->
+  <text x="600" y="270" text-anchor="middle" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-size="44" font-weight="800" fill="#ffffff" letter-spacing="-0.02em">
+    Novellaio
+  </text>
+  
+  <text x="600" y="305" text-anchor="middle" font-family="'Cinzel', 'Playfair Display', Georgia, serif" font-size="20" font-weight="600" fill="#c084fc" letter-spacing="0.08em">
+    AI INTERACTIVE STORY STUDIO &amp; MCP AGENT ENGINE
+  </text>
+
+  <!-- Divider Line -->
+  <line x1="420" y1="328" x2="780" y2="328" stroke="url(#glowLine)" stroke-width="1.5" />
+
+  <!-- Subtitle Tagline -->
+  <text x="600" y="358" text-anchor="middle" font-family="'Plus Jakarta Sans', -apple-system, sans-serif" font-size="16" fill="#cbd5e1" font-weight="400">
+    Multi-Modal Interactive Storytelling • Contextual AI Art • Voice Narration • Model Context Protocol
+  </text>
+
+  <!-- Feature Pills / Badges -->
+  <g transform="translate(180, 390)">
+    <!-- Pill 1: Gemini 2.5 -->
+    <g transform="translate(0, 0)">
+      <rect width="150" height="34" rx="17" fill="#2e1065" fill-opacity="0.7" stroke="#a855f7" stroke-width="1" />
+      <circle cx="18" cy="17" r="4" fill="#a855f7" />
+      <text x="32" y="22" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#f3e8ff">Google Gemini 2.5</text>
+    </g>
+
+    <!-- Pill 2: Branching CYOA -->
+    <g transform="translate(162, 0)">
+      <rect width="156" height="34" rx="17" fill="#1e1b4b" fill-opacity="0.7" stroke="#6366f1" stroke-width="1" />
+      <circle cx="18" cy="17" r="4" fill="#818cf8" />
+      <text x="32" y="22" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#e0e7ff">Branching CYOA</text>
+    </g>
+
+    <!-- Pill 3: MCP Protocol -->
+    <g transform="translate(330, 0)">
+      <rect width="168" height="34" rx="17" fill="#14283b" fill-opacity="0.7" stroke="#38bdf8" stroke-width="1" />
+      <circle cx="18" cy="17" r="4" fill="#38bdf8" />
+      <text x="32" y="22" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#e0f2fe">MCP 2024-11-05</text>
+    </g>
+
+    <!-- Pill 4: EPUB & PDF Studio -->
+    <g transform="translate(510, 0)">
+      <rect width="165" height="34" rx="17" fill="#064e3b" fill-opacity="0.7" stroke="#34d399" stroke-width="1" />
+      <circle cx="18" cy="17" r="4" fill="#34d399" />
+      <text x="32" y="22" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#d1fae5">EPUB 3.0 &amp; PDF</text>
+    </g>
+
+    <!-- Pill 5: Video Reels -->
+    <g transform="translate(687, 0)">
+      <rect width="153" height="34" rx="17" fill="#4c0519" fill-opacity="0.7" stroke="#fb7185" stroke-width="1" />
+      <circle cx="18" cy="17" r="4" fill="#fb7185" />
+      <text x="32" y="22" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#ffe4e6">Social Reels Studio</text>
+    </g>
+  </g>
+</svg>

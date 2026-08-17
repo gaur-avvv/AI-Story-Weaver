@@ -15,7 +15,7 @@ interface StoryDisplayProps {
   onRebranch: (segmentIndex: number) => void;
   onGenerateNextChapter?: () => void;
   isGenerating: boolean;
-  fontFamilyPreference?: 'serif' | 'sans' | 'mono';
+  fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
   storyLength?: string;
   activeAudioSegmentIndex?: number;
   isAudioPlaying?: boolean;

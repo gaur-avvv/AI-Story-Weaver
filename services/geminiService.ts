@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import { globalStoryGraph } from './storyGraphState';
+import { StorySegment } from '../types';
 
 // Helper to retry external API calls with exponential backoff and jitter
 export async function withRetry<T>(
@@ -664,6 +665,103 @@ Format: Return a JSON object with a "twists" array of 3 objects, each containing
   });
 };
 
+export const getImageStylePrompt = (imageStyle: string): string => {
+  switch (imageStyle) {
+    case 'whimsical':
+      return 'whimsical storybook illustration, soft pastel colors, dreamy atmosphere, detailed line work, magical, charming, hand-drawn aesthetic';
+    case 'realistic':
+      return 'photorealistic, cinematic lighting, 8k resolution, highly detailed, sharp focus, depth of field, professional photography';
+    case 'cartoon':
+      return 'vibrant cartoon style, bold outlines, bright flat colors, expressive characters, 2d animation style, fun and energetic';
+    case 'watercolor':
+      return 'watercolor painting, soft bleeding edges, artistic, textured paper, gentle strokes, dreamy, ethereal';
+    case 'oil_painting':
+      return 'classic oil painting, rich textures, visible brushstrokes, dramatic lighting, fine art style, masterpiece';
+    case 'anime':
+      return 'anime style, studio ghibli inspired, lush backgrounds, vibrant colors, cel shaded, detailed character design';
+    case 'pixel_art':
+      return 'pixel art, 16-bit retro game style, vibrant colors, clean sprites, nostalgic, detailed pixel work';
+    case '3d_render':
+      return '3d render, pixar style, cute, soft global illumination, clay material, high fidelity, octane render';
+    case 'noir':
+      return 'film noir style, black and white, high contrast, dramatic shadows, mysterious atmosphere, cinematic composition';
+    case 'cyberpunk':
+      return 'cyberpunk style, neon lights, futuristic city, high tech, dark atmosphere, glowing accents, detailed sci-fi elements';
+    case 'vintage':
+      return 'vintage illustration, 1950s style, retro color palette, textured, nostalgic, classic storybook feel';
+    case 'abstract':
+      return 'abstract art, geometric shapes, bold colors, surreal, interpretive, artistic, modern art style';
+    case 'disney_animation':
+      return 'classic disney 2d animation style, hand-drawn, expressive characters, vibrant colors, magical atmosphere, nostalgic cell animation';
+    case 'pixar_3d':
+      return 'pixar 3d animation style, highly detailed textures, soft lighting, expressive large eyes, colorful, modern CGI movie look';
+    case 'vintage_disney':
+      return 'vintage disney animation, 1930s style, muted retro colors, rubber hose animation style, nostalgic, classic';
+    case 'sketch':
+      return 'rough sketch, loose lines, quick drawing, expressive, unpolished, artistic concept art';
+    case 'pencil_sketch':
+      return 'detailed pencil sketch, graphite, shading, cross-hatching, realistic pencil strokes, monochromatic';
+    case 'claymation':
+      return 'claymation style, stop motion, plasticine figures, textured fingerprints, miniature sets, quirky, tactile';
+    case 'mosaic':
+      return 'mosaic art style, small colored tiles, stained glass effect, intricate patterns, historical art, vibrant colors separated by dark lines';
+    default:
+      return 'digital art, high quality, detailed, vibrant colors, professional illustration';
+  }
+};
+
+export const getGenreThemeVisuals = (genre?: string): string => {
+  switch (genre?.toLowerCase()) {
+    case 'fantasy':
+      return 'Epic High Fantasy aesthetic: mystical glowing aura, grand castles, magical ancient relics, enchanted landscapes, mythical creatures, rich celestial lighting.';
+    case 'sci-fi':
+      return 'Futuristic Science Fiction aesthetic: hyper-detailed cosmic starscapes, cybernetic architecture, neon energy conduits, quantum holograms, sleek spaceships.';
+    case 'mystery':
+      return 'Atmospheric Mystery Noir aesthetic: dramatic chiaroscuro shadows, foggy cobblestone streets, glowing lantern, enigmatic silhouettes, intriguing clues.';
+    case 'adventure':
+      return 'Thrilling Grand Adventure aesthetic: sweeping scenic vistas, ancient hidden ruins, golden hour expedition lighting, daring exploratory grandeur.';
+    case 'fairy_tale':
+      return 'Classic Fairytale Wonder aesthetic: lush enchanted forest, glowing fairy dust, whimsical storybook castles, magical talking creatures, radiant soft pastel hues.';
+    case 'horror':
+      return 'Gothic Chilling Horror aesthetic: dark brooding atmosphere, mist-shrouded ruins, eerie moonlight, haunting shadows, suspenseful dread.';
+    case 'thriller':
+      return 'High-Tension Cinematic Thriller aesthetic: high contrast, dramatic urban reflections, suspenseful composition, gripping emotional atmosphere.';
+    case 'romance':
+      return 'Poetic Romance aesthetic: golden hour warmth, blooming botanical elegance, soft dreamlike bokeh, tender emotional resonance.';
+    case 'superhero':
+      return 'Dynamic Superhero Comic Art aesthetic: bold dramatic lighting flares, heroic soaring stance, vibrant power surges, energetic graphic punch.';
+    case 'historical':
+      return 'Grand Historical Period aesthetic: authentic heritage architecture, classical oil painting lighting, rich textured fabrics, museum-grade atmospheric depth.';
+    case 'educational':
+      return 'Engaging Educational Storybook aesthetic: clear vibrant illustration, friendly expressive characters, curious exploration, lively discoveries.';
+    case 'bedtime':
+      return 'Gentle Bedtime Dreamland aesthetic: soothing starry night sky, cozy crescent moon, soft twilight glow, calming peaceful pastel ambiance.';
+    case 'funny':
+      return 'Playful Comedic Cartoon aesthetic: lively expressive characters, funny dynamic situations, vibrant cheerful colors, whimsical charm.';
+    case 'fable':
+      return 'Timeless Moral Fable aesthetic: beautifully illustrated woodland characters, rich textured folk art style, ancient storybook elegance.';
+    case 'crime':
+      return 'Gritty Detective Crime aesthetic: rainy neon metropolis, shadowy trench coat figure, dramatic streetlights, urban mystery.';
+    case 'drama':
+      return 'Poignant Human Drama aesthetic: deep emotional depth, cinematic golden hour lighting, authentic character focus, evocative narrative tone.';
+    default:
+      return 'Immersive narrative storybook aesthetic: rich atmosphere, striking composition, vibrant lighting, captivating emotional resonance.';
+  }
+};
+
+export const getAudienceVisuals = (audience?: string): string => {
+  switch (audience?.toLowerCase()) {
+    case 'children':
+      return 'Children & Kids Storybook: warm, friendly, magical, uplifting, delightful, charming, bright, age-appropriate, wondrous and inviting.';
+    case 'teen':
+      return 'Young Adult (YA) Fiction: dynamic, modern, stylish, bold, emotionally captivating, sleek character appeal, adventurous.';
+    case 'adult':
+      return 'Adult Literary Fiction: sophisticated, nuanced, atmospheric, cinematic, profound visual depth, striking symbolic elegance.';
+    default:
+      return 'Universal Family Edition: captivating, beautifully balanced, enchanting for all ages.';
+  }
+};
+
 export const generateImage = async (
   prompt: string,
   apiKey: string | null,
@@ -674,68 +772,7 @@ export const generateImage = async (
   options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<string> => {
   
-  let stylePrompt = '';
-  switch (imageStyle) {
-    case 'whimsical':
-      stylePrompt = 'whimsical storybook illustration, soft pastel colors, dreamy atmosphere, detailed line work, magical, charming, hand-drawn aesthetic';
-      break;
-    case 'realistic':
-      stylePrompt = 'photorealistic, cinematic lighting, 8k resolution, highly detailed, sharp focus, depth of field, professional photography';
-      break;
-    case 'cartoon':
-      stylePrompt = 'vibrant cartoon style, bold outlines, bright flat colors, expressive characters, 2d animation style, fun and energetic';
-      break;
-    case 'watercolor':
-      stylePrompt = 'watercolor painting, soft bleeding edges, artistic, textured paper, gentle strokes, dreamy, ethereal';
-      break;
-    case 'oil_painting':
-      stylePrompt = 'classic oil painting, rich textures, visible brushstrokes, dramatic lighting, fine art style, masterpiece';
-      break;
-    case 'anime':
-      stylePrompt = 'anime style, studio ghibli inspired, lush backgrounds, vibrant colors, cel shaded, detailed character design';
-      break;
-    case 'pixel_art':
-      stylePrompt = 'pixel art, 16-bit retro game style, vibrant colors, clean sprites, nostalgic, detailed pixel work';
-      break;
-    case '3d_render':
-      stylePrompt = '3d render, pixar style, cute, soft global illumination, clay material, high fidelity, octane render';
-      break;
-    case 'noir':
-      stylePrompt = 'film noir style, black and white, high contrast, dramatic shadows, mysterious atmosphere, cinematic composition';
-      break;
-    case 'cyberpunk':
-      stylePrompt = 'cyberpunk style, neon lights, futuristic city, high tech, dark atmosphere, glowing accents, detailed sci-fi elements';
-      break;
-    case 'vintage':
-      stylePrompt = 'vintage illustration, 1950s style, retro color palette, textured, nostalgic, classic storybook feel';
-      break;
-    case 'abstract':
-      stylePrompt = 'abstract art, geometric shapes, bold colors, surreal, interpretive, artistic, modern art style';
-      break;
-    case 'disney_animation':
-      stylePrompt = 'classic disney 2d animation style, hand-drawn, expressive characters, vibrant colors, magical atmosphere, nostalgic cell animation';
-      break;
-    case 'pixar_3d':
-      stylePrompt = 'pixar 3d animation style, highly detailed textures, soft lighting, expressive large eyes, colorful, modern CGI movie look';
-      break;
-    case 'vintage_disney':
-      stylePrompt = 'vintage disney animation, 1930s style, muted retro colors, rubber hose animation style, nostalgic, classic';
-      break;
-    case 'sketch':
-      stylePrompt = 'rough sketch, loose lines, quick drawing, expressive, unpolished, artistic concept art';
-      break;
-    case 'pencil_sketch':
-      stylePrompt = 'detailed pencil sketch, graphite, shading, cross-hatching, realistic pencil strokes, monochromatic';
-      break;
-    case 'claymation':
-      stylePrompt = 'claymation style, stop motion, plasticine figures, textured fingerprints, miniature sets, quirky, tactile';
-      break;
-    case 'mosaic':
-      stylePrompt = 'mosaic art style, small colored tiles, stained glass effect, intricate patterns, historical art, vibrant colors separated by dark lines';
-      break;
-    default:
-      stylePrompt = 'digital art, high quality, detailed, vibrant colors, professional illustration';
-  }
+  const stylePrompt = getImageStylePrompt(imageStyle);
 
   const fullPrompt = `Create a high-quality image for a story segment.
   Scene Description: ${prompt}
@@ -841,16 +878,167 @@ export const generateImage = async (
   return `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=768&seed=${seed}&model=nanobanana-2-lite`;
 };
 
+export interface CoverImageOptions {
+  title: string;
+  genre?: string;
+  targetAudience?: string;
+  imageStyle?: string;
+  storyPrompt?: string;
+  apiKey?: string | null;
+  model?: string;
+  provider?: string;
+  otherApiKey?: string;
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string };
+}
+
 export const generateCoverImage = async (
-  prompt: string,
-  apiKey: string | null,
-  imageStyle: string,
+  promptOrOptions: string | CoverImageOptions,
+  apiKey?: string | null,
+  imageStyle: string = 'whimsical',
   model: string = 'gemini-3.1-flash-lite-image',
   provider: string = 'gemini',
   otherApiKey?: string,
-  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string },
+  genre?: string,
+  targetAudience?: string,
+  storyTitle?: string
 ): Promise<string> => {
-    return generateImage(prompt, apiKey, imageStyle, model, provider, otherApiKey, options);
+  let finalTitle = '';
+  let finalGenre = 'fantasy';
+  let finalAudience = 'children';
+  let finalStyle = imageStyle;
+  let finalPrompt = '';
+  let finalApiKey = apiKey ?? null;
+  let finalModel = model;
+  let finalProvider = provider;
+  let finalOtherApiKey = otherApiKey;
+  let finalOptions = options;
+
+  if (typeof promptOrOptions === 'object' && promptOrOptions !== null) {
+    finalTitle = promptOrOptions.title || 'Untitled Story';
+    finalGenre = promptOrOptions.genre || 'fantasy';
+    finalAudience = promptOrOptions.targetAudience || 'children';
+    finalStyle = promptOrOptions.imageStyle || 'whimsical';
+    finalPrompt = promptOrOptions.storyPrompt || '';
+    finalApiKey = promptOrOptions.apiKey !== undefined ? promptOrOptions.apiKey : (apiKey ?? null);
+    finalModel = promptOrOptions.model || model;
+    finalProvider = promptOrOptions.provider || provider;
+    finalOtherApiKey = promptOrOptions.otherApiKey || otherApiKey;
+    finalOptions = promptOrOptions.options || options;
+  } else if (typeof promptOrOptions === 'string') {
+    finalPrompt = promptOrOptions || '';
+    finalTitle = storyTitle || 'Story Chronicle';
+    finalGenre = genre || 'fantasy';
+    finalAudience = targetAudience || 'children';
+  }
+
+  const styleVisuals = getImageStylePrompt(finalStyle);
+  const genreVisuals = getGenreThemeVisuals(finalGenre);
+  const audienceVisuals = getAudienceVisuals(finalAudience);
+
+  // Construct cover prompt explicitly featuring Story Title, Genre Theme, and Target Audience
+  const fullCoverPrompt = `A breathtaking, publication-quality illustrated ebook cover art.
+BOOK TITLE: "${finalTitle}" (MANDATORY: Prominently feature and render the story title text "${finalTitle}" in majestic, artistic, highly legible book cover typography on the artwork).
+GENRE THEME (${finalGenre.toUpperCase()}): ${genreVisuals}
+TARGET AUDIENCE (${finalAudience.toUpperCase()}): ${audienceVisuals}
+ART STYLE: ${styleVisuals}
+STORY PREMISE: ${finalPrompt || `An unforgettable ${finalGenre} journey`}
+COMPOSITION & LIGHTING: Masterpiece front book cover illustration, vertical portrait orientation (3:4 ratio), striking central hero focal subject, rich atmospheric background, dynamic cinematic lighting, perfectly framed for a published best-selling storybook cover.`;
+
+  // Use provider-specific generation with cover prompt
+  if (finalProvider === 'gemini') {
+    const keyToUse = finalApiKey || process.env.API_KEY || (typeof window !== 'undefined' ? (window as any).GEMINI_API_KEY : '');
+    if (keyToUse) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: keyToUse });
+        const targetModel = finalModel === 'gemini-3.1-flash-lite-image' ? 'imagen-3.0-generate-002' : finalModel;
+        
+        try {
+          const response = await ai.models.generateImages({
+            model: targetModel,
+            prompt: fullCoverPrompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '3:4',
+            },
+          });
+
+          if (response.generatedImages?.[0]?.image?.imageBytes) {
+            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
+          }
+        } catch (imgErr) {
+          console.warn("Imagen generation for cover failed, falling back to gemini-2.5-flash-image:", imgErr);
+          const response = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt: fullCoverPrompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '3:4',
+            },
+          });
+          if (response.generatedImages?.[0]?.image?.imageBytes) {
+            return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
+          }
+        }
+      } catch (e) {
+        console.warn("Gemini cover image generation failed, using fallback:", e);
+      }
+    }
+  } else if (finalProvider === 'puter') {
+    if (typeof window !== 'undefined' && (window as any).puter?.ai?.txt2img) {
+      try {
+        const imageElement = await (window as any).puter.ai.txt2img(fullCoverPrompt, {
+          model: finalModel || 'flux-schnell',
+          width: 768,
+          height: 1024,
+        });
+        if (imageElement && imageElement.src) {
+          return imageElement.src;
+        }
+      } catch (err) {
+        console.warn("Puter AI cover txt2img error:", err);
+      }
+    }
+  } else if (finalProvider === 'openai') {
+    if (finalOtherApiKey) {
+      try {
+        const baseUrl = finalOptions?.customBaseUrl || 'https://api.openai.com/v1';
+        const res = await fetch(`${baseUrl}/images/generations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${finalOtherApiKey}`
+          },
+          body: JSON.stringify({
+            model: finalModel || 'dall-e-3',
+            prompt: fullCoverPrompt,
+            n: 1,
+            size: '1024x1792',
+            response_format: 'b64_json'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data?.[0]?.b64_json) {
+            return `data:image/png;base64,${data.data[0].b64_json}`;
+          }
+          if (data.data?.[0]?.url) {
+            return data.data[0].url;
+          }
+        }
+      } catch (err) {
+        console.warn("OpenAI cover image generation error:", err);
+      }
+    }
+  }
+
+  // Reliable, high-speed Pollinations Flux fallback with vertical book-cover dimensions
+  const encodedPrompt = encodeURIComponent(fullCoverPrompt);
+  const seed = Math.floor(Math.random() * 1000000);
+  return `https://pollinations.ai/p/${encodedPrompt}?width=768&height=1024&seed=${seed}&model=flux`;
 };
 
 // Helper to convert 16-bit PCM (sample rate 24000, 1 channel) to WAV Base64
@@ -1152,4 +1340,144 @@ export const testProviderKey = async (
           : `Connection test result: ${err.message || 'Check key and parameters.'}` 
     };
   }
+};
+
+const translationResponseSchema = {
+  type: "object",
+  properties: {
+    translatedTitle: { type: "string" },
+    translatedSegments: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          paragraph: { type: "string" },
+          chapterTitle: { type: "string" },
+          choices: {
+            type: "array",
+            items: { type: "string" }
+          }
+        },
+        required: ["id", "paragraph"]
+      }
+    }
+  },
+  required: ["translatedSegments"]
+};
+
+export const translateStoryContent = async (
+  title: string,
+  segments: StorySegment[],
+  targetLanguage: string,
+  apiKey: string | null,
+  provider: string = 'gemini',
+  model: string = 'gemini-2.5-flash',
+  otherApiKey?: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
+): Promise<{ title: string; segments: StorySegment[] }> => {
+  if (!segments || segments.length === 0) {
+    return { title, segments: [] };
+  }
+
+  const payloadToTranslate = {
+    title,
+    segments: segments.map(s => ({
+      id: s.id,
+      chapterTitle: s.chapterTitle || '',
+      paragraph: s.paragraph,
+      choices: s.choices || []
+    }))
+  };
+
+  const systemInstruction = `You are an expert literary translator and localization specialist.
+Your task is to translate an interactive story into "${targetLanguage}".
+
+Guidelines:
+1. Translate the story title and all scene paragraphs into natural, expressive, and atmospheric ${targetLanguage}.
+2. Preserve the exact emotional resonance, narrative tension, imagery, and character voices.
+3. If chapter titles or branch choices exist, translate them accurately into ${targetLanguage}.
+4. Retain all "id" fields exactly as provided so the scenes map 1:1.
+5. Return a valid JSON object matching the requested schema.`;
+
+  const userPrompt = `Translate this entire story into ${targetLanguage}:\n\n${JSON.stringify(payloadToTranslate, null, 2)}`;
+
+  return withRetry(async () => {
+    let resultJson: any = null;
+
+    if (provider === 'gemini') {
+      const ai = getAiClient(apiKey);
+      const response = await ai.models.generateContent({
+        model: model || 'gemini-2.5-flash',
+        contents: userPrompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: translationResponseSchema as any,
+        },
+      });
+      const responseText = response.text;
+      if (!responseText) throw new Error("Translation returned empty response.");
+      resultJson = extractJson(responseText);
+    } else if (provider === 'puter') {
+      const raw = await callPuterAiChat(userPrompt, systemInstruction, model || 'openai/gpt-5.4-nano');
+      resultJson = extractJson(raw);
+    } else {
+      if (!otherApiKey && provider !== 'pollinations') {
+        throw new Error(`API Key for ${provider} is missing. Please provide it in Settings.`);
+      }
+
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+        apiKey: otherApiKey,
+        customBaseUrl: options?.customBaseUrl,
+        cloudflareAccountId: options?.cloudflareAccountId,
+      });
+
+      const openai = getOpenAIClient(effectiveApiKey, baseURL);
+      const completion = await openai.chat.completions.create({
+        model: model === 'gemini-2.5-flash' ? 'gpt-3.5-turbo' : model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `${userPrompt}\n\nReturn strictly valid JSON matching the schema.` }
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('No content returned from AI');
+      resultJson = extractJson(content);
+    }
+
+    const translatedTitle = resultJson?.translatedTitle || title;
+    const translatedList = resultJson?.translatedSegments || [];
+    const translatedMap = new Map<string, { paragraph: string; chapterTitle?: string; choices?: string[] }>();
+    
+    for (const item of translatedList) {
+      if (item && item.id) {
+        translatedMap.set(item.id, {
+          paragraph: item.paragraph || '',
+          chapterTitle: item.chapterTitle,
+          choices: Array.isArray(item.choices) ? item.choices : undefined
+        });
+      }
+    }
+
+    // Merge translated text with original segments (preserving media, audio, IDs, timestamps)
+    const updatedSegments: StorySegment[] = segments.map((seg, idx) => {
+      const translated = translatedMap.get(seg.id) || translatedList[idx];
+      if (translated) {
+        return {
+          ...seg,
+          paragraph: translated.paragraph || seg.paragraph,
+          chapterTitle: translated.chapterTitle || seg.chapterTitle,
+          choices: translated.choices || seg.choices,
+        };
+      }
+      return seg;
+    });
+
+    return {
+      title: translatedTitle,
+      segments: updatedSegments
+    };
+  });
 };

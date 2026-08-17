@@ -37,7 +37,7 @@ export interface Settings {
   imageStyle: 'whimsical' | 'cartoon' | 'realistic' | 'watercolor' | '3d_render' | 'pixel_art' | 'anime' | 'oil_painting' | 'sketch' | 'pencil_sketch' | 'claymation' | 'mosaic' | 'disney_animation' | 'pixar_3d' | 'vintage_disney';
   generateAudio: boolean;
   pdfMargin: number;
-  pdfTheme?: 'midnight' | 'classic_ivory' | 'emerald_parchment' | 'cyberpunk';
+  pdfTheme?: 'midnight' | 'classic_ivory' | 'emerald_parchment' | 'royal_slate' | 'cyberpunk' | 'sunset_crimson';
   // Audio Generation
   audioProvider: 'gemini' | 'openai' | 'pollinations';
   audioModel: string;
@@ -73,7 +73,7 @@ export interface Settings {
 
   // Content Settings
   targetAudience: 'children' | 'teen' | 'adult';
-  fontFamilyPreference?: 'serif' | 'sans' | 'mono';
+  fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
 
   // API Keys & Configs
   inceptionApiKey?: string;
