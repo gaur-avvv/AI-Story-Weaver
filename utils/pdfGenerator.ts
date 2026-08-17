@@ -1,4 +1,5 @@
 import { StorySegment } from '../types';
+import { PerformanceTracker } from '../hooks/usePerformanceMonitor';
 
 export interface PdfExportOptions {
   title: string;
@@ -16,31 +17,35 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
 
   if (window.Worker) {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(new URL('./exportWorker.ts', import.meta.url), { type: 'module' });
+      try {
+        const worker = new Worker(new URL('./exportWorker.ts', import.meta.url), { type: 'module' });
 
-      worker.onmessage = (e) => {
-        const { type, progress, message, error } = e.data;
-        if (type === 'PROGRESS') {
-          onProgress?.(progress, message);
-        } else if (type === 'SUCCESS') {
-          onProgress?.(100, 'PDF export complete');
+        worker.onmessage = (e) => {
+          const { type, progress, message, error } = e.data;
+          if (type === 'PROGRESS') {
+            onProgress?.(progress, message);
+          } else if (type === 'SUCCESS') {
+            onProgress?.(95, 'Assembling PDF document...');
+            worker.terminate();
+            generateStandardPdfBlob(options).then(resolve).catch(reject);
+          } else if (type === 'ERROR') {
+            worker.terminate();
+            generateStandardPdfBlob(options).then(resolve).catch(reject);
+          }
+        };
+
+        worker.onerror = () => {
           worker.terminate();
           generateStandardPdfBlob(options).then(resolve).catch(reject);
-        } else if (type === 'ERROR') {
-          worker.terminate();
-          reject(new Error(error));
-        }
-      };
+        };
 
-      worker.onerror = (err) => {
-        worker.terminate();
+        worker.postMessage({
+          type: 'GENERATE_PDF_CHUNKS',
+          payload: { title, author, genre, audience, segments, pdfMargin, pdfTheme }
+        });
+      } catch (err) {
         generateStandardPdfBlob(options).then(resolve).catch(reject);
-      };
-
-      worker.postMessage({
-        type: 'GENERATE_PDF_CHUNKS',
-        payload: { title, author, genre, audience, segments, pdfMargin, pdfTheme }
-      });
+      }
     });
   } else {
     return generateStandardPdfBlob(options);
@@ -50,11 +55,13 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
 async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob> {
   const { title, author = 'Author', genre, audience, segments, pdfMargin = 20, pdfTheme = 'classic_ivory', onProgress } = options;
   
-  onProgress?.(20, 'Loading PDF generation library...');
+  const perfTracker = new PerformanceTracker('PDF Generation', 300, 10000, 0.90);
+
+  onProgress?.(15, 'Loading PDF engine...');
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
 
-  onProgress?.(40, 'Formatting document canvas...');
+  onProgress?.(30, 'Formatting A4 pages...');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -70,27 +77,23 @@ async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob>
   let bgRgb = [252, 250, 246]; // classic_ivory
   let textRgb = [30, 41, 59];
   let accentRgb = [147, 51, 234];
-  let headerBgRgb = [241, 245, 249];
 
   if (pdfTheme === 'midnight') {
-    bgRgb = [15, 23, 42]; // slate-950
+    bgRgb = [15, 23, 42];
     textRgb = [241, 245, 249];
     accentRgb = [168, 85, 247];
-    headerBgRgb = [30, 41, 59];
   } else if (pdfTheme === 'emerald_parchment') {
-    bgRgb = [240, 253, 244]; // emerald-50
+    bgRgb = [240, 253, 244];
     textRgb = [6, 78, 59];
     accentRgb = [16, 185, 129];
-    headerBgRgb = [220, 252, 231];
   } else if (pdfTheme === 'cyberpunk') {
     bgRgb = [18, 18, 24];
     textRgb = [244, 114, 182];
     accentRgb = [56, 189, 248];
-    headerBgRgb = [30, 27, 75];
   }
 
-  // Cover Page (Clean, no AI watermark)
-  onProgress?.(60, 'Rendering cover page...');
+  // Cover Page (Clean, 100% Watermark Free)
+  onProgress?.(45, 'Rendering clean cover page...');
   doc.setFillColor(bgRgb[0], bgRgb[1], bgRgb[2]);
   doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
@@ -102,7 +105,7 @@ async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob>
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(13);
   doc.setTextColor(accentRgb[0], accentRgb[1], accentRgb[2]);
-  doc.text(`${genre.toUpperCase()} • ${audience.toUpperCase()} Edition`, pageWidth / 2, 115, { align: 'center' });
+  doc.text(`${genre.toUpperCase()} • ${audience.toUpperCase()} EDITION`, pageWidth / 2, 115, { align: 'center' });
 
   doc.setFontSize(11);
   doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
@@ -112,9 +115,10 @@ async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob>
 
   // Story Chapters Pages
   for (let i = 0; i < segments.length; i++) {
+    const segStartMs = performance.now();
     const seg = segments[i];
     const pageNum = i + 2;
-    const pct = Math.round(70 + ((i + 1) / segments.length) * 28);
+    const pct = Math.min(98, Math.round(50 + ((i + 1) / segments.length) * 45));
     onProgress?.(pct, `Processing Chapter ${i + 1} of ${segments.length}...`);
 
     doc.addPage();
@@ -146,7 +150,7 @@ async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob>
     const splitText = doc.splitTextToSize(seg.paragraph || '', usableWidth);
     doc.text(splitText, margin, margin + 15);
 
-    // Footer (Page Number only)
+    // Footer (Page Number only - No watermarks)
     doc.setDrawColor(150, 150, 150);
     doc.setLineWidth(0.2);
     doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
@@ -155,8 +159,23 @@ async function generateStandardPdfBlob(options: PdfExportOptions): Promise<Blob>
     doc.setFontSize(9);
     doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
     doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+    // Measure segment time & adapt JPEG compression dynamically if slow
+    const elapsed = performance.now() - segStartMs;
+    perfTracker.recordItem(i, elapsed);
   }
 
   onProgress?.(100, 'PDF generation complete!');
   return doc.output('blob');
+}
+
+export function downloadBlobAsFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

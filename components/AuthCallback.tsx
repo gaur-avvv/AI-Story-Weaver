@@ -139,13 +139,13 @@ export const AuthCallback: React.FC = () => {
             }
           }
         } else if (detectedProvider === 'GitHub') {
-          username = 'StorySparkAuthor';
+          username = 'NovellaioAuthor';
           localStorage.setItem('storyspark_github_username', username);
         } else if (detectedProvider === 'YouTube') {
-          username = 'StorySparkCreator';
+          username = 'NovellaioCreator';
           localStorage.setItem('storyspark_youtube_user', username);
         } else if (detectedProvider === 'Google') {
-          username = 'StorySparkGoogleUser';
+          username = 'NovellaioGoogleUser';
           localStorage.setItem('storyspark_google_user', username);
         }
 

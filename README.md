@@ -1,4 +1,4 @@
-# StorySpark: Interactive Multi-Modal AI Storyteller & Studio
+# Novellaio: Interactive Multi-Modal AI Storyteller & Studio
 
 [![React](https://img.shields.io/badge/React-19.2-61dafb.svg?style=flat&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6.svg?style=flat&logo=typescript)](https://www.typescriptlang.org/)
@@ -10,11 +10,21 @@
 
 ---
 
+## 📌 Project Identity
+
+### **Project Name**
+> `Novellaio: Multi-Modal AI Storyteller & Studio`
+
+### **Elevator Pitch**
+> `Create interactive illustrated storybooks with branching plots, contextual AI art, voice narration, ambient soundscapes, MCP agent toolkits, EPUB & video exports.`
+
+---
+
 ## 📖 Overview
 
-**StorySpark** is an interactive, multi-modal generative AI storytelling platform and creative studio. Built with **React 19**, **TypeScript**, **Google Gemini**, and the **Model Context Protocol (MCP)**, StorySpark harmonizes natural language generation, real-time contextual illustration, expressive voice synthesis, adaptive VFX ambient soundscapes, branching narrative decision trees, automated EPUB publishing, and dynamic video reels.
+**Novellaio** is an interactive, multi-modal generative AI storytelling platform and creative studio. Built with **React 19**, **TypeScript**, **Google Gemini**, and the **Model Context Protocol (MCP)**, Novellaio harmonizes natural language generation, real-time contextual illustration, expressive voice synthesis, adaptive VFX ambient soundscapes, branching narrative decision trees, automated EPUB publishing, and dynamic video reels.
 
-Whether crafting bedtime fables for children, interactive sci-fi novels for teens, or branching fantasy epics for adults, StorySpark creates an immersive multimedia storybook ready for reading, live playback, agent co-authoring, and multi-format export.
+Whether crafting bedtime fables for children, interactive sci-fi novels for teens, or branching fantasy epics for adults, Novellaio creates an immersive multimedia storybook ready for reading, live playback, agent co-authoring, and multi-format export.
 
 ---
 
@@ -121,7 +131,7 @@ Add the following snippet to your `claude_desktop_config.json` (macOS: `~/Librar
 ```json
 {
   "mcpServers": {
-    "storyspark-ai-studio": {
+    "novellaio-ai-studio": {
       "command": "node",
       "args": ["dist/server.cjs"],
       "env": {
@@ -139,7 +149,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcp": {
     "servers": {
-      "storyspark": {
+      "novellaio": {
         "url": "http://localhost:3000/api/mcp",
         "type": "http"
       }
@@ -179,8 +189,8 @@ curl -X POST http://localhost:3000/api/mcp \
 ### Installation
 ```bash
 # Clone repository
-git clone [https://github.com/your-username/ai-storyteller.git](https://github.com/gaur-avvv/AI-Story-Weaver)
-cd AI-Story-Weaver
+git clone https://github.com/your-username/ai-storyteller.git
+cd ai-storyteller
 
 # Install dependencies
 npm install

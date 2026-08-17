@@ -94,3 +94,53 @@ export interface Settings {
   othersApiKey?: string;
   customBaseUrl?: string;
 }
+
+export type EntityType = 'character' | 'location' | 'item' | 'faction' | 'event';
+
+export interface EntityTriple {
+  source: string;
+  sourceType?: EntityType;
+  relationship: string;
+  target: string;
+  targetType?: EntityType;
+}
+
+export interface GraphOccurrence {
+  segmentIndex: number;
+  snippet: string;
+  timestamp?: number;
+}
+
+export interface EmotionalTrendEntry {
+  segmentIndex: number;
+  sentiment: string;
+  mood?: string;
+  timestamp?: number;
+}
+
+export interface GraphNode {
+  id: string;
+  name: string;
+  type: EntityType;
+  mentionCount: number;
+  occurrences: GraphOccurrence[];
+  isNew?: boolean;
+  emotionalTrend?: EmotionalTrendEntry[];
+  currentEmotion?: string;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationship: string;
+  segmentIndex: number;
+}
+
+export interface PlotTwistOption {
+  title: string;
+  category: 'revelation' | 'supernatural' | 'betrayal' | 'dramatic_shift' | 'mystery' | 'action';
+  description: string;
+  promptAction: string;
+}
+

@@ -31,10 +31,10 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
     : theme.fontFamily;
 
   useEffect(() => {
-    if (segment.paragraph) {
+    if (isAudioActive && segment.paragraph) {
       processParagraphForVfx(segment.paragraph);
     }
-  }, [segment.paragraph, processParagraphForVfx]);
+  }, [isAudioActive, segment.paragraph, processParagraphForVfx]);
 
   // Parse paragraph into word tokens and whitespace for precision synchronized highlighting
   const tokens = useMemo(() => {

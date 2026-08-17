@@ -146,8 +146,8 @@ export interface EpubOptions {
 
 export function generateEpubBlob(options: EpubOptions): Blob {
   const {
-    title = 'StorySpark Storybook',
-    author = 'StorySpark AI Creator',
+    title = 'Novellaio Storybook',
+    author = 'Novellaio AI Creator',
     genre = 'Fantasy',
     audience = 'Children',
     segments = [],
@@ -234,7 +234,7 @@ p {
   <div class="cover-meta">
     <p style="text-indent: 0;"><strong>Author:</strong> ${escapeXml(author)}</p>
     <p style="text-indent: 0;"><strong>Genre:</strong> ${escapeXml(genre)} | <strong>Audience:</strong> ${escapeXml(audience)}</p>
-    <p style="text-indent: 0;"><em>Published with StorySpark Multi-Modal AI Studio</em></p>
+    <p style="text-indent: 0;"><em>Published with Novellaio Multi-Modal AI Studio</em></p>
   </div>
   <hr style="border: 0; border-top: 1px solid #cbd5e1; margin: 2em 0;"/>
 </body>
@@ -324,9 +324,9 @@ p {
     <dc:creator opf:role="aut">${escapeXml(author)}</dc:creator>
     <dc:identifier id="BookID" opf:scheme="UUID">${bookId}</dc:identifier>
     <dc:language>en</dc:language>
-    <dc:publisher>StorySpark AI Studio</dc:publisher>
+    <dc:publisher>Novellaio AI Studio</dc:publisher>
     <dc:subject>${escapeXml(genre)}</dc:subject>
-    <dc:description>An interactive illustrated adventure generated with StorySpark AI.</dc:description>
+    <dc:description>An interactive illustrated adventure generated with Novellaio AI.</dc:description>
     <dc:date>${new Date().toISOString().split('T')[0]}</dc:date>
   </metadata>
   <manifest>${opfManifestItems}

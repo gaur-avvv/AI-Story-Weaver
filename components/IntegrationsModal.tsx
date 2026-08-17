@@ -118,7 +118,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
   // eBook State
   const [ebookPrice, setEbookPrice] = useState<number>(3.99);
-  const [authorName, setAuthorName] = useState<string>('StorySpark AI Author');
+  const [authorName, setAuthorName] = useState<string>('Novellaio AI Author');
   const [isGeneratingEpub, setIsGeneratingEpub] = useState<boolean>(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [pdfProgressMsg, setPdfProgressMsg] = useState<string>('');
@@ -163,10 +163,10 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
   // Generate complete Markdown story document
   const generateStoryMarkdown = () => {
-    const storyTitle = title || 'StorySpark Adventure';
+    const storyTitle = title || 'Novellaio Adventure';
     let md = `# ${storyTitle}\n\n`;
     md += `> **Genre:** ${currentGenre.charAt(0).toUpperCase() + currentGenre.slice(1)} | **Target Audience:** ${currentAudience.charAt(0).toUpperCase() + currentAudience.slice(1)} | **Model:** ${currentModel}\n\n`;
-    md += `*Generated automatically by [StorySpark AI Storyteller](https://ai.studio)*\n\n`;
+    md += `*Generated automatically by [Novellaio AI Storyteller](https://ai.studio)*\n\n`;
     md += `---\n\n`;
 
     if (segments.length === 0) {
@@ -202,7 +202,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
       return;
     }
 
-    const storyTitle = title || 'StorySpark Narrative';
+    const storyTitle = title || 'Novellaio Narrative';
     const markdownContent = generateStoryMarkdown();
     const fileName = `${storyTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'storybook'}.md`;
 
@@ -219,7 +219,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            description: `${storyTitle} — Illustrated Interactive Storybook generated via StorySpark AI`,
+            description: `${storyTitle} — Illustrated Interactive Storybook generated via Novellaio AI`,
             public: true,
             files: {
               [fileName]: {
@@ -265,15 +265,15 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
         return;
       }
       const googleScopes = encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents openid email profile');
-      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${googleScopes}&state=google&access_type=offline&include_granted_scopes=true&prompt=consent`;
+      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${googleScopes}&state=google&access_type=offline&prompt=consent`;
     } else if (provider === 'youtube') {
       if (!googleClientId) {
         setLoadingProvider(null);
         showWarningToast('Please configure VITE_GOOGLE_CLIENT_ID in your environment variables or Cloud Run settings.');
         return;
       }
-      const youtubeScopes = encodeURIComponent('https://www.googleapis.com/auth/youtube.upload openid email profile');
-      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${youtubeScopes}&state=youtube&access_type=offline&include_granted_scopes=true&prompt=consent`;
+      const youtubeScopes = encodeURIComponent('https://www.googleapis.com/auth/youtube.upload');
+      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${youtubeScopes}&state=youtube&access_type=offline&prompt=consent`;
     } else if (provider === 'github') {
       if (!githubClientId) {
         setLoadingProvider(null);
@@ -379,7 +379,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     try {
       const activeSeg = segments[segments.length - 1];
       const payload = {
-        username: 'StorySpark AI',
+        username: 'Novellaio AI',
         avatar_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=128&q=80',
         embeds: [
           {
@@ -392,7 +392,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
               inline: true
             })),
             image: activeSeg.imageUrl ? { url: activeSeg.imageUrl } : undefined,
-            footer: { text: `StorySpark AI Studio • Genre: ${currentGenre}` },
+            footer: { text: `Novellaio AI Studio • Genre: ${currentGenre}` },
             timestamp: new Date().toISOString()
           }
         ]
@@ -519,7 +519,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     setIsGeneratingEpub(true);
     try {
       const blob = generateEpubBlob({
-        title: title || 'StorySpark Adventure',
+        title: title || 'Novellaio Adventure',
         author: authorName,
         genre: currentGenre,
         audience: currentAudience,
@@ -548,7 +548,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     setPdfProgressMsg('Initializing Web Worker PDF Export...');
     try {
       const blob = await generatePdfWithWorker({
-        title: title || 'StorySpark Adventure',
+        title: title || 'Novellaio Adventure',
         author: authorName,
         genre: currentGenre,
         audience: currentAudience,
@@ -1051,7 +1051,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                 <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-sm text-purple-200/90 leading-relaxed flex items-start gap-3">
                   <Cpu className="w-5 h-5 text-purple-300 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-white">Model Context Protocol (MCP) Standard:</span> Expose StorySpark tools directly to external AI agents (such as Claude Desktop, Cursor, and Gemini ADK). External agents can autonomously generate chapters, synthesize scene artwork, and compile eBooks over JSON-RPC 2.0.
+                    <span className="font-semibold text-white">Model Context Protocol (MCP) Standard:</span> Expose Novellaio tools directly to external AI agents (such as Claude Desktop, Cursor, and Gemini ADK). External agents can autonomously generate chapters, synthesize scene artwork, and compile eBooks over JSON-RPC 2.0.
                   </div>
                 </div>
 
@@ -1151,7 +1151,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                     <button
                       onClick={() => {
                         setSelectedTool('publish_ebook');
-                        setToolInput(JSON.stringify({ title: title || "The Starlight Chronicles", author: "StorySpark Author", genre: currentGenre, suggestedPriceUsd: 3.99 }, null, 2));
+                        setToolInput(JSON.stringify({ title: title || "The Starlight Chronicles", author: "Novellaio Author", genre: currentGenre, suggestedPriceUsd: 3.99 }, null, 2));
                       }}
                       className={`p-3 rounded-xl border text-left text-xs transition-all ${
                         selectedTool === 'publish_ebook'
@@ -1398,7 +1398,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
                     <button
                       onClick={() => {
-                        const copyText = `# ${title || 'StorySpark Narrative'}\n\n**Author:** ${authorName}\n**Genre:** ${currentGenre}\n**Price:** $${ebookPrice}\n\nAn interactive, illustrated adventure generated with branching paths.\n\nIncludes EPUB, Printable PDF, and narration audio.`;
+                        const copyText = `# ${title || 'Novellaio Narrative'}\n\n**Author:** ${authorName}\n**Genre:** ${currentGenre}\n**Price:** $${ebookPrice}\n\nAn interactive, illustrated adventure generated with branching paths.\n\nIncludes EPUB, Printable PDF, and narration audio.`;
                         copyToClipboard(copyText, 'Marketplace Listing Copy');
                       }}
                       className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all flex items-center justify-center gap-2 border border-slate-700"
@@ -1546,7 +1546,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
           <div className="p-4 border-t border-purple-500/20 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-purple-400" />
-              <span>StorySpark AI Studio • Model Context Protocol v1.3.0 & ADK v2.1</span>
+              <span>Novellaio AI Studio • Model Context Protocol v1.3.0 & ADK v2.1</span>
             </span>
             <button
               onClick={onClose}

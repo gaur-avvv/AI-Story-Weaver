@@ -1,5 +1,7 @@
 import React from 'react';
 
+export { CrystalPrismIcon } from './CrystalPrismIcon';
+
 export const SparklesIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

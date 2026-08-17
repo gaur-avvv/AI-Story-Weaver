@@ -29,7 +29,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'User-Agent': 'StorySpark-App'
+              'User-Agent': 'Novellaio-App'
             },
             body: JSON.stringify({
               client_id: clientId,
@@ -46,7 +46,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                 headers: {
                   'Authorization': `Bearer ${data.access_token}`,
                   'Accept': 'application/vnd.github.v3+json',
-                  'User-Agent': 'StorySpark-App'
+                  'User-Agent': 'Novellaio-App'
                 }
               });
               if (uRes.ok) {
@@ -145,7 +145,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
-          name: 'StorySpark MCP Studio Server',
+          name: 'Novellaio MCP Studio Server',
           version: '1.3.0',
           protocol: 'MCP (Model Context Protocol 2024-11-05)',
           endpoint: '/api/mcp',
@@ -254,7 +254,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                         type: 'object',
                         properties: {
                           title: { type: 'string', description: 'eBook Title' },
-                          author: { type: 'string', description: 'Author name', default: 'StorySpark AI Author' },
+                          author: { type: 'string', description: 'Author name', default: 'Novellaio AI Author' },
                           genre: { type: 'string', description: 'Story genre', default: 'fantasy' },
                           targetAudience: { type: 'string', default: 'children' },
                           suggestedPriceUsd: { type: 'number', description: 'Suggested retail price in USD', default: 3.99 },
@@ -428,7 +428,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
               }
 
               if (toolName === 'publish_ebook') {
-                const title = args.title || 'StorySpark Adventure';
+                const title = args.title || 'Novellaio Adventure';
                 const genre = args.genre || 'Fantasy';
                 const price = args.suggestedPriceUsd || 3.99;
 
@@ -506,7 +506,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
 
               if (toolName === 'post_discord_webhook') {
                 const webhookUrl = args.webhookUrl;
-                const storyTitle = args.storyTitle || 'StorySpark Chapter';
+                const storyTitle = args.storyTitle || 'Novellaio Chapter';
                 const paragraph = args.paragraph || '';
                 const choices = args.choices || [];
                 const imageUrl = args.imageUrl;
@@ -520,7 +520,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                     }));
 
                     const discordPayload = {
-                      username: 'StorySpark AI',
+                      username: 'Novellaio AI',
                       avatar_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=128&q=80',
                       embeds: [
                         {
@@ -529,7 +529,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                           color: 0x9333ea,
                           fields: embedFields.length > 0 ? embedFields : undefined,
                           image: imageUrl ? { url: imageUrl } : undefined,
-                          footer: { text: 'StorySpark Multi-Modal AI Studio' },
+                          footer: { text: 'Novellaio Multi-Modal AI Studio' },
                           timestamp: new Date().toISOString()
                         }
                       ]
@@ -685,7 +685,7 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
             res.end(JSON.stringify({
               jsonrpc: '2.0',
               id,
-              error: { code: -32601, message: `Method '${method}' not found on StorySpark MCP server.` }
+              error: { code: -32601, message: `Method '${method}' not found on Novellaio MCP server.` }
             }));
           } catch (err: any) {
             res.statusCode = 500;

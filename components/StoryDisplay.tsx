@@ -3,6 +3,7 @@ import type { StorySegment } from '../types';
 import { ParagraphCard } from './ParagraphCard';
 import { ChapterDivider } from './ChapterDivider';
 import { SegmentSkeleton } from './SegmentSkeleton';
+import { PlotTwistsPanel } from './PlotTwistsPanel';
 import { motion } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 import { extractChapters, getChapterStats } from '../utils/chapterUtils';
@@ -23,6 +24,14 @@ interface StoryDisplayProps {
   onUpdateChapterTitle?: (segmentIndex: number, newTitle: string) => void;
   onRemoveChapter?: (segmentIndex: number) => void;
   onAddChapterAt?: (segmentIndex: number) => void;
+  storyTitle?: string;
+  genre?: string;
+  targetAudience?: string;
+  apiKey?: string | null;
+  textProvider?: string;
+  textModel?: string;
+  otherApiKey?: string;
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string };
 }
 
 export const StoryDisplay: React.FC<StoryDisplayProps> = ({ 
@@ -40,6 +49,14 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   onUpdateChapterTitle,
   onRemoveChapter,
   onAddChapterAt,
+  storyTitle = 'Novella Story',
+  genre = 'fantasy',
+  targetAudience = 'children',
+  apiKey = null,
+  textProvider = 'gemini',
+  textModel = 'gemini-2.5-flash',
+  otherApiKey,
+  options,
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
   const endOfStoryRef = useRef<HTMLDivElement>(null);
@@ -49,21 +66,21 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   }, [segments, isGenerating]);
 
   // Background sentiment & VFX analyzer for the active or latest segment
+  const activeIdx = (typeof activeAudioSegmentIndex === 'number' && activeAudioSegmentIndex >= 0 && activeAudioSegmentIndex < segments.length)
+    ? activeAudioSegmentIndex
+    : segments.length - 1;
+  const activeSegParagraph = segments[activeIdx]?.paragraph || '';
+
   useEffect(() => {
-    if (segments.length > 0) {
-      const activeIdx = (typeof activeAudioSegmentIndex === 'number' && activeAudioSegmentIndex >= 0 && activeAudioSegmentIndex < segments.length)
-        ? activeAudioSegmentIndex
-        : segments.length - 1;
-      const targetSeg = segments[activeIdx] || segments[segments.length - 1];
-      if (targetSeg?.paragraph) {
-        processParagraphForVfx(targetSeg.paragraph);
-      }
+    if (activeSegParagraph) {
+      processParagraphForVfx(activeSegParagraph);
     }
-  }, [segments, activeAudioSegmentIndex, processParagraphForVfx]);
+  }, [activeSegParagraph, processParagraphForVfx]);
 
   const lastSegment = segments[segments.length - 1];
   const chapters = extractChapters(segments);
   const nextChapterNumber = chapters.length + 1;
+  const previousParagraphs = segments.map(s => s.paragraph);
 
   const lengthDisplayMap: Record<string, string> = {
     'very_short': '1-2 scenes',
@@ -155,7 +172,7 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
           />
         )}
         
-        {/* Choices & Next Chapter Panel */}
+        {/* Choices & Recommended Plot Twists & Next Chapter Panel */}
         {!isGenerating && segments.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -185,6 +202,21 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
               </div>
             ) : null}
 
+            {/* Recommended Next Plot Twist Feature */}
+            <PlotTwistsPanel
+              previousParagraphs={previousParagraphs}
+              storyTitle={storyTitle}
+              genre={genre}
+              targetAudience={targetAudience}
+              apiKey={apiKey}
+              textProvider={textProvider}
+              textModel={textModel}
+              otherApiKey={otherApiKey}
+              options={options}
+              onSelectTwist={(promptAction) => onContinue(promptAction)}
+              isGeneratingStory={isGenerating}
+            />
+
             {/* Prominent Next Chapter Action */}
             {onGenerateNextChapter && (
               <div className="pt-4 flex flex-col items-center justify-center">
@@ -212,4 +244,5 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
     </div>
   );
 };
+
 

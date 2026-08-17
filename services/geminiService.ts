@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import OpenAI from 'openai';
+import { globalStoryGraph } from './storyGraphState';
 
 // Helper to retry external API calls with exponential backoff and jitter
 export async function withRetry<T>(
@@ -337,6 +338,7 @@ export const generateStorySegment = async (
   targetAudience: string = 'children',
   isLastSegment: boolean = false,
   isFirstSegment: boolean = false,
+  graphContext?: string,
   options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<{ title?: string; paragraph: string; choices?: string[] }> => {
   let audienceInstruction = '';
@@ -352,10 +354,19 @@ export const generateStorySegment = async (
       break;
   }
 
+  const effectiveGraphContext = graphContext || globalStoryGraph.getLoreContextForPrompt();
+  const lorePrompt = effectiveGraphContext ? `\nKnowledge Graph & Character Emotional Trends Context (Maintain strict continuity with these entities, relationship connections, and character emotional arcs):\n${effectiveGraphContext}\n` : '';
+  const inconsistencyAudit = globalStoryGraph.getInconsistencyAudit();
+  const inconsistencyPrompt = inconsistencyAudit 
+    ? `\nPotential Plot Inconsistencies & Continuity Audit (Query from Global Story Graph - DO NOT contradict these established facts):\n${inconsistencyAudit}\n`
+    : '';
+
   const systemInstruction = `You are a master storyteller writing an interactive story in the ${genre} genre, in the ${language} language. 
   
   Target Audience: ${targetAudience}
   ${audienceInstruction}
+  ${lorePrompt}
+  ${inconsistencyPrompt}
   
   Instructions:
   ${isFirstSegment ? 'This is the start of the story. You must provide a "title" for the story.' : 'This is a continuation of the story. Do NOT provide a title.'}
@@ -481,10 +492,19 @@ export const generateNextChapter = async (
       break;
   }
 
+  const loreContext = globalStoryGraph.getLoreContextForPrompt();
+  const lorePrompt = loreContext ? `\nKnowledge Graph Lore Context:\n${loreContext}\n` : '';
+  const inconsistencyAudit = globalStoryGraph.getInconsistencyAudit();
+  const inconsistencyPrompt = inconsistencyAudit 
+    ? `\nPotential Plot Inconsistencies & Continuity Audit (Query from Global Story Graph - DO NOT contradict these facts):\n${inconsistencyAudit}\n`
+    : '';
+
   const systemInstruction = `You are a master storyteller writing the next chapter of an epic story titled "${storyTitle}".
 Genre: ${genre}, Language: ${language}
 Target Audience: ${targetAudience}
 ${audienceInstruction}
+${lorePrompt}
+${inconsistencyPrompt}
 
 Instructions:
 - Write Chapter ${chapterNumber} of the story.
@@ -543,6 +563,103 @@ Return a JSON object with:
       const content = completion.choices[0]?.message?.content;
       if (!content) throw new Error('No content returned from AI');
       return extractJson(content);
+    }
+  });
+};
+
+const plotTwistsSchema = {
+  type: Type.OBJECT,
+  properties: {
+    twists: {
+      type: Type.ARRAY,
+      description: "Three distinct recommended plot twists for the story.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          category: { type: Type.STRING },
+          description: { type: Type.STRING },
+          promptAction: { type: Type.STRING }
+        },
+        required: ["title", "category", "description", "promptAction"]
+      }
+    }
+  },
+  required: ["twists"]
+};
+
+export const generatePlotTwists = async (
+  previousParagraphs: string[],
+  storyTitle: string,
+  genre: string,
+  targetAudience: string = 'children',
+  apiKey: string | null = null,
+  provider: string = 'gemini',
+  otherApiKey?: string,
+  model: string = 'gemini-2.5-flash',
+  graphContext?: string,
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string }
+): Promise<import('../types').PlotTwistOption[]> => {
+  const systemInstruction = `You are a creative narrative strategist and master plot architect.
+Analyze the story "${storyTitle}" (Genre: ${genre}, Audience: ${targetAudience}).
+${graphContext ? `Knowledge Graph Context:\n${graphContext}\n` : ''}
+
+Your goal: Recommend THREE distinct, highly engaging next plot twists that completely transform or elevate the story trajectory in unexpected ways.
+
+Categories to select from (pick 3 distinct categories):
+- "revelation" (a shocking secret or truth unveiled)
+- "supernatural" (an unexplainable phenomenon or magic anomaly)
+- "betrayal" (a trusted ally turns or has hidden motives)
+- "dramatic_shift" (an urgent environmental or situational disaster)
+- "mystery" (a cryptic artifact, puzzle, or unknown entity appears)
+- "action" (sudden confrontation or high-stakes race against time)
+
+Format: Return a JSON object with a "twists" array of 3 objects, each containing:
+- "title": Catchy 2-4 word twist title
+- "category": One of the categories above
+- "description": 1 sentence explaining the dramatic twist
+- "promptAction": The exact prompt text to send to continue the story with this twist.`;
+
+  const recentText = previousParagraphs.slice(-4).join('\n\n');
+  const fullPrompt = `Story Context:\n${recentText}\n\nGenerate 3 recommended next plot twists now.`;
+
+  return withRetry(async () => {
+    if (provider === 'gemini') {
+      const ai = getAiClient(apiKey);
+      const response = await ai.models.generateContent({
+        model,
+        contents: fullPrompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: plotTwistsSchema,
+        },
+      });
+      const parsed = extractJson(response.text || '');
+      return parsed.twists || [];
+    } else if (provider === 'puter') {
+      const raw = await callPuterAiChat(fullPrompt, systemInstruction, model || 'openai/gpt-5.4-nano');
+      const parsed = extractJson(raw);
+      return parsed.twists || [];
+    } else {
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig(provider, {
+        apiKey: otherApiKey,
+        customBaseUrl: options?.customBaseUrl,
+        cloudflareAccountId: options?.cloudflareAccountId,
+      });
+      const openai = getOpenAIClient(effectiveApiKey, baseURL);
+      const completion = await openai.chat.completions.create({
+        model: model === 'gemini-2.5-flash' ? 'gpt-3.5-turbo' : model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `${fullPrompt}. Return valid JSON.` }
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('No content returned from AI');
+      const parsed = extractJson(content);
+      return parsed.twists || [];
     }
   });
 };

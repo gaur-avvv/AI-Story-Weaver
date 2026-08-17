@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { XIcon, PlayIcon, PauseIcon, DownloadIcon, AudioWaveform } from './icons';
 import { StorySegment } from '../types';
 import { getMusicDataUrlForGenre, getProceduralMusicBuffer } from '../services/musicService';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
+import { Terminal, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 interface VideoModalProps {
   isOpen: boolean;
@@ -43,6 +45,8 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportStepName, setExportStepName] = useState<string>('Ready');
+  const [exportLogs, setExportLogs] = useState<string[]>([]);
   const [isMusicEnabled, setIsMusicEnabled] = useState(true);
   const [musicUrl, setMusicUrl] = useState<string>('');
   const [transitionEffect, setTransitionEffect] = useState<'kenburns' | 'fade' | 'slide'>('kenburns');
@@ -50,9 +54,26 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const logContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const { startMonitoring, recordStep, addLog, finishMonitoring, jpegQuality } = usePerformanceMonitor('Video Export');
 
   const currentSegment = segments[currentSegmentIndex];
   const segmentLines = currentSegment ? splitIntoLines(currentSegment.paragraph || '') : [''];
+
+  const pushLog = (msg: string) => {
+    const timeStr = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+    const logLine = `[${timeStr}] ${msg}`;
+    setExportLogs(prev => [...prev.slice(-40), logLine]);
+    addLog(msg);
+  };
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [exportLogs]);
 
   // Generate background music URL asynchronously when modal opens or genre changes
   useEffect(() => {
@@ -71,6 +92,10 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
       setCurrentSegmentIndex(0);
       setCurrentLineIndex(0);
       setIsPlaying(false);
+      setIsExporting(false);
+      setExportProgress(0);
+      setExportStepName('Ready');
+      setExportLogs([]);
     } else {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -138,7 +163,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
     }
   }, [currentSegmentIndex, isPlaying, isOpen, segments, isMusicEnabled, musicUrl]);
 
-  // Audio timeupdate handler for 100% precise live subtitle synchronisation
+  // Audio timeupdate handler for live subtitle synchronisation
   const handleTimeUpdate = () => {
     if (!audioRef.current || !segmentLines.length) return;
     const cur = audioRef.current.currentTime;
@@ -180,11 +205,16 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
     }
   };
 
-  // Fixed & Enhanced Video Export Engine
+  // Video Export Engine with Web Worker Frame Processing & Real-time Progress Logging
   const handleExportVideo = async (format: 'webm' | 'mp4' = 'webm') => {
     if (isExporting) return;
     setIsExporting(true);
-    setExportProgress(0);
+    setExportProgress(2);
+    setExportLogs([]);
+
+    startMonitoring('Video Export Pipeline');
+    pushLog("Initializing Web Worker & Audio Context...");
+    setExportStepName("Initializing Web Worker");
 
     try {
       const canvas = exportCanvasRef.current;
@@ -192,6 +222,30 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
       
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error("No 2D context");
+
+      // Spawning Video Export Web Worker for background frame layout & subtitle computation
+      if (window.Worker) {
+        try {
+          const worker = new Worker(new URL('../utils/videoExportWorker.ts', import.meta.url), { type: 'module' });
+          worker.onmessage = (e) => {
+            const { type, step, message, progress } = e.data;
+            if (type === 'LOG') {
+              pushLog(message);
+              if (step) setExportStepName(step);
+              if (progress) setExportProgress(progress);
+            } else if (type === 'SUCCESS') {
+              pushLog("Web Worker frame processing complete.");
+              worker.terminate();
+            }
+          };
+          worker.postMessage({
+            type: 'PROCESS_VIDEO_FRAMES',
+            payload: { segments, width: canvas.width, height: canvas.height, transitionEffect }
+          });
+        } catch (wErr) {
+          pushLog("Worker spawn notice: running main thread stream fallback");
+        }
+      }
 
       // Web Audio Context for synchronous export stream mixing
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -217,20 +271,27 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
       };
 
       recorder.onstop = async () => {
+        pushLog("Finalizing recorded video stream blobs...");
+        setExportStepName("Encoding video");
+
         const blob = new Blob(chunks, { type: 'video/webm' });
-        
+        const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'story_video';
+
         if (format === 'mp4') {
           try {
             setExportProgress(92);
-            
-            // Timeout-guarded FFmpeg loading & conversion (max 6 seconds)
+            pushLog("Invoking FFmpeg MP4 remuxing module...");
+            setExportStepName("Remuxing MP4");
+
             const ffmpegPromise = (async () => {
               const { FFmpeg } = await import('@ffmpeg/ffmpeg');
               const { fetchFile } = await import('@ffmpeg/util');
               const ffmpeg = new FFmpeg();
               
               ffmpeg.on('progress', ({ progress }) => {
-                setExportProgress(92 + Math.round(progress * 8));
+                const pct = Math.min(99, 92 + Math.round(progress * 7));
+                setExportProgress(pct);
+                pushLog(`FFmpeg MP4 encoding: ${Math.round(progress * 100)}%`);
               });
 
               await ffmpeg.load({
@@ -254,26 +315,33 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             const url = URL.createObjectURL(mp4Blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+            a.download = `${sanitizedTitle}.mp4`;
             a.click();
             URL.revokeObjectURL(url);
+            pushLog(`Export complete: Downloaded ${sanitizedTitle}.mp4`);
           } catch (err) {
-            console.warn("FFmpeg conversion fallback to WebM (smooth & fast):", err);
+            pushLog("FFmpeg fallback: Exporting native WebM video file");
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.webm`;
+            a.download = `${sanitizedTitle}.webm`;
             a.click();
             URL.revokeObjectURL(url);
+            pushLog(`Export complete: Downloaded ${sanitizedTitle}.webm`);
           }
         } else {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `${title.replace(/[^a-z0-9]/gi, '_')}.webm`;
+          a.download = `${sanitizedTitle}.webm`;
           a.click();
           URL.revokeObjectURL(url);
+          pushLog(`Export complete: Downloaded ${sanitizedTitle}.webm`);
         }
+
+        setExportProgress(100);
+        setExportStepName("Export Complete");
+        finishMonitoring();
         setIsExporting(false);
         if (audioCtx.state !== 'closed') audioCtx.close();
       };
@@ -284,6 +352,8 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
       let musicSource: AudioBufferSourceNode | null = null;
       if (isMusicEnabled) {
         try {
+          pushLog("Syncing audio stems & procedural music track...");
+          setExportStepName("Syncing audio stems");
           const musicBuffer = await getProceduralMusicBuffer(audioCtx, genre, 30);
           musicSource = audioCtx.createBufferSource();
           musicSource.buffer = musicBuffer;
@@ -296,16 +366,20 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
           gainNode.connect(audioDestination);
           musicSource.start(0);
         } catch (e) {
-          console.warn("Background music render skipped:", e);
+          pushLog("Procedural music stem skipped");
         }
       }
 
       // Render Each Story Segment to Canvas
       for (let i = 0; i < segments.length; i++) {
-        setExportProgress(Math.round(((i) / segments.length) * (format === 'mp4' ? 90 : 98)));
+        const segStartMs = performance.now();
+        const currentPct = Math.round((i / segments.length) * (format === 'mp4' ? 88 : 95));
+        setExportProgress(currentPct);
         const segment = segments[i];
+
+        pushLog(`Processing Chapter ${i + 1}/${segments.length} frame composition...`);
+        setExportStepName(`Processing Chapter ${i + 1}`);
         
-        // Load Segment Image safely via Blob ObjectURL to prevent CORS canvas tainting
         let tempObjectUrl: string | null = null;
         const img = new Image();
         
@@ -351,7 +425,6 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             audioSource.buffer = audioBuffer;
             audioSource.connect(audioDestination);
           } catch (e) {
-            console.warn(`Speech audio decode fallback for segment ${i}:`, e);
             const words = (segment.paragraph || '').split(/\s+/).filter(Boolean).length;
             durationMs = Math.max(4000, words * 320);
           }
@@ -366,7 +439,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
           try { audioSource.start(0); } catch (e) {}
         }
 
-        // Segment Frame Loop with background tab safeguard
+        // Frame rendering loop
         await new Promise(resolve => {
           let start: number | null = null;
           let frameId: number | null = null;
@@ -395,7 +468,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Render Background / Image with Ken Burns / Transition Pan
+            // Render Background / Image
             if (img.complete && img.naturalWidth > 0) {
               const ratio = Math.max(canvas.width / img.width, canvas.height / img.height);
               const baseWidth = img.width * ratio;
@@ -429,7 +502,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             ctx.fillStyle = botGrad;
             ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
 
-            // Active Line Calculation (Line-by-Line Subtitle Rendering)
+            // Active Subtitle Line Calculation
             const activeLineIdx = Math.min(lines.length - 1, Math.floor(progress * lines.length));
             const currentTextLine = lines[activeLineIdx] || '';
 
@@ -460,7 +533,6 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
             frameId = requestAnimationFrame(drawFrame);
           }
 
-          // Fallback interval check for background tabs
           const checkTimer = setInterval(() => {
             if (start && (performance.now() - start >= durationMs + 200)) {
               clearInterval(checkTimer);
@@ -470,16 +542,20 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
 
           frameId = requestAnimationFrame(drawFrame);
         });
+
+        // Record segment timing in performance monitor to auto-adjust JPEG quality if needed
+        const segDuration = performance.now() - segStartMs;
+        recordStep(i, segDuration);
       }
 
       if (musicSource) {
         try { musicSource.stop(); } catch (e) {}
       }
       recorder.stop();
-      setExportProgress(100);
 
     } catch (e) {
       console.error("Export error:", e);
+      pushLog(`Export failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
       setIsExporting(false);
       alert("Video export encountered an issue. Please try again.");
     }
@@ -532,7 +608,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
              </motion.div>
            </AnimatePresence>
 
-           {/* Line-by-Line Subtitle Overlay */}
+           {/* Subtitle Overlay */}
            <div className="absolute bottom-6 left-0 right-0 p-4 text-center z-20 flex justify-center">
               <AnimatePresence mode="wait">
                 <motion.div 
@@ -551,19 +627,55 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
            </div>
         </div>
 
+        {/* Export Real-time Progress Log Panel */}
+        {isExporting && (
+          <div className="p-3 bg-slate-950 border-t border-white/10 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs font-mono text-purple-300">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-purple-400 animate-pulse" />
+                <span>Export Progress: <strong className="text-white">{exportStepName}</strong></span>
+              </div>
+              <span>{exportProgress}%</span>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+              <div 
+                className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 transition-all duration-300 rounded-full"
+                style={{ width: `${exportProgress}%` }}
+              />
+            </div>
+
+            {/* Real-time Detailed Log Messages Terminal */}
+            <div 
+              ref={logContainerRef}
+              className="h-20 bg-slate-900/90 border border-white/10 rounded-xl p-2 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 shadow-inner"
+            >
+              {exportLogs.map((log, idx) => (
+                <div key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                  <span className="text-purple-400 font-bold select-none">&gt;</span>
+                  <span className={log.includes('complete') ? 'text-emerald-400 font-semibold' : ''}>{log}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Controls Bar */}
         <div className="p-4 bg-white/5 border-t border-white/10 flex items-center justify-between backdrop-blur-md">
            <div className="flex items-center gap-3">
               <button 
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="w-11 h-11 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30"
+                disabled={isExporting}
+                className="w-11 h-11 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-600/30 disabled:opacity-50"
               >
                 {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
               </button>
               
               <button
                 onClick={() => setIsMusicEnabled(!isMusicEnabled)}
-                className={`p-2.5 rounded-full transition-colors border ${isMusicEnabled ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'}`}
+                disabled={isExporting}
+                className={`p-2.5 rounded-full transition-colors border ${isMusicEnabled ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'} disabled:opacity-50`}
                 title="Toggle Background Music"
               >
                 <AudioWaveform className="w-5 h-5" />
@@ -601,7 +713,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
                {isExporting ? (
                  <>
                    <div className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin" />
-                   <span>Exporting...</span>
+                   <span>Exporting {exportProgress}%</span>
                  </>
                ) : (
                  <>

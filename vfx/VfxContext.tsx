@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { 
   VfxState, 
   VfxGenre, 
@@ -18,6 +18,75 @@ import {
 } from './types';
 import { analyzeStoryParagraph, DEFAULT_SENTIMENT_PALETTES } from './storyAnalyzer';
 import { vfxAudioSynth } from './VfxAudioEffects';
+import { globalStoryGraph } from '../services/storyGraphState';
+
+const SENTIMENT_ATMOSPHERES: Record<string, { accentColor: string; bgGradient: string; auraGlow: string }> = {
+  determined: {
+    accentColor: '#f59e0b',
+    bgGradient: 'from-slate-950 via-amber-950/40 to-yellow-950/50',
+    auraGlow: 'rgba(245, 158, 11, 0.35)',
+  },
+  triumphant: {
+    accentColor: '#eab308',
+    bgGradient: 'from-slate-950 via-yellow-950/40 to-amber-950/50',
+    auraGlow: 'rgba(234, 179, 8, 0.35)',
+  },
+  fearful: {
+    accentColor: '#dc2626',
+    bgGradient: 'from-slate-950 via-red-950/60 to-black',
+    auraGlow: 'rgba(220, 38, 38, 0.35)',
+  },
+  scared: {
+    accentColor: '#ef4444',
+    bgGradient: 'from-slate-950 via-red-950/50 to-slate-900',
+    auraGlow: 'rgba(239, 68, 68, 0.35)',
+  },
+  hopeful: {
+    accentColor: '#10b981',
+    bgGradient: 'from-slate-950 via-emerald-950/30 to-teal-950/40',
+    auraGlow: 'rgba(16, 185, 129, 0.3)',
+  },
+  calm: {
+    accentColor: '#14b8a6',
+    bgGradient: 'from-slate-950 via-teal-950/30 to-slate-900',
+    auraGlow: 'rgba(20, 184, 166, 0.25)',
+  },
+  grieving: {
+    accentColor: '#3b82f6',
+    bgGradient: 'from-slate-950 via-slate-900/60 to-blue-950/50',
+    auraGlow: 'rgba(59, 130, 246, 0.3)',
+  },
+  sad: {
+    accentColor: '#6366f1',
+    bgGradient: 'from-slate-950 via-indigo-950/40 to-slate-900',
+    auraGlow: 'rgba(99, 102, 241, 0.3)',
+  },
+  suspicious: {
+    accentColor: '#d97706',
+    bgGradient: 'from-slate-950 via-zinc-900/60 to-amber-950/30',
+    auraGlow: 'rgba(217, 119, 6, 0.3)',
+  },
+  furious: {
+    accentColor: '#ea580c',
+    bgGradient: 'from-slate-950 via-orange-950/50 to-red-950/60',
+    auraGlow: 'rgba(234, 88, 12, 0.4)',
+  },
+  angry: {
+    accentColor: '#f97316',
+    bgGradient: 'from-slate-950 via-red-950/40 to-orange-950/50',
+    auraGlow: 'rgba(249, 115, 22, 0.35)',
+  },
+  curious: {
+    accentColor: '#a855f7',
+    bgGradient: 'from-slate-950 via-purple-950/50 to-indigo-950/60',
+    auraGlow: 'rgba(168, 85, 247, 0.35)',
+  },
+  in_love: {
+    accentColor: '#ec4899',
+    bgGradient: 'from-slate-950 via-pink-950/30 to-rose-950/40',
+    auraGlow: 'rgba(236, 72, 153, 0.35)',
+  },
+};
 
 export const GENRE_THEMES: Record<VfxGenre, GenreThemeConfig> = {
   horror: {
@@ -227,6 +296,24 @@ export const VfxProvider: React.FC<{ children: ReactNode; initialGenre?: string 
     };
   });
 
+  const vfxRef = useRef(vfx);
+  vfxRef.current = vfx;
+  const lastAnalyzedParagraphRef = useRef<string>('');
+
+  const [dominantSentiment, setDominantSentiment] = useState<string>('neutral');
+
+  // Subscribe to globalStoryGraph to dynamically adjust UI accent color & background atmosphere
+  useEffect(() => {
+    const updateDominantSentiment = () => {
+      const dominant = globalStoryGraph.getDominantSentiment();
+      setDominantSentiment(dominant);
+    };
+
+    updateDominantSentiment();
+    const unsubscribe = globalStoryGraph.subscribe(updateDominantSentiment);
+    return unsubscribe;
+  }, []);
+
   // Handle atmosphere audio soundscapes
   useEffect(() => {
     if (vfx.isAudioAtmosphereEnabled) {
@@ -236,56 +323,63 @@ export const VfxProvider: React.FC<{ children: ReactNode; initialGenre?: string 
     }
   }, [vfx.isAudioAtmosphereEnabled, vfx.genre, vfx.weather]);
 
-  const updateVfxState = (partial: Partial<VfxState>) => {
+  const updateVfxState = useCallback((partial: Partial<VfxState>) => {
     setVfx(prev => ({ ...prev, ...partial }));
-  };
+  }, []);
 
-  const setGenre = (genre: VfxGenre) => updateVfxState({ 
-    genre,
-    showFlowerPetals: genre === 'fantasy' || genre === 'romance',
-    showCosmicDust: genre === 'sci-fi',
-    showFireEmbers: genre === 'action' || genre === 'horror' || genre === 'western',
-  });
-  const setTension = (tension: VfxTension) => updateVfxState({ tension });
-  const setWeather = (weather: VfxWeather) => updateVfxState({ weather });
-  const setTimeOfDay = (timeOfDay: VfxTimeOfDay) => updateVfxState({ timeOfDay });
-  const setLocation = (location: VfxLocation) => updateVfxState({ 
+  const setGenre = useCallback((genre: VfxGenre) => {
+    updateVfxState({ 
+      genre,
+      showFlowerPetals: genre === 'fantasy' || genre === 'romance',
+      showCosmicDust: genre === 'sci-fi',
+      showFireEmbers: genre === 'action' || genre === 'horror' || genre === 'western',
+    });
+  }, [updateVfxState]);
+
+  const setTension = useCallback((tension: VfxTension) => updateVfxState({ tension }), [updateVfxState]);
+  const setWeather = useCallback((weather: VfxWeather) => updateVfxState({ weather }), [updateVfxState]);
+  const setTimeOfDay = useCallback((timeOfDay: VfxTimeOfDay) => updateVfxState({ timeOfDay }), [updateVfxState]);
+  const setLocation = useCallback((location: VfxLocation) => updateVfxState({ 
     location,
     showLushPlants: location === 'forest' || location === 'default',
     showRiverWater: location === 'underwater' || location === 'forest' || location === 'default',
-  });
-  const setEmotion = (emotion: VfxEmotion) => updateVfxState({ emotion });
-  const setSupernatural = (supernatural: VfxSupernatural) => updateVfxState({ supernatural });
-  const setTwist = (activeTwist: VfxTwist) => updateVfxState({ activeTwist });
+  }), [updateVfxState]);
 
-  const toggleAutoAnalyze = () => updateVfxState({ isAutoAnalyzeEnabled: !vfx.isAutoAnalyzeEnabled });
-  const toggleAudioAtmosphere = () => updateVfxState({ isAudioAtmosphereEnabled: !vfx.isAudioAtmosphereEnabled });
+  const setEmotion = useCallback((emotion: VfxEmotion) => updateVfxState({ emotion }), [updateVfxState]);
+  const setSupernatural = useCallback((supernatural: VfxSupernatural) => updateVfxState({ supernatural }), [updateVfxState]);
+  const setTwist = useCallback((activeTwist: VfxTwist) => updateVfxState({ activeTwist }), [updateVfxState]);
+
+  const toggleAutoAnalyze = useCallback(() => setVfx(prev => ({ ...prev, isAutoAnalyzeEnabled: !prev.isAutoAnalyzeEnabled })), []);
+  const toggleAudioAtmosphere = useCallback(() => setVfx(prev => ({ ...prev, isAudioAtmosphereEnabled: !prev.isAudioAtmosphereEnabled })), []);
   
-  const toggleFireEmbers = () => updateVfxState({ showFireEmbers: !vfx.showFireEmbers });
-  const toggleFlowerPetals = () => updateVfxState({ showFlowerPetals: !vfx.showFlowerPetals });
-  const toggleLushPlants = () => updateVfxState({ showLushPlants: !vfx.showLushPlants });
-  const toggleHorizonHills = () => updateVfxState({ showHorizonHills: !vfx.showHorizonHills });
-  const toggleRiverWater = () => updateVfxState({ showRiverWater: !vfx.showRiverWater });
-  const toggleCosmicDust = () => updateVfxState({ showCosmicDust: !vfx.showCosmicDust });
+  const toggleFireEmbers = useCallback(() => setVfx(prev => ({ ...prev, showFireEmbers: !prev.showFireEmbers })), []);
+  const toggleFlowerPetals = useCallback(() => setVfx(prev => ({ ...prev, showFlowerPetals: !prev.showFlowerPetals })), []);
+  const toggleLushPlants = useCallback(() => setVfx(prev => ({ ...prev, showLushPlants: !prev.showLushPlants })), []);
+  const toggleHorizonHills = useCallback(() => setVfx(prev => ({ ...prev, showHorizonHills: !prev.showHorizonHills })), []);
+  const toggleRiverWater = useCallback(() => setVfx(prev => ({ ...prev, showRiverWater: !prev.showRiverWater })), []);
+  const toggleCosmicDust = useCallback(() => setVfx(prev => ({ ...prev, showCosmicDust: !prev.showCosmicDust })), []);
 
-  const triggerScreenShake = () => updateVfxState({ shakeTrigger: vfx.shakeTrigger + 1 });
-  const triggerLightning = () => {
-    updateVfxState({ lightningTrigger: vfx.lightningTrigger + 1 });
-    if (vfx.isAudioAtmosphereEnabled) vfxAudioSynth.playLightningThunder();
-  };
+  const triggerScreenShake = useCallback(() => setVfx(prev => ({ ...prev, shakeTrigger: prev.shakeTrigger + 1 })), []);
+  const triggerLightning = useCallback(() => {
+    setVfx(prev => ({ ...prev, lightningTrigger: prev.lightningTrigger + 1 }));
+    if (vfxRef.current.isAudioAtmosphereEnabled) vfxAudioSynth.playLightningThunder();
+  }, []);
   
   // Backward compatibility stubs
-  const toggleNightVision = () => {};
-  const toggleThermalVision = () => {};
-  const triggerJumpScare = () => {};
+  const toggleNightVision = useCallback(() => {}, []);
+  const toggleThermalVision = useCallback(() => {}, []);
+  const triggerJumpScare = useCallback(() => {}, []);
 
-  const triggerTwistEffect = (twist: VfxTwist) => {
-    updateVfxState({ activeTwist: twist, shakeTrigger: vfx.shakeTrigger + 1 });
-    if (vfx.isAudioAtmosphereEnabled) vfxAudioSynth.playMagicChime();
-  };
+  const triggerTwistEffect = useCallback((twist: VfxTwist) => {
+    setVfx(prev => ({ ...prev, activeTwist: twist, shakeTrigger: prev.shakeTrigger + 1 }));
+    if (vfxRef.current.isAudioAtmosphereEnabled) vfxAudioSynth.playMagicChime();
+  }, []);
 
-  const processParagraphForVfx = (paragraph: string) => {
-    if (!vfx.isAutoAnalyzeEnabled || !paragraph) return;
+  const processParagraphForVfx = useCallback((paragraph: string) => {
+    if (!vfxRef.current.isAutoAnalyzeEnabled || !paragraph) return;
+    if (lastAnalyzedParagraphRef.current === paragraph) return;
+    lastAnalyzedParagraphRef.current = paragraph;
+
     const inferred = analyzeStoryParagraph(paragraph);
     if (Object.keys(inferred).length > 0) {
       updateVfxState(inferred);
@@ -296,41 +390,80 @@ export const VfxProvider: React.FC<{ children: ReactNode; initialGenre?: string 
         triggerLightning();
       }
     }
-  };
+  }, [updateVfxState, triggerScreenShake, triggerLightning]);
 
-  const theme = GENRE_THEMES[vfx.genre] || GENRE_THEMES.fantasy;
+  const theme = useMemo(() => {
+    const baseTheme = GENRE_THEMES[vfx.genre] || GENRE_THEMES.fantasy;
+    const sentimentAtmosphere = SENTIMENT_ATMOSPHERES[dominantSentiment];
+    if (sentimentAtmosphere) {
+      return {
+        ...baseTheme,
+        accentColor: sentimentAtmosphere.accentColor,
+        bgGradient: sentimentAtmosphere.bgGradient,
+        auraGlow: sentimentAtmosphere.auraGlow,
+      };
+    }
+    return baseTheme;
+  }, [vfx.genre, dominantSentiment]);
+
+  const value = useMemo(() => ({
+    vfx,
+    theme,
+    setGenre,
+    setTension,
+    setWeather,
+    setTimeOfDay,
+    setLocation,
+    setEmotion,
+    setSupernatural,
+    setTwist,
+    toggleAutoAnalyze,
+    toggleAudioAtmosphere,
+    toggleFireEmbers,
+    toggleFlowerPetals,
+    toggleLushPlants,
+    toggleHorizonHills,
+    toggleRiverWater,
+    toggleCosmicDust,
+    triggerScreenShake,
+    triggerLightning,
+    triggerTwistEffect,
+    processParagraphForVfx,
+    updateVfxState,
+    toggleNightVision,
+    toggleThermalVision,
+    triggerJumpScare,
+  }), [
+    vfx,
+    theme,
+    setGenre,
+    setTension,
+    setWeather,
+    setTimeOfDay,
+    setLocation,
+    setEmotion,
+    setSupernatural,
+    setTwist,
+    toggleAutoAnalyze,
+    toggleAudioAtmosphere,
+    toggleFireEmbers,
+    toggleFlowerPetals,
+    toggleLushPlants,
+    toggleHorizonHills,
+    toggleRiverWater,
+    toggleCosmicDust,
+    triggerScreenShake,
+    triggerLightning,
+    triggerTwistEffect,
+    processParagraphForVfx,
+    updateVfxState,
+    toggleNightVision,
+    toggleThermalVision,
+    triggerJumpScare,
+  ]);
 
   return (
-    <VfxContext.Provider
-      value={{
-        vfx,
-        theme,
-        setGenre,
-        setTension,
-        setWeather,
-        setTimeOfDay,
-        setLocation,
-        setEmotion,
-        setSupernatural,
-        setTwist,
-        toggleAutoAnalyze,
-        toggleAudioAtmosphere,
-        toggleFireEmbers,
-        toggleFlowerPetals,
-        toggleLushPlants,
-        toggleHorizonHills,
-        toggleRiverWater,
-        toggleCosmicDust,
-        triggerScreenShake,
-        triggerLightning,
-        triggerTwistEffect,
-        processParagraphForVfx,
-        updateVfxState,
-        toggleNightVision,
-        toggleThermalVision,
-        triggerJumpScare,
-      }}
-    >
+    <VfxContext.Provider value={value}>
       {children}
     </VfxContext.Provider>
   );
