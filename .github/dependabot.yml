@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    
+    # Ignore breaking major version changes for all packages
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    # Combine updates into grouped pull requests
+    groups:
+      dependencies-group:
+        patterns:
+          - "*"                     # Match all packages
+        update-types:
+          - "minor"                 # Group minor changes together
+          - "patch"                 # Group patch changes together
