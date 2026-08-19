@@ -555,6 +555,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
         segments: segments,
         pdfMargin: settings?.pdfMargin || 20,
         pdfTheme: settings?.pdfTheme || 'classic_ivory',
+        fontSize: settings?.fontSize || 18,
         onProgress: (prog, msg) => {
           setPdfProgressMsg(`${msg} (${prog}%)`);
         }

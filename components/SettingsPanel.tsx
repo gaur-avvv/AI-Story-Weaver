@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookText, Paintbrush, Theater, AudioWaveform, ChevronDownIcon } from './icons';
 import { 
-  Sparkles, Wand2, Sliders, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle, Type,
+  Sparkles, Wand2, Sliders, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle, Type, AlignJustify,
   Ghost, Rocket, Heart, Search, Smile, Scroll, Compass, Shield, Check, Activity, SlidersHorizontal
 } from 'lucide-react';
 import type { Settings } from '../types';
@@ -10,6 +10,7 @@ import { ApiKeyManager } from './ApiKeyManager';
 import { useVfx } from '../vfx/VfxContext';
 import { VfxGenre, VfxTension, VfxWeather } from '../vfx/types';
 import { getStorageHealth, isCloudSyncEnabled, setCloudSyncEnabled, clearAllCache, downloadStoriesJSON, loadStories, type StorageHealth } from '../services/storageService';
+import { PROVIDER_OPTIMAL_DEFAULTS } from '../utils/modelPresets';
 
 type SettingsTab = 'story' | 'vfx' | 'models' | 'storage';
 
@@ -491,12 +492,18 @@ export const SettingsPanel: React.FC<{
     }, 500);
   };
 
-  // Ensure model is valid when provider changes
+  // Ensure model is valid and optimal when provider changes
   useEffect(() => {
     const validTextModels = textModels[localSettings.textProvider] || [];
-    if (!validTextModels.find(m => m.id === localSettings.textModel)) {
+    const optimalModel = PROVIDER_OPTIMAL_DEFAULTS[localSettings.textProvider]?.textModel;
+    const isCurrentValid = validTextModels.some(m => m.id === localSettings.textModel);
+    
+    if (!isCurrentValid || (optimalModel && !localSettings.textModel)) {
+      const selectedModel = (optimalModel && validTextModels.some(m => m.id === optimalModel))
+        ? optimalModel 
+        : (validTextModels[0]?.id || '');
       setLocalSettings(prev => {
-        const next = { ...prev, textModel: validTextModels[0]?.id || '' };
+        const next = { ...prev, textModel: selectedModel };
         triggerAutoSave(localApiKey, next);
         return next;
       });
@@ -505,9 +512,15 @@ export const SettingsPanel: React.FC<{
 
   useEffect(() => {
     const validImageModels = imageModels[localSettings.imageProvider] || [];
-    if (!validImageModels.find(m => m.id === localSettings.imageModel)) {
+    const optimalModel = PROVIDER_OPTIMAL_DEFAULTS[localSettings.imageProvider]?.imageModel;
+    const isCurrentValid = validImageModels.some(m => m.id === localSettings.imageModel);
+    
+    if (!isCurrentValid || (optimalModel && !localSettings.imageModel)) {
+      const selectedModel = (optimalModel && validImageModels.some(m => m.id === optimalModel))
+        ? optimalModel 
+        : (validImageModels[0]?.id || '');
       setLocalSettings(prev => {
-        const next = { ...prev, imageModel: validImageModels[0]?.id || '' };
+        const next = { ...prev, imageModel: selectedModel };
         triggerAutoSave(localApiKey, next);
         return next;
       });
@@ -516,9 +529,15 @@ export const SettingsPanel: React.FC<{
 
   useEffect(() => {
     const validAudioModels = audioModels[localSettings.audioProvider] || [];
-    if (!validAudioModels.find(m => m.id === localSettings.audioModel)) {
+    const optimalModel = PROVIDER_OPTIMAL_DEFAULTS[localSettings.audioProvider]?.audioModel;
+    const isCurrentValid = validAudioModels.some(m => m.id === localSettings.audioModel);
+    
+    if (!isCurrentValid || (optimalModel && !localSettings.audioModel)) {
+      const selectedModel = (optimalModel && validAudioModels.some(m => m.id === optimalModel))
+        ? optimalModel 
+        : (validAudioModels[0]?.id || '');
       setLocalSettings(prev => {
-        const next = { ...prev, audioModel: validAudioModels[0]?.id || '' };
+        const next = { ...prev, audioModel: selectedModel };
         triggerAutoSave(localApiKey, next);
         return next;
       });
@@ -678,36 +697,55 @@ export const SettingsPanel: React.FC<{
                   </CustomSelect>
                 </SettingRow>
 
-                <SettingRow icon={<Theater className="w-4 h-4" />} label="Genre Theme" description="Primary narrative tone and theme">
+                <SettingRow icon={<Theater className="w-4 h-4" />} label="Genre Theme" description="Primary narrative tone and worldbuilding theme">
                   <CustomSelect value={localSettings.genre} onChange={handleSettingChange('genre')}>
-                    <option value="fantasy">Fantasy</option>
-                    <option value="sci-fi">Sci-Fi</option>
-                    <option value="mystery">Mystery</option>
-                    <option value="adventure">Adventure</option>
-                    <option value="funny">Funny</option>
-                    <option value="fairy_tale">Fairy Tale</option>
-                    <option value="educational">Educational</option>
-                    <option value="bedtime">Bedtime Story</option>
-                    <option value="fable">Fable</option>
-                    <option value="superhero">Superhero</option>
-                    {localSettings.targetAudience === 'adult' && (
-                      <>
-                        <option value="thriller">Thriller</option>
-                        <option value="romance">Romance</option>
-                        <option value="horror">Horror</option>
-                        <option value="historical">Historical Fiction</option>
-                        <option value="crime">Crime</option>
-                        <option value="drama">Drama</option>
-                      </>
-                    )}
+                    <optgroup label="Fantasy & Mythic">
+                      <option value="fantasy">High Fantasy</option>
+                      <option value="dark_fantasy">Dark Fantasy & Grimdark</option>
+                      <option value="mythological">Mythological Saga</option>
+                      <option value="fairy_tale">Fairy Tale & Folklore</option>
+                      <option value="fable">Moral Fable</option>
+                      <option value="urban_fantasy">Urban Fantasy</option>
+                    </optgroup>
+                    <optgroup label="Sci-Fi & Speculative">
+                      <option value="sci-fi">Hard Science Fiction</option>
+                      <option value="cyberpunk">Cyberpunk Dystopia</option>
+                      <option value="space_opera">Interstellar Space Opera</option>
+                      <option value="steampunk">Victorian Steampunk</option>
+                      <option value="time_travel">Time Travel Paradox</option>
+                      <option value="post_apocalyptic">Post-Apocalyptic Wasteland</option>
+                    </optgroup>
+                    <optgroup label="Mystery & Suspense">
+                      <option value="mystery">Atmospheric Mystery</option>
+                      <option value="crime">Gritty Crime Noir</option>
+                      <option value="thriller">High-Tension Thriller</option>
+                      <option value="horror">Gothic Horror</option>
+                      <option value="cosmic_horror">Lovecraftian Cosmic Horror</option>
+                    </optgroup>
+                    <optgroup label="Adventure & Realism">
+                      <option value="adventure">Grand Adventure Expedition</option>
+                      <option value="western">Wild West Frontier</option>
+                      <option value="historical">Historical Fiction</option>
+                      <option value="drama">Poignant Human Drama</option>
+                      <option value="romance">Poetic Romance</option>
+                      <option value="superhero">Superhero Comic Lore</option>
+                    </optgroup>
+                    <optgroup label="Youth & Comfort">
+                      <option value="educational">Educational Discovery</option>
+                      <option value="bedtime">Soothing Bedtime Lullaby</option>
+                      <option value="funny">Playful Comedy & Humor</option>
+                    </optgroup>
                   </CustomSelect>
                 </SettingRow>
 
-                <SettingRow icon={<BookText className="w-4 h-4" />} label="Target Audience" description="Age appropriateness and vocabulary level">
+                <SettingRow icon={<BookText className="w-4 h-4" />} label="Target Audience" description="Age appropriateness, prose complexity & themes">
                   <CustomSelect value={localSettings.targetAudience} onChange={handleSettingChange('targetAudience')}>
+                    <option value="early_reader">Early Reader (Ages 3-6)</option>
                     <option value="children">Children (Ages 5-10)</option>
-                    <option value="teen">Young Adult (Teens)</option>
+                    <option value="middle_grade">Middle Grade (Ages 9-12)</option>
+                    <option value="teen">Young Adult / YA (Teens)</option>
                     <option value="adult">Adult Fiction</option>
+                    <option value="mature_dark">Mature / Grim Dark (18+)</option>
                   </CustomSelect>
                 </SettingRow>
 
@@ -729,21 +767,126 @@ export const SettingsPanel: React.FC<{
                   </CustomSelect>
                 </SettingRow>
 
-                <SettingRow icon={<Paintbrush className="w-4 h-4" />} label="Artwork Style" description="Visual style for scene illustrations">
+                <SettingRow 
+                  icon={<SlidersHorizontal className="w-4 h-4 text-purple-400" />} 
+                  label="Story Font Size" 
+                  description="Adjust readability text size (persists in story view & PDF export)"
+                >
+                  <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="range" 
+                        min="14" 
+                        max="28" 
+                        step="1"
+                        value={localSettings.fontSize || 18} 
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                        className="w-32 sm:w-36 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                      />
+                      <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-200 font-mono text-xs min-w-[58px] text-center font-bold">
+                        {localSettings.fontSize || 18}px
+                      </span>
+                    </div>
+
+                    {/* Quick Preset Buttons */}
+                    <div className="flex items-center gap-1">
+                      {[
+                        { size: 14, label: 'Compact' },
+                        { size: 18, label: 'Standard' },
+                        { size: 22, label: 'Large' },
+                        { size: 26, label: 'X-Large' },
+                      ].map((preset) => {
+                        const active = (localSettings.fontSize || 18) === preset.size;
+                        return (
+                          <button
+                            key={preset.size}
+                            type="button"
+                            onClick={() => setLocalSettings(prev => ({ ...prev, fontSize: preset.size }))}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                              active 
+                                ? 'bg-purple-600 border-purple-400 text-white shadow-sm' 
+                                : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </SettingRow>
+
+                {/* Live Typography Preview Box */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900/90 via-purple-950/20 to-slate-900/90 border border-white/10 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-purple-300 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-purple-400" />
+                      Live Readability Preview
+                    </span>
+                    <span className="text-slate-400 font-mono">
+                      {localSettings.fontSize || 18}px • {localSettings.fontFamilyPreference || 'serif'}
+                    </span>
+                  </div>
+                  <p 
+                    className={`text-slate-200 transition-all duration-200 leading-relaxed ${
+                      localSettings.fontFamilyPreference === 'serif' ? 'font-serif font-display' :
+                      localSettings.fontFamilyPreference === 'cinzel' ? 'font-cinzel' :
+                      localSettings.fontFamilyPreference === 'merriweather' ? 'font-merriweather' :
+                      localSettings.fontFamilyPreference === 'lora' ? 'font-lora' :
+                      localSettings.fontFamilyPreference === 'sans' ? 'font-sans' :
+                      localSettings.fontFamilyPreference === 'outfit' ? 'font-outfit' :
+                      localSettings.fontFamilyPreference === 'inter' ? 'font-inter' :
+                      localSettings.fontFamilyPreference === 'fantasy' ? 'font-fantasy' :
+                      localSettings.fontFamilyPreference === 'handwriting' ? 'font-handwriting' :
+                      localSettings.fontFamilyPreference === 'mono' ? 'font-mono' : 'font-serif'
+                    }`}
+                    style={{ 
+                      fontSize: `${localSettings.fontSize || 18}px`,
+                      lineHeight: `${Math.round((localSettings.fontSize || 18) * 1.55)}px`
+                    }}
+                  >
+                    "The ancient observatory hummed with celestial light as forgotten constellations revealed their secrets across the velvet sky."
+                  </p>
+                </div>
+
+                <SettingRow icon={<Paintbrush className="w-4 h-4" />} label="Artwork Style" description="Visual artistic aesthetic for scene illustrations">
                   <CustomSelect value={localSettings.imageStyle} onChange={handleSettingChange('imageStyle')}>
-                    <option value="whimsical">Whimsical Storybook</option>
-                    <option value="cartoon">Cartoon / Vibrant</option>
-                    <option value="realistic">Realistic Cinematic</option>
-                    <option value="watercolor">Soft Watercolor</option>
-                    <option value="3d_render">3D Pixar Render</option>
-                    <option value="pixel_art">Pixel Art 16-bit</option>
-                    <option value="anime">Anime / Studio Ghibli</option>
-                    <option value="oil_painting">Classical Oil Painting</option>
-                    <option value="noir">Film Noir High-Contrast</option>
-                    <option value="cyberpunk">Cyberpunk Neon</option>
-                    <option value="vintage">Vintage Antique</option>
-                    <option value="abstract">Abstract Fantasy</option>
-                    <option value="disney_animation">Disney Classic Animation</option>
+                    <optgroup label="Storybook & Hand-Drawn">
+                      <option value="whimsical">Whimsical Storybook</option>
+                      <option value="cartoon">Vibrant Cartoon Animation</option>
+                      <option value="watercolor">Soft Textured Watercolor</option>
+                      <option value="disney_animation">Classic 2D Disney Animation</option>
+                      <option value="vintage_disney">Vintage 1930s Rubber-Hose</option>
+                      <option value="paper_cutout">Layered 3D Paper Cutout</option>
+                      <option value="claymation">Claymation Stop-Motion</option>
+                    </optgroup>
+                    <optgroup label="Anime & Modern Digital">
+                      <option value="anime">Anime Modern Cel-Shaded</option>
+                      <option value="studio_ghibli">Studio Ghibli Scenic Wonder</option>
+                      <option value="3d_render">3D Pixar CGI Render</option>
+                      <option value="pixel_art">16-bit Retro Pixel Art</option>
+                      <option value="concept_art">AAA Game Concept Art</option>
+                      <option value="pop_art_comic">Retro Comic Book Pop Art</option>
+                    </optgroup>
+                    <optgroup label="Cinematic & Atmospheric">
+                      <option value="realistic">Photorealistic Cinematic 8K</option>
+                      <option value="cinematic_photo">35mm Film Still (Portra Grain)</option>
+                      <option value="noir">Dramatic Film Noir Chiaroscuro</option>
+                      <option value="cyberpunk">Cyberpunk Neon Synthwave</option>
+                      <option value="synthwave_80s">80s Retro Outrun Synthwave</option>
+                    </optgroup>
+                    <optgroup label="Classical & Fine Art">
+                      <option value="oil_painting">Classical Oil Painting Masterpiece</option>
+                      <option value="dark_fantasy_oil">Dark Fantasy Oil Painting</option>
+                      <option value="ukiyo_e">Japanese Ukiyo-e Woodblock</option>
+                      <option value="stained_glass">Gothic Stained Glass Window</option>
+                      <option value="gothic_etching">Gothic Antique Book Etching</option>
+                      <option value="pencil_sketch">Detailed Graphite Pencil Sketch</option>
+                      <option value="sketch">Expressive Charcoal/Ink Sketch</option>
+                      <option value="mosaic">Byzantine Sacred Mosaic</option>
+                      <option value="vintage">Vintage 1950s Mid-Century</option>
+                      <option value="abstract">Surrealist Abstract Fantasy</option>
+                    </optgroup>
                   </CustomSelect>
                 </SettingRow>
 
@@ -756,6 +899,14 @@ export const SettingsPanel: React.FC<{
                     </CustomSelect>
                     <CustomToggle checked={localSettings.generateAudio} onChange={handleToggleChange('generateAudio')} />
                   </div>
+                </SettingRow>
+
+                <SettingRow icon={<AlignJustify className="w-4 h-4 text-purple-400" />} label="Justify Story Text" description="Enable formal book-like full text justification">
+                  <CustomToggle checked={localSettings.justifyText !== false} onChange={handleToggleChange('justifyText')} />
+                </SettingRow>
+
+                <SettingRow icon={<Volume2 className="w-4 h-4 text-purple-400" />} label="Autoplay Narration" description="Automatically play consecutive scenes as they finish or generate">
+                  <CustomToggle checked={localSettings.autoPlayNarration !== false} onChange={handleToggleChange('autoPlayNarration')} />
                 </SettingRow>
 
                 <SettingRow icon={<BookText className="w-4 h-4" />} label="PDF Print Margin" description="Export layout page margin size (px)">
@@ -776,10 +927,16 @@ export const SettingsPanel: React.FC<{
                   <CustomSelect value={localSettings.pdfTheme || 'midnight'} onChange={handleSettingChange('pdfTheme' as any)}>
                     <option value="midnight">Midnight Obsidian (Dark Slate & Violet)</option>
                     <option value="classic_ivory">Classic Ivory (Warm Parchment & Gold)</option>
-                    <option value="emerald_parchment">Emerald Parchment (Deep Forest & Mint)</option>
+                    <option value="emerald_parchment">Emerald Arcana (Deep Forest & Mint)</option>
                     <option value="royal_slate">Royal Slate (Charcoal & Amber Gold)</option>
                     <option value="cyberpunk">Cyberpunk Neon (Synthwave Pink & Cyan)</option>
                     <option value="sunset_crimson">Sunset Velvet (Velvet Crimson & Rose)</option>
+                    <option value="gothic_noir">Gothic Noir (Obsidian Black & Silver Mist)</option>
+                    <option value="sakura_bloom">Sakura Dream (Pastel Rose & Cherry Blossom)</option>
+                    <option value="nordic_frost">Nordic Frost (Glacial Ice Blue & Deep Navy)</option>
+                    <option value="golden_dynasty">Imperial Dynasty (Deep Maroon & Antique Gold)</option>
+                    <option value="celestial_nebula">Celestial Nebula (Deep Cosmic Indigo & Starry Gold)</option>
+                    <option value="vintage_botanical">Vintage Botanical (Sage, Olive & Warm Linen)</option>
                   </CustomSelect>
                 </SettingRow>
               </div>
@@ -1020,9 +1177,24 @@ export const SettingsPanel: React.FC<{
 
               {/* Model Selectors */}
               <div className="space-y-1 pt-4 border-t border-white/10">
-                <label className="text-xs font-semibold text-purple-300 uppercase tracking-wider block mb-2.5">
-                  Model Routing Configuration
-                </label>
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="text-xs font-semibold text-purple-300 uppercase tracking-wider block">
+                    Model Routing Configuration
+                  </label>
+                  <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Default: Google Gemini
+                  </span>
+                </div>
+
+                {/* Helpful image generation & provider tip banner */}
+                <div className="p-3 mb-3 bg-gradient-to-r from-purple-950/50 via-indigo-950/40 to-slate-900/60 border border-purple-500/30 rounded-2xl flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-300 shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs text-purple-200/90 leading-relaxed">
+                    <span className="font-semibold text-white">Pro Tip for Sharp & Vivid Images:</span> For the highest image quality, crystal-clear sharpness, and deep scene context awareness matching your chosen art style, select <strong className="text-purple-300 font-bold">Google AI Studio (Gemini)</strong> as your Image Provider and model, and add your Gemini API Key in credentials.
+                  </div>
+                </div>
 
                 <SettingRow icon={<BookText className="w-4 h-4" />} label="Text Provider">
                   <CustomSelect value={localSettings.textProvider} onChange={handleSettingChange('textProvider')}>

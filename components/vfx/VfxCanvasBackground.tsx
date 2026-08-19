@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useVfx } from '../../vfx/VfxContext';
+import { useNovellaioEngine } from '../../context/NovellaioEngineContext';
 
 interface SceneParticle {
   x: number;
@@ -18,6 +19,7 @@ interface SceneParticle {
 
 export const VfxCanvasBackground: React.FC = () => {
   const { vfx } = useVfx();
+  const { profile } = useNovellaioEngine();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -38,6 +40,8 @@ export const VfxCanvasBackground: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     const particles: SceneParticle[] = [];
+    const isLowEnd = profile?.isLowEnd ?? false;
+    const particleMultiplier = isLowEnd ? 0.35 : 1.0;
 
     // Helper particle generators
     const createEmber = (): SceneParticle => ({
@@ -130,7 +134,7 @@ export const VfxCanvasBackground: React.FC = () => {
       oscillationSpeed: 0.02,
     });
 
-    // Populate lightweight particles for high FPS smoothness and minimal CPU
+    // Populate lightweight particles scaled to device profile
     const isEmbersActive = vfx.showFireEmbers || vfx.tension === 'climax' || vfx.location === 'desert' || vfx.genre === 'action' || vfx.genre === 'horror' || vfx.genre === 'western';
     const isPetalsActive = vfx.showFlowerPetals && (vfx.genre === 'romance' || vfx.genre === 'fantasy' || vfx.genre === 'comedy' || vfx.emotion === 'in_love' || vfx.emotion === 'happy' || vfx.emotion === 'calm');
     const isLeavesActive = vfx.showLushPlants && (vfx.location === 'forest' || vfx.location === 'default' || vfx.weather === 'windy');
@@ -138,28 +142,30 @@ export const VfxCanvasBackground: React.FC = () => {
     const isRainActive = vfx.weather === 'rainy' || vfx.weather === 'stormy';
     const isSnowActive = vfx.weather === 'snowy';
 
+    const count = (base: number) => Math.max(2, Math.round(base * particleMultiplier));
+
     if (isEmbersActive) {
-      for (let i = 0; i < 20; i++) particles.push(createEmber());
+      for (let i = 0; i < count(20); i++) particles.push(createEmber());
     }
     if (isPetalsActive) {
-      for (let i = 0; i < 18; i++) particles.push(createPetal());
+      for (let i = 0; i < count(18); i++) particles.push(createPetal());
     }
     if (isLeavesActive) {
-      for (let i = 0; i < 14; i++) particles.push(createLeaf());
+      for (let i = 0; i < count(14); i++) particles.push(createLeaf());
     }
     if (isCosmicActive) {
-      for (let i = 0; i < 24; i++) particles.push(createCosmic());
+      for (let i = 0; i < count(24); i++) particles.push(createCosmic());
     }
     if (isRainActive) {
-      for (let i = 0; i < 35; i++) particles.push(createRain());
+      for (let i = 0; i < count(35); i++) particles.push(createRain());
     }
     if (isSnowActive) {
-      for (let i = 0; i < 25; i++) particles.push(createSnow());
+      for (let i = 0; i < count(25); i++) particles.push(createSnow());
     }
 
     // Gentle baseline dust if no intense weather active
-    if (particles.length < 12) {
-      for (let i = 0; i < 16; i++) particles.push(createCosmic());
+    if (particles.length < 6) {
+      for (let i = 0; i < count(16); i++) particles.push(createCosmic());
     }
 
     let time = 0;

@@ -3,11 +3,14 @@ import type { StorySegment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 import { WandIcon, SparklesIcon } from './icons';
-import { Volume2, Sparkles, BookOpen } from 'lucide-react';
+import { Volume2, Sparkles, BookOpen, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface ParagraphCardProps {
   segment: StorySegment;
+  index?: number;
   fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
+  fontSize?: number;
+  justifyText?: boolean;
   isAudioActive?: boolean;
   audioProgress?: number;
   onSeekWord?: (progressRatio: number) => void;
@@ -15,7 +18,10 @@ interface ParagraphCardProps {
 
 export const ParagraphCard: React.FC<ParagraphCardProps> = ({ 
   segment, 
+  index,
   fontFamilyPreference, 
+  fontSize,
+  justifyText = true,
   isAudioActive,
   audioProgress = 0,
   onSeekWord,
@@ -74,8 +80,11 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
     return Math.min(totalWords - 1, Math.max(0, Math.floor(audioProgress * totalWords)));
   }, [isAudioActive, totalWords, audioProgress]);
 
+  const cardElementId = typeof index === 'number' ? `story-segment-card-${index}` : `story-segment-card-${segment.id}`;
+
   return (
     <motion.div 
+      id={cardElementId}
       initial={{ opacity: 0, y: 30 }}
       animate={{ 
         opacity: 1, 
@@ -84,7 +93,7 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
       }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       whileHover={{ y: -4, scale: 1.005 }}
-      className={`w-full max-w-3xl mx-auto flex flex-col items-center p-4 sm:p-6 rounded-[2.5rem] transition-all duration-500 group relative overflow-hidden paragraph-card-container card-inner-padding ${theme.cardStyle} ${
+      className={`w-full max-w-3xl mx-auto flex flex-col items-center p-5 sm:p-7 md:p-8 rounded-[2.5rem] transition-all duration-500 group relative overflow-hidden paragraph-card-container card-inner-padding ${theme.cardStyle} ${
         isAudioActive ? 'ring-2 ring-purple-400/80 shadow-[0_0_35px_rgba(168,85,247,0.4)]' : ''
       }`}
       style={{
@@ -93,6 +102,21 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
           : `0 16px 40px rgba(0,0,0,0.4), 0 0 30px ${theme.auraGlow}`
       }}
     >
+      {/* Retrying Status Badge in Card Header */}
+      <AnimatePresence>
+        {(segment.isRetryingImage || segment.isRetryingAudio) && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85, y: -5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85, y: -5 }}
+            className="absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/90 text-amber-950 font-bold text-xs shadow-[0_0_15px_rgba(245,158,11,0.5)] border border-amber-300 backdrop-blur-md"
+          >
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span className="tracking-wide">Retrying {segment.isRetryingImage ? 'Image' : 'Audio'}...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Active Narration Pulsing Badge with Read-Along Word Tracker */}
       <AnimatePresence>
         {isAudioActive && (
@@ -145,43 +169,83 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5 rounded-[2.5rem]" />
       </div>
 
-      {/* Media Frame with auto-adjusting aspect ratio and optical margins */}
-      <div className={`relative w-full aspect-[16/10] sm:aspect-[16/9] max-h-[460px] bg-slate-950/60 rounded-2xl sm:rounded-3xl shadow-[inset_0_4px_24px_rgba(0,0,0,0.6)] overflow-hidden mb-5 sm:mb-6 border ${theme.borderStyle} z-10 card-media-frame`}>
+      {/* Media Frame with rounded corners, thin theme border, and no bottom fade */}
+      <div className={`relative w-full aspect-[1/1] sm:aspect-[4/3] md:aspect-[16/13] min-h-[340px] sm:min-h-[460px] md:min-h-[540px] max-h-[680px] bg-slate-950/70 rounded-2xl sm:rounded-3xl shadow-[inset_0_2px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(0,0,0,0.3)] overflow-hidden mb-6 border ${theme.borderStyle || 'border-white/15'} z-10 card-media-frame group/media`}>
         {segment.isLoadingImage ? (
           <div className="w-full h-full bg-slate-950/80 animate-shimmer flex flex-col items-center justify-center p-6 text-center gap-2.5">
-            <div className="w-11 h-11 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 animate-pulse">
-              <WandIcon className="w-5 h-5" />
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center ${
+              segment.isRetryingImage 
+                ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 animate-spin' 
+                : 'bg-purple-500/20 border border-purple-500/30 text-purple-300 animate-pulse'
+            }`}>
+              {segment.isRetryingImage ? <RefreshCw className="w-5 h-5" /> : <WandIcon className="w-5 h-5" />}
             </div>
-            <span className="text-xs font-mono text-purple-200/70 uppercase tracking-widest font-semibold">
-              Painting Visual Scene...
-            </span>
+            {segment.isRetryingImage ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-mono font-semibold tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block mr-1" />
+                Retrying Image Generation (Auto-Switching Model)...
+              </div>
+            ) : (
+              <span className="text-xs font-mono text-purple-200/70 uppercase tracking-widest font-semibold">
+                Painting Visual Scene...
+              </span>
+            )}
           </div>
         ) : segment.imageUrl ? (
-          <motion.img
-            key={segment.imageUrl}
-            src={segment.imageUrl}
-            alt="Story illustration"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
-          />
+          <div className="relative w-full h-full">
+            <motion.img
+              key={segment.imageUrl}
+              src={segment.imageUrl}
+              alt="Story illustration"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.dataset.fallbackTried) {
+                  target.dataset.fallbackTried = 'true';
+                  const seed = Math.floor(Math.random() * 1000000);
+                  target.src = `https://pollinations.ai/p/${encodeURIComponent(segment.paragraph.slice(0, 180))}?width=1024&height=768&seed=${seed}&model=nanobanana-2-lite`;
+                }
+              }}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full h-full object-cover object-top rounded-2xl sm:rounded-3xl group-hover/media:scale-[1.03] transition-transform duration-700 ease-out"
+            />
+          </div>
         ) : (
           <div className="w-full h-full bg-white/5"></div>
         )}
       </div>
 
-      {/* Audio Loading Skeleton Indicator */}
+      {/* Audio Loading & Retrying Skeleton Indicator */}
       {segment.isLoadingAudio && (
-        <div className="flex items-center gap-2 px-3.5 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs text-purple-300 font-mono mb-3 animate-pulse">
-          <SparklesIcon className="w-3.5 h-3.5 text-purple-400" />
-          <span>Synthesizing voice narration...</span>
+        <div className={`flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono mb-3 animate-pulse border ${
+          segment.isRetryingAudio 
+            ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' 
+            : 'bg-purple-500/10 border-purple-500/20 text-purple-300'
+        }`}>
+          {segment.isRetryingAudio ? (
+            <>
+              <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+              <span>Retrying audio synthesis with backup speech provider...</span>
+            </>
+          ) : (
+            <>
+              <SparklesIcon className="w-3.5 h-3.5 text-purple-400" />
+              <span>Synthesizing voice narration...</span>
+            </>
+          )}
         </div>
       )}
 
-      {/* Story Paragraph Content with Word-by-Word Synchronized Highlighting */}
-      <div className="w-full text-center px-3 sm:px-6 py-2">
-        <p className={`text-slate-100 text-lg sm:text-xl md:text-2xl leading-relaxed sm:leading-loose drop-shadow-sm card-paragraph-text ${fontClass}`}>
+      {/* Story Paragraph Content with Matched Side Margin Alignment */}
+      <div className={`w-full px-0 py-1 ${justifyText ? 'text-justify' : 'text-left sm:text-center'}`} style={{ textJustify: 'inter-word' }}>
+        <p 
+          className={`text-slate-100 leading-relaxed drop-shadow-sm card-paragraph-text ${fontClass} ${justifyText ? 'text-justify' : ''} ${!fontSize ? 'text-lg sm:text-xl md:text-2xl sm:leading-loose' : ''}`} 
+          style={{ 
+            textJustify: 'inter-word',
+            ...(fontSize ? { fontSize: `${fontSize}px`, lineHeight: `${Math.round(fontSize * 1.65)}px` } : {})
+          }}
+        >
           {isAudioActive ? (
             tokens.map((token) => {
               if (!token.isWord) {

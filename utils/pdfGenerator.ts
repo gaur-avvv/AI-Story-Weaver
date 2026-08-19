@@ -7,32 +7,69 @@ export interface PdfExportOptions {
   audience: string;
   segments: StorySegment[];
   pdfMargin?: number;
-  pdfTheme?: 'midnight' | 'classic_ivory' | 'emerald_parchment' | 'cyberpunk';
+  pdfTheme?: 'midnight' | 'classic_ivory' | 'emerald_parchment' | 'cyberpunk' | 'royal_slate' | 'sunset_crimson';
+  fontSize?: number;
   onProgress?: (progress: number, message: string) => void;
 }
 
+export interface ProcessedPdfImage {
+  dataUrl: string;
+  naturalWidth: number;
+  naturalHeight: number;
+  aspectRatio: number;
+}
+
 /**
- * Loads an image from URL or data-URI and converts it into a DataURL safe for jsPDF.
+ * Loads an image from URL or data-URI and converts it into a DataURL with exact aspect ratio metadata for jsPDF.
  */
-async function loadImageDataUrl(url: string): Promise<string | null> {
+async function loadImageDataWithAspect(url: string): Promise<ProcessedPdfImage | null> {
   if (!url) return null;
-  if (url.startsWith('data:image/')) return url;
 
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
+        const nw = img.naturalWidth || img.width || 1024;
+        const nh = img.naturalHeight || img.height || 768;
+        const aspectRatio = nw / nh;
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || img.width || 800;
-        canvas.height = img.naturalHeight || img.height || 600;
+        // Cap max canvas dimension for sharp rendering while preventing memory spikes
+        const maxDim = 1600;
+        let targetW = nw;
+        let targetH = nh;
+        if (nw > maxDim || nh > maxDim) {
+          if (nw >= nh) {
+            targetW = maxDim;
+            targetH = Math.round(maxDim / aspectRatio);
+          } else {
+            targetH = maxDim;
+            targetW = Math.round(maxDim * aspectRatio);
+          }
+        }
+
+        canvas.width = targetW;
+        canvas.height = targetH;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(dataUrl);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+          resolve({
+            dataUrl,
+            naturalWidth: nw,
+            naturalHeight: nh,
+            aspectRatio
+          });
         } else {
-          resolve(null);
+          resolve({
+            dataUrl: url,
+            naturalWidth: nw,
+            naturalHeight: nh,
+            aspectRatio
+          });
         }
       } catch (err) {
         console.warn('Canvas toDataURL fallback for PDF image:', err);
@@ -42,8 +79,8 @@ async function loadImageDataUrl(url: string): Promise<string | null> {
     img.onerror = () => {
       resolve(null);
     };
-    // 3.5 second timeout safeguard so PDF generation never stalls on slow network images
-    setTimeout(() => resolve(null), 3500);
+    // 4 second timeout safeguard so PDF generation never stalls on slow network images
+    setTimeout(() => resolve(null), 4000);
     img.src = url;
   });
 }
@@ -75,7 +112,7 @@ async function getJsPdfConstructor(): Promise<any> {
 }
 
 /**
- * Generates a formatted, publication-ready PDF Storybook Blob.
+ * Generates a formatted, publication-ready PDF Storybook Blob with strictly preserved image aspect ratios.
  */
 export async function generatePdfWithWorker(options: PdfExportOptions): Promise<Blob> {
   const { 
@@ -117,15 +154,25 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
     accentRgb = [168, 85, 247];
     dividerRgb = [51, 65, 85];
   } else if (pdfTheme === 'emerald_parchment') {
-    bgRgb = [240, 253, 244];
-    textRgb = [6, 78, 59];
-    accentRgb = [16, 185, 129];
-    dividerRgb = [167, 243, 208];
+    bgRgb = [4, 31, 24];
+    textRgb = [236, 253, 245];
+    accentRgb = [52, 211, 153];
+    dividerRgb = [6, 78, 59];
+  } else if (pdfTheme === 'royal_slate') {
+    bgRgb = [15, 23, 42];
+    textRgb = [248, 250, 252];
+    accentRgb = [251, 191, 36];
+    dividerRgb = [51, 65, 85];
   } else if (pdfTheme === 'cyberpunk') {
-    bgRgb = [18, 18, 24];
-    textRgb = [244, 114, 182];
-    accentRgb = [56, 189, 248];
-    dividerRgb = [63, 63, 70];
+    bgRgb = [9, 9, 11];
+    textRgb = [250, 250, 250];
+    accentRgb = [244, 63, 94];
+    dividerRgb = [39, 39, 42];
+  } else if (pdfTheme === 'sunset_crimson') {
+    bgRgb = [28, 13, 24];
+    textRgb = [255, 241, 242];
+    accentRgb = [251, 113, 133];
+    dividerRgb = [76, 29, 64];
   }
 
   // Cover Page
@@ -142,21 +189,35 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
   const titleLines = doc.splitTextToSize(title || 'Untitled Story', usableWidth);
-  doc.text(titleLines, pageWidth / 2, 72, { align: 'center' });
+  doc.text(titleLines, pageWidth / 2, 68, { align: 'center' });
 
   doc.setFontSize(9);
   doc.setTextColor(accentRgb[0], accentRgb[1], accentRgb[2]);
-  doc.text(`✦ NOVELLAIO STORY STUDIO ✦`, pageWidth / 2, 84, { align: 'center' });
+  doc.text(`✦ NOVELLAIO STORY STUDIO ✦`, pageWidth / 2, 80, { align: 'center' });
 
-  // Optional Cover Illustration
-  const coverImage = segments[0]?.imageUrl ? await loadImageDataUrl(segments[0].imageUrl) : null;
+  // Optional Cover Illustration (Strictly Proportional, Never Stretched)
+  const coverImage = segments[0]?.imageUrl ? await loadImageDataWithAspect(segments[0].imageUrl) : null;
   if (coverImage) {
     try {
-      const imgBoxW = usableWidth * 0.88;
-      const imgBoxH = 110;
-      const imgX = (pageWidth - imgBoxW) / 2;
-      const imgY = 95;
-      doc.addImage(coverImage, 'JPEG', imgX, imgY, imgBoxW, imgBoxH, undefined, 'FAST');
+      const maxCoverW = usableWidth * 0.90;
+      const maxCoverH = 105; // max allowable height in mm
+      let imgW = maxCoverW;
+      let imgH = imgW / coverImage.aspectRatio;
+
+      if (imgH > maxCoverH) {
+        imgH = maxCoverH;
+        imgW = imgH * coverImage.aspectRatio;
+      }
+
+      const imgX = (pageWidth - imgW) / 2;
+      const imgY = 88 + (maxCoverH - imgH) / 2;
+
+      // Subtle background outline for cover frame
+      doc.setDrawColor(dividerRgb[0], dividerRgb[1], dividerRgb[2]);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(imgX - 0.5, imgY - 0.5, imgW + 1, imgH + 1, 2, 2, 'S');
+
+      doc.addImage(coverImage.dataUrl, 'JPEG', imgX, imgY, imgW, imgH, undefined, 'FAST');
     } catch (e) {
       console.warn('Could not render cover illustration in PDF worker:', e);
     }
@@ -174,7 +235,7 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
   doc.text(`Created with Novellaio Story Studio`, pageWidth / 2, pageHeight - 38, { align: 'center' });
   doc.setFontSize(9);
   doc.setTextColor(140, 140, 150);
-  doc.text(`Author: ${author}`, pageWidth / 2, pageHeight - 30, { align: 'center' });
+  doc.text(`Author: ${author} • Genre: ${genre}`, pageWidth / 2, pageHeight - 30, { align: 'center' });
 
   const totalSegments = segments.length;
   let currentPageIndex = 1;
@@ -209,30 +270,49 @@ export async function generatePdfWithWorker(options: PdfExportOptions): Promise<
     doc.setLineWidth(0.3);
     doc.line(margin, margin, pageWidth - margin, margin);
 
-    let currentY = margin + 10;
+    let currentY = margin + 8;
 
-    // Optional Segment Illustration
+    // Optional Segment Illustration with Exact Proportional Calculation (Zero Distortion)
     if (seg.imageUrl) {
       try {
-        const dataUrl = await loadImageDataUrl(seg.imageUrl);
-        if (dataUrl) {
-          const imgWidth = usableWidth;
-          const imgHeight = Math.min(75, imgWidth * 0.52);
-          doc.addImage(dataUrl, 'JPEG', margin, currentY, imgWidth, imgHeight);
-          currentY += imgHeight + 8;
+        const imgData = await loadImageDataWithAspect(seg.imageUrl);
+        if (imgData) {
+          const maxImgWidth = usableWidth;
+          const maxImgHeight = 85; // mm ceiling for image height
+          let renderW = maxImgWidth;
+          let renderH = renderW / imgData.aspectRatio;
+
+          if (renderH > maxImgHeight) {
+            renderH = maxImgHeight;
+            renderW = renderH * imgData.aspectRatio;
+          }
+
+          // Center horizontally within margins
+          const renderX = margin + (usableWidth - renderW) / 2;
+
+          // Elegant rounded frame outline
+          doc.setDrawColor(dividerRgb[0], dividerRgb[1], dividerRgb[2]);
+          doc.setLineWidth(0.35);
+          doc.roundedRect(renderX - 0.5, currentY - 0.5, renderW + 1, renderH + 1, 2, 2, 'S');
+
+          doc.addImage(imgData.dataUrl, 'JPEG', renderX, currentY, renderW, renderH, undefined, 'FAST');
+          currentY += renderH + 8;
         }
       } catch (imgErr) {
         console.warn(`Could not render image for chapter ${i + 1}:`, imgErr);
       }
     }
 
-    // Paragraph Text
+    // Paragraph Text with User-Configured Readability Font Size
+    const userFontScale = (options.fontSize ? options.fontSize / 18 : 1);
+    const effectiveFontSize = Math.max(8, Math.min(18, 10.5 * userFontScale));
+    const lineHeight = Math.max(4.5, effectiveFontSize * 0.54); // mm per line
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10.5);
+    doc.setFontSize(effectiveFontSize);
     doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
 
     const splitText: string[] = doc.splitTextToSize(seg.paragraph || '', usableWidth);
-    const lineHeight = 5.6; // mm per line
     const footerCutoff = pageHeight - margin - 12;
 
     for (let lineIdx = 0; lineIdx < splitText.length; lineIdx++) {

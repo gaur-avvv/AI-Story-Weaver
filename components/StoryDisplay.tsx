@@ -7,7 +7,7 @@ import { PlotTwistsPanel } from './PlotTwistsPanel';
 import { motion } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 import { extractChapters, getChapterStats } from '../utils/chapterUtils';
-import { Plus, BookOpen, Sparkles } from 'lucide-react';
+import { Plus, BookOpen, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface StoryDisplayProps {
   segments: StorySegment[];
@@ -16,6 +16,8 @@ interface StoryDisplayProps {
   onGenerateNextChapter?: () => void;
   isGenerating: boolean;
   fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
+  fontSize?: number;
+  justifyText?: boolean;
   storyLength?: string;
   activeAudioSegmentIndex?: number;
   isAudioPlaying?: boolean;
@@ -41,6 +43,8 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   onGenerateNextChapter,
   isGenerating, 
   fontFamilyPreference,
+  fontSize,
+  justifyText = true,
   storyLength = 'medium',
   activeAudioSegmentIndex,
   isAudioPlaying,
@@ -64,6 +68,16 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   useEffect(() => {
     endOfStoryRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [segments, isGenerating]);
+
+  // Smoothly auto-scroll to the currently playing audio narration segment
+  useEffect(() => {
+    if (isAudioPlaying && typeof activeAudioSegmentIndex === 'number' && activeAudioSegmentIndex >= 0) {
+      const el = document.getElementById(`story-segment-card-${activeAudioSegmentIndex}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [isAudioPlaying, activeAudioSegmentIndex]);
 
   // Background sentiment & VFX analyzer for the active or latest segment
   const activeIdx = (typeof activeAudioSegmentIndex === 'number' && activeAudioSegmentIndex >= 0 && activeAudioSegmentIndex < segments.length)
@@ -90,8 +104,29 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
     'very_long': '9-12 scenes',
   };
 
+  const isAnyRetrying = segments.some(s => s.isRetryingImage || s.isRetryingAudio);
+
   return (
     <div className="w-full flex-grow overflow-y-auto p-2 sm:p-4 md:p-8 story-container">
+      {isAnyRetrying && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="max-w-3xl mx-auto mb-6 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-mono flex items-center justify-between shadow-lg backdrop-blur-md"
+        >
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 text-amber-400 animate-spin flex-shrink-0" />
+            <span>
+              <strong>Auto-Retrying Media:</strong> Encountered a transient rate-limit or error. Switching to optimized fallback engine...
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+            Active Recovery
+          </span>
+        </motion.div>
+      )}
+
       <div className="space-y-8 pb-12">
         {segments.map((segment, index) => {
           // Check if this segment starts a chapter
@@ -124,7 +159,10 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
 
               <ParagraphCard 
                 segment={segment} 
+                index={index}
                 fontFamilyPreference={fontFamilyPreference} 
+                fontSize={fontSize}
+                justifyText={justifyText}
                 isAudioActive={isAudioPlaying && activeAudioSegmentIndex === index}
                 audioProgress={activeAudioSegmentIndex === index ? audioProgress : 0}
                 onSeekWord={(ratio) => onSeekAudioRatio?.(index, ratio)}

@@ -27,6 +27,8 @@ import { vfxAudioSynth, SoundscapeType } from '../vfx/VfxAudioEffects';
 interface AudioControllerProps {
   segments: StorySegment[];
   activeSegmentIndex?: number;
+  autoPlayNarration?: boolean;
+  isGenerating?: boolean;
   onActiveSegmentChange?: (index: number) => void;
   onPlayStateChange?: (isPlaying: boolean) => void;
   onAudioProgressUpdate?: (currentTime: number, duration: number, progressRatio: number) => void;
@@ -36,6 +38,8 @@ interface AudioControllerProps {
 export const AudioController: React.FC<AudioControllerProps> = ({ 
   segments,
   activeSegmentIndex: controlledActiveIndex,
+  autoPlayNarration = true,
+  isGenerating = false,
   onActiveSegmentChange,
   onPlayStateChange,
   onAudioProgressUpdate,
@@ -43,6 +47,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({
 }) => {
   const { vfx } = useVfx();
   const [internalActiveSegmentIndex, setInternalActiveSegmentIndex] = useState(0);
+  const [isWaitingForNextGeneratedSegment, setIsWaitingForNextGeneratedSegment] = useState(false);
   const activeSegmentIndex = controlledActiveIndex !== undefined ? controlledActiveIndex : internalActiveSegmentIndex;
 
   const setActiveSegmentIndex = (indexOrUpdater: number | ((prev: number) => number)) => {
@@ -325,15 +330,19 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     };
   }, [isPlaying, drawWaveform]);
 
-  // Handle play/pause with complete error handling
+  // Handle play/pause with complete error handling and Web Speech API fallback
   const togglePlayPause = () => {
-    if (!audioRef.current || !activeSegment?.audioUrl) return;
-
     setAudioError(null);
     initWebAudio();
 
     if (isPlaying) {
-      audioRef.current.pause();
+      setIsWaitingForNextGeneratedSegment(false);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       setIsPlaying(false);
       try {
         vfxAudioSynth.stopSoundscape();
@@ -341,18 +350,58 @@ export const AudioController: React.FC<AudioControllerProps> = ({
         console.warn('Error stopping soundscape:', e);
       }
     } else {
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-        try {
-          vfxAudioSynth.playSoundscape(selectedAmbience);
-        } catch (e) {
-          console.warn('Error playing selected ambience soundscape:', e);
+      if (activeSegment?.audioUrl) {
+        if (audioRef.current) {
+          audioRef.current.play().then(() => {
+            setIsPlaying(true);
+            try {
+              vfxAudioSynth.playSoundscape(selectedAmbience);
+            } catch (e) {
+              console.warn('Error playing selected ambience soundscape:', e);
+            }
+          }).catch(e => {
+            console.error("Audio playback permission error", e);
+            setIsPlaying(false);
+            setAudioError("Audio blocked by browser. Click Play again to enable.");
+          });
         }
-      }).catch(e => {
-        console.error("Audio playback permission error", e);
-        setIsPlaying(false);
-        setAudioError("Audio blocked by browser. Click Play again to enable.");
-      });
+      } else if (activeSegment?.paragraph && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        // Native Web Speech API 0-cost TTS Fallback for zero-API / low-end devices
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(activeSegment.paragraph);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.volume = narrationVolume;
+
+        utterance.onstart = () => {
+          setIsPlaying(true);
+          try {
+            vfxAudioSynth.playSoundscape(selectedAmbience);
+          } catch {}
+        };
+
+        utterance.onboundary = (e) => {
+          if (e.name === 'word' && activeSegment.paragraph) {
+            const charIndex = e.charIndex;
+            const textLen = activeSegment.paragraph.length;
+            const ratio = textLen > 0 ? charIndex / textLen : 0;
+            const estDuration = activeSegment.paragraph.split(/\s+/).length * 0.4;
+            setDuration(estDuration);
+            setProgress(ratio * estDuration);
+            onAudioProgressUpdate?.(ratio * estDuration, estDuration, ratio);
+          }
+        };
+
+        utterance.onend = () => {
+          handleEnded();
+        };
+
+        utterance.onerror = () => {
+          setIsPlaying(false);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
@@ -411,10 +460,28 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     }
   }, [seekAudioRequest]);
 
+  // Auto-advance and play next segment as soon as it is generated
+  useEffect(() => {
+    if (isWaitingForNextGeneratedSegment && autoPlayNarration) {
+      if (segments.length > activeSegmentIndex + 1) {
+        setIsWaitingForNextGeneratedSegment(false);
+        setActiveSegmentIndex(activeSegmentIndex + 1);
+        setIsPlaying(true);
+      }
+    }
+  }, [isWaitingForNextGeneratedSegment, segments.length, activeSegmentIndex, autoPlayNarration]);
+
   const handleEnded = () => {
-    if (activeSegmentIndex < segments.length - 1) {
-      setActiveSegmentIndex(prev => prev + 1);
+    if (autoPlayNarration && activeSegmentIndex < segments.length - 1) {
+      const nextIdx = activeSegmentIndex + 1;
+      setActiveSegmentIndex(nextIdx);
+      setIsPlaying(true);
+    } else if (autoPlayNarration && isGenerating) {
+      // The current part ended, but the next scene is still generating
+      setIsWaitingForNextGeneratedSegment(true);
+      setIsPlaying(true);
     } else {
+      setIsWaitingForNextGeneratedSegment(false);
       setIsPlaying(false);
       setProgress(0);
       onAudioProgressUpdate?.(0, duration || 0, 0);

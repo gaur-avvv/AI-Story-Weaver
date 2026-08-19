@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { SparklesIcon, WandIcon } from './icons';
 import { enhancePrompt } from '../services/geminiService';
 import { Settings } from '../types';
-import { X, Sparkles, Wand2, CornerDownLeft, Mic } from 'lucide-react';
+import { X, Sparkles, Wand2, CornerDownLeft, Mic, Dices } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface StoryInputProps {
@@ -14,6 +14,7 @@ interface StoryInputProps {
   settings: Settings;
   externalPrompt?: string;
   onOpenVoiceModal?: () => void;
+  onSurpriseMe?: () => void;
 }
 
 export const StoryInput: React.FC<StoryInputProps> = ({ 
@@ -23,6 +24,7 @@ export const StoryInput: React.FC<StoryInputProps> = ({
   settings,
   externalPrompt,
   onOpenVoiceModal,
+  onSurpriseMe,
 }) => {
   const [prompt, setPrompt] = useState(externalPrompt || '');
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -95,9 +97,9 @@ export const StoryInput: React.FC<StoryInputProps> = ({
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your story idea or click mic to speak..."
+            placeholder="Describe your story idea, speak, or click dice for a random story..."
             disabled={isGenerating}
-            className="w-full pl-6 pr-44 sm:pr-56 py-3.5 sm:py-4 text-base sm:text-lg text-slate-100 bg-transparent placeholder:text-slate-400/70 focus:outline-none disabled:opacity-50"
+            className="w-full pl-6 pr-48 sm:pr-64 py-3.5 sm:py-4 text-base sm:text-lg text-slate-100 bg-transparent placeholder:text-slate-400/70 focus:outline-none disabled:opacity-50"
           />
           
           <div className="absolute right-1.5 sm:right-2 flex items-center gap-1 sm:gap-1.5">
@@ -109,6 +111,18 @@ export const StoryInput: React.FC<StoryInputProps> = ({
                 title="Clear input"
               >
                 <X className="w-4 h-4" />
+              </button>
+            )}
+
+            {onSurpriseMe && !isGenerating && (
+              <button
+                type="button"
+                onClick={onSurpriseMe}
+                disabled={isGenerating}
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 bg-purple-600/20 hover:bg-purple-600/40 text-purple-200 hover:text-white border border-purple-400/40 rounded-full transition-all duration-200 backdrop-blur-md active:scale-95 disabled:opacity-50 shadow-sm"
+                title="Surprise Me (Auto-generate random story instantly)"
+              >
+                <Dices className="w-4 h-4 text-purple-300" />
               </button>
             )}
 

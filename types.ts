@@ -1,5 +1,17 @@
 // FIX: Removed incorrect circular import. The StorySegment interface is defined within this file.
 
+export interface VoiceStyleConfig {
+  mood?: 'whisper' | 'excitement' | 'dread' | 'tender' | 'clinical' | 'playful' | 'triumph' | 'mysterious' | 'calm' | 'urgent' | string;
+  tone?: string;
+  genre?: string;
+  targetAudience?: string;
+  pacing?: 'slow_deliberate' | 'fast_urgent' | 'conversational' | 'bouncy_animated' | 'velvety_calm' | string;
+  pitchModifier?: string;
+  whisper?: boolean;
+  pace?: string;
+  intensity?: string;
+}
+
 export interface StorySegment {
   id: string;
   paragraph: string;
@@ -7,10 +19,15 @@ export interface StorySegment {
   audioUrl?: string;
   isLoadingImage?: boolean;
   isLoadingAudio?: boolean;
+  isRetryingImage?: boolean;
+  isRetryingAudio?: boolean;
   choices?: string[];
   selectedChoice?: string;
   chapterTitle?: string;
   chapterNumber?: number;
+  tone?: string;
+  sentiment?: string;
+  voiceStyle?: string;
 }
 
 export interface StoryChapter {
@@ -31,10 +48,90 @@ export interface SavedStory {
   puterPath?: string;
 }
 
+export type StoryGenre = 
+  | 'fantasy' 
+  | 'dark_fantasy'
+  | 'sci-fi' 
+  | 'cyberpunk'
+  | 'space_opera'
+  | 'steampunk'
+  | 'mystery' 
+  | 'crime'
+  | 'thriller' 
+  | 'horror' 
+  | 'cosmic_horror'
+  | 'adventure' 
+  | 'superhero' 
+  | 'fairy_tale' 
+  | 'fable' 
+  | 'mythological'
+  | 'time_travel'
+  | 'post_apocalyptic'
+  | 'urban_fantasy'
+  | 'romance' 
+  | 'historical' 
+  | 'western'
+  | 'drama'
+  | 'funny' 
+  | 'bedtime' 
+  | 'educational';
+
+export type StoryImageStyle = 
+  | 'whimsical' 
+  | 'cartoon' 
+  | 'realistic' 
+  | 'watercolor' 
+  | '3d_render' 
+  | 'pixel_art' 
+  | 'anime' 
+  | 'studio_ghibli'
+  | 'oil_painting' 
+  | 'dark_fantasy_oil'
+  | 'cyberpunk_neon'
+  | 'synthwave_80s'
+  | 'ukiyo_e'
+  | 'stained_glass'
+  | 'paper_cutout'
+  | 'gothic_etching'
+  | 'pop_art_comic'
+  | 'cinematic_photo'
+  | 'concept_art'
+  | 'noir'
+  | 'sketch' 
+  | 'pencil_sketch' 
+  | 'claymation' 
+  | 'mosaic' 
+  | 'disney_animation' 
+  | 'pixar_3d' 
+  | 'vintage_disney';
+
+export type StoryAudience = 
+  | 'early_reader' 
+  | 'children' 
+  | 'middle_grade' 
+  | 'teen' 
+  | 'young_adult' 
+  | 'adult' 
+  | 'mature_dark';
+
+export type StoryTone = 
+  | 'balanced' 
+  | 'archaic_lyrical' 
+  | 'clinical_cyber' 
+  | 'gritty_noir' 
+  | 'visceral_gothic' 
+  | 'whimsical_playful' 
+  | 'suspenseful_urgent' 
+  | 'tender_romantic' 
+  | 'philosophical_cerebral' 
+  | 'humorous_witty' 
+  | 'soothing_gentle';
+
 export interface Settings {
   storyLength: 'very_short' | 'short' | 'medium' | 'long' | 'very_long';
-  genre: 'fantasy' | 'sci-fi' | 'mystery' | 'adventure' | 'funny' | 'fairy_tale' | 'educational' | 'bedtime' | 'fable' | 'superhero' | 'thriller' | 'romance' | 'horror' | 'historical' | 'crime' | 'drama';
-  imageStyle: 'whimsical' | 'cartoon' | 'realistic' | 'watercolor' | '3d_render' | 'pixel_art' | 'anime' | 'oil_painting' | 'sketch' | 'pencil_sketch' | 'claymation' | 'mosaic' | 'disney_animation' | 'pixar_3d' | 'vintage_disney';
+  genre: StoryGenre;
+  imageStyle: StoryImageStyle;
+  storyTone?: StoryTone;
   generateAudio: boolean;
   pdfMargin: number;
   pdfTheme?: 'midnight' | 'classic_ivory' | 'emerald_parchment' | 'royal_slate' | 'cyberpunk' | 'sunset_crimson';
@@ -65,17 +162,21 @@ export interface Settings {
   textModel: string;
 
   // Image Generation
-  imageProvider: 'gemini' | 'puter' | 'pollinations' | 'zai' | 'siliconflow' | 'huggingface' | 'openai';
+  imageProvider: 'gemini' | 'puter' | 'pollinations' | 'zai' | 'siliconflow' | 'huggingface' | 'cloudflare' | 'openai';
   imageModel: string;
 
   // Cloud Storage Preference
   storageProvider?: 'hybrid' | 'puter' | 'local';
 
-  // Content Settings
-  targetAudience: 'children' | 'teen' | 'adult';
+  // Content & Layout Settings
+  targetAudience: StoryAudience;
   fontFamilyPreference?: 'serif' | 'sans' | 'mono' | 'cinzel' | 'merriweather' | 'lora' | 'outfit' | 'inter' | 'fantasy' | 'handwriting';
+  fontSize?: number;
+  justifyText?: boolean;
+  autoPlayNarration?: boolean;
 
   // API Keys & Configs
+  geminiApiKey?: string;
   inceptionApiKey?: string;
   groqApiKey?: string;
   openRouterApiKey?: string;

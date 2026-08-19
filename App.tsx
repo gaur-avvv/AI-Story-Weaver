@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { StoryInput } from './components/StoryInput';
 import { StoryDisplay } from './components/StoryDisplay';
-import { generateStorySegment, generateNextChapter, generateImage, generateTTSAudio, generateCoverImage, translateStoryContent } from './services/geminiService';
+import { generateStorySegment, generateNextChapter, generateImage, generateTTSAudio, generateCoverImage, translateStoryContent, buildSceneImagePrompt, suggestTopicsWithFreeModel } from './services/geminiService';
 import { StorySegment, Settings, SavedStory } from './types';
 import { SettingsPanel } from './components/SettingsPanel';
-import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, BookText, EyeIcon, Maximize2Icon, Minimize2Icon, CrystalPrismIcon } from './components/icons';
+import { DownloadIcon, LanguagesIcon, SettingsIcon, ChevronDownIcon, RefreshCwIcon, VideoIcon, BookText, EyeIcon, Maximize2Icon, Minimize2Icon, CrystalPrismIcon, SparklesIcon } from './components/icons';
 import { HeroIllustration } from './components/HeroIllustration';
 import { RatingSystem } from './components/RatingSystem';
 import { VideoModal } from './components/VideoModal';
+import { VideoGenerationIndicator } from './components/VideoGenerationIndicator';
 import { IntegrationsModal } from './components/IntegrationsModal';
 import { ChapterOutlineDrawer } from './components/ChapterOutlineDrawer';
 import { BackgroundManager } from './components/BackgroundManager';
@@ -24,6 +25,7 @@ import { getRandomStarters, getRandomSingleStarter, StoryStarter } from './utils
 import { Shuffle, Dices, Layers } from 'lucide-react';
 import { saveStoriesSafelyWithQuotaProtection, compressAndCleanLocalStorage } from './utils/storageManager';
 import { generatePdfWithWorker, downloadBlobAsFile } from './utils/pdfGenerator';
+import { mediaGenerationManager } from './utils/MediaGenerationManager';
 import { globalStoryGraph } from './services/storyGraphState';
 import { extractTriplesHeuristic } from './services/graphExtractor';
 import { useStoryGraphAutoUpdate } from './hooks/useStoryGraphAutoUpdate';
@@ -33,6 +35,7 @@ import { VfxProvider, useVfx } from './vfx/VfxContext';
 import { VfxScreenOverlays } from './components/vfx/VfxScreenOverlays';
 import { VfxStyleInjector } from './components/vfx/VfxStyleInjector';
 import { VfxGenre } from './vfx/types';
+import { NovellaioEngineProvider, useNovellaioEngine } from './context/NovellaioEngineContext';
 
 // Add type definition for jsPDF from window object
 declare global {
@@ -49,6 +52,9 @@ const defaultSettings: Settings = {
   pdfMargin: 50,
   targetAudience: 'children',
   fontFamilyPreference: 'serif',
+  fontSize: 18,
+  justifyText: true,
+  autoPlayNarration: true,
   
   // Audio Defaults
   audioProvider: 'gemini',
@@ -68,6 +74,7 @@ function saveStoriesSafely(stories: SavedStory[]): boolean {
 
 function StoryCreatorContent() {
   const { vfx, setGenre, triggerScreenShake, processParagraphForVfx } = useVfx();
+  const { profile, triggerMoodSoundscape } = useNovellaioEngine();
   const { showErrorToast, showWarningToast, showSuccessToast } = useToast();
   const [segments, setSegments] = useState<StorySegment[]>([]);
   const [title, setTitle] = useState<string>('');
@@ -111,11 +118,41 @@ function StoryCreatorContent() {
   const [seekAudioRequest, setSeekAudioRequest] = useState<{ segmentIndex: number; progressRatio: number; timestamp: number } | null>(null);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [activeStarters, setActiveStarters] = useState<StoryStarter[]>(() => getRandomStarters(5));
+  const [isLoadingStarters, setIsLoadingStarters] = useState<boolean>(false);
   
   const languages = ['English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Simplified)'];
 
-  const handleShuffleStarters = () => {
-    setActiveStarters(getRandomStarters(5));
+  const handleShuffleStarters = async () => {
+    setIsLoadingStarters(true);
+    try {
+      const suggestions = await suggestTopicsWithFreeModel(5, userApiKey, settings.genre, settings.targetAudience);
+      if (suggestions && suggestions.length > 0) {
+        setActiveStarters(suggestions as StoryStarter[]);
+      } else {
+        setActiveStarters(getRandomStarters(5));
+      }
+    } catch (e) {
+      console.warn("Failed to generate topics with free model, using randomized pool:", e);
+      setActiveStarters(getRandomStarters(5));
+    } finally {
+      setIsLoadingStarters(false);
+    }
+  };
+
+  const handleResetToHome = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setSegments([]);
+    setTitle('');
+    setInitialPrompt('');
+    setExternalPrompt('');
+    setError(null);
+    setIsGenerating(false);
+    setIsSavingPdf(false);
+    setIsAudioPlaying(false);
+    setActiveAudioSegmentIndex(0);
+    setAudioProgressRatio(0);
+    setSeekAudioRequest(null);
+    navigate('/');
   };
 
   const handleSurpriseMe = () => {
@@ -148,8 +185,22 @@ function StoryCreatorContent() {
   useEffect(() => {
     if (currentParagraph) {
       processParagraphForVfx(currentParagraph);
+      
+      // Dynamically derive sentiment for procedural soundscape engine
+      const lower = currentParagraph.toLowerCase();
+      if (lower.includes('battle') || lower.includes('danger') || lower.includes('fear') || lower.includes('shook') || lower.includes('attack') || lower.includes('sword') || lower.includes('monster')) {
+        triggerMoodSoundscape('tense');
+      } else if (lower.includes('shadow') || lower.includes('crypt') || lower.includes('whisper') || lower.includes('dark') || lower.includes('mystery') || lower.includes('ancient')) {
+        triggerMoodSoundscape('mysterious');
+      } else if (lower.includes('triumph') || lower.includes('victory') || lower.includes('courage') || lower.includes('hero') || lower.includes('soar')) {
+        triggerMoodSoundscape('heroic');
+      } else if (lower.includes('magic') || lower.includes('wonder') || lower.includes('laugh') || lower.includes('sparkle') || lower.includes('fairy')) {
+        triggerMoodSoundscape('whimsical');
+      } else {
+        triggerMoodSoundscape('calm');
+      }
     }
-  }, [currentParagraph, processParagraphForVfx]);
+  }, [currentParagraph, processParagraphForVfx, triggerMoodSoundscape]);
 
   // Global key listener to cleanly close modals or trigger voice input
   useEffect(() => {
@@ -382,42 +433,107 @@ function StoryCreatorContent() {
     }
   };
 
-  const processSegmentMedia = async (segmentId: string, paragraph: string) => {
-    try {
-      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, isLoadingImage: true, isLoadingAudio: settings.generateAudio } : s));
-      
-      const imageApiKey = getApiKeyForProvider(settings.imageProvider);
-      const imageUrl = await generateImage(
-        paragraph, 
-        userApiKey, 
-        settings.imageStyle, 
-        settings.imageModel,
-        settings.imageProvider,
-        imageApiKey || undefined,
-        {
-          customBaseUrl: settings.customBaseUrl,
-          cloudflareAccountId: settings.cloudflareAccountId,
-        }
-      );
-      
-      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, imageUrl, isLoadingImage: false } : s));
-      
-      if (settings.generateAudio) {
-        const audioApiKey = getApiKeyForProvider(settings.audioProvider);
-        const audioUrl = await generateTTSAudio(
-          paragraph, 
-          userApiKey, 
-          settings.voice,
-          settings.audioModel,
-          settings.audioProvider,
-          audioApiKey || undefined
+  const processSegmentMedia = (segmentId: string, paragraph: string, sentiment?: string, tone?: string) => {
+    // Set initial loading states
+    setSegments(prev => prev.map(s => s.id === segmentId ? { 
+      ...s, 
+      isLoadingImage: true, 
+      isLoadingAudio: settings.generateAudio,
+      isRetryingImage: false,
+      isRetryingAudio: false,
+    } : s));
+
+    const imageApiKey = getApiKeyForProvider(settings.imageProvider);
+    const audioApiKey = getApiKeyForProvider(settings.audioProvider);
+
+    // Enqueue Image Generation to centralized manager (Sequential, Rate-Limit Safe)
+    mediaGenerationManager.enqueue({
+      id: `img-${segmentId}-${Date.now()}`,
+      segmentId,
+      paragraph,
+      type: 'image',
+      userApiKey,
+      settings: {
+        ...settings,
+        imageApiKey: imageApiKey || undefined,
+        pollinationsApiKey: settings.pollinationsApiKey || undefined,
+      },
+      onProgress: (status, attempt) => {
+        setSegments(prev => prev.map(s => s.id === segmentId ? {
+          ...s,
+          isLoadingImage: true,
+          isRetryingImage: status === 'retrying' || attempt > 1,
+        } : s));
+      },
+      onSuccess: (imageUrl) => {
+        setSegments(prev => prev.map(s => s.id === segmentId ? {
+          ...s,
+          imageUrl,
+          isLoadingImage: false,
+          isRetryingImage: false,
+        } : s));
+      },
+      onError: (err) => {
+        console.warn(`[MediaManager] Image fallback handling for segment ${segmentId}:`, err);
+        // Automatic high-speed Pollinations fallback URL with full scene prompt
+        const scenePrompt = buildSceneImagePrompt(
+          paragraph,
+          settings.imageStyle,
+          settings.genre,
+          settings.targetAudience
         );
-        setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, audioUrl, isLoadingAudio: false } : s));
+        const seed = Math.floor(Math.random() * 1000000);
+        const rawKey = settings.pollinationsApiKey ? settings.pollinationsApiKey.replace(/^Bearer\s+/i, '').trim() : '';
+        const keyParam = rawKey ? `&key=${encodeURIComponent(rawKey)}` : '';
+        const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(scenePrompt)}?width=1024&height=1024&seed=${seed}&model=nanobanana-2-lite&nologo=true${keyParam}`;
+        setSegments(prev => prev.map(s => s.id === segmentId ? {
+          ...s,
+          imageUrl: fallbackUrl,
+          isLoadingImage: false,
+          isRetryingImage: false,
+        } : s));
       }
-    } catch (e: any) {
-      console.error(`Error processing media for segment ${segmentId}:`, e);
-      showWarningToast("Media generation failed. Story text is available.", "Media Notice");
-      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, isLoadingImage: false, isLoadingAudio: false } : s));
+    });
+
+    // Enqueue Audio Generation to centralized manager if enabled
+    if (settings.generateAudio) {
+      mediaGenerationManager.enqueue({
+        id: `aud-${segmentId}-${Date.now()}`,
+        segmentId,
+        paragraph,
+        type: 'audio',
+        userApiKey,
+        settings: {
+          ...settings,
+          sentiment: sentiment || undefined,
+          tone: tone || undefined,
+          audioApiKey: audioApiKey || undefined,
+          pollinationsApiKey: settings.pollinationsApiKey || undefined,
+        },
+        onProgress: (status, attempt) => {
+          setSegments(prev => prev.map(s => s.id === segmentId ? {
+            ...s,
+            isLoadingAudio: true,
+            isRetryingAudio: status === 'retrying' || attempt > 1,
+          } : s));
+        },
+        onSuccess: (audioUrl) => {
+          setSegments(prev => prev.map(s => s.id === segmentId ? {
+            ...s,
+            audioUrl,
+            isLoadingAudio: false,
+            isRetryingAudio: false,
+          } : s));
+        },
+        onError: (err) => {
+          console.warn(`[MediaManager] Audio generation fallback for segment ${segmentId} - Native TTS will narrate:`, err);
+          setSegments(prev => prev.map(s => s.id === segmentId ? {
+            ...s,
+            isLoadingAudio: false,
+            isRetryingAudio: false,
+          } : s));
+        }
+      });
     }
   };
 
@@ -480,7 +596,7 @@ function StoryCreatorContent() {
       
       setSegments([newSegment]);
       ingestParagraphIntoGraph(newSegment.paragraph, 0);
-      processSegmentMedia(newSegment.id, newSegment.paragraph);
+      processSegmentMedia(newSegment.id, newSegment.paragraph, response.sentiment, response.tone);
       
     } catch (e) {
       console.error("Story generation failed:", e);
@@ -563,7 +679,7 @@ function StoryCreatorContent() {
       
       setSegments(prev => [...prev, newSegment]);
       ingestParagraphIntoGraph(newSegment.paragraph, currentLength);
-      processSegmentMedia(newSegment.id, newSegment.paragraph);
+      processSegmentMedia(newSegment.id, newSegment.paragraph, response.sentiment, response.tone);
       
     } catch (e) {
       console.error("Story continuation failed:", e);
@@ -704,15 +820,15 @@ function StoryCreatorContent() {
         coverUrl = segments[0]?.imageUrl || '';
       }
 
-      // Helper to process and scale/crop images to precise target dimensions with 0% distortion
+      // Helper to process and scale images to precise target dimensions with 0% distortion or cropping
       const processImageForPdfCanvas = async (
         rawUrl: string,
         targetWidth: number,
         targetHeight: number,
-        fit: 'cover' | 'contain' = 'cover',
+        fit: 'cover' | 'contain' | 'proportional' = 'proportional',
         backgroundColor: string = '#0f172a'
-      ): Promise<string> => {
-        if (!rawUrl) return '';
+      ): Promise<{ dataUrl: string; width: number; height: number; aspectRatio: number }> => {
+        if (!rawUrl) return { dataUrl: '', width: 0, height: 0, aspectRatio: 1 };
         
         let srcUrl = rawUrl;
         if (!rawUrl.startsWith('data:')) {
@@ -737,58 +853,85 @@ function StoryCreatorContent() {
           img.crossOrigin = 'anonymous';
           img.onload = () => {
             try {
-              const canvas = document.createElement('canvas');
               const scaleFactor = 2; // 2x density for ultra-crisp print rendering
-              canvas.width = Math.round(targetWidth * scaleFactor);
-              canvas.height = Math.round(targetHeight * scaleFactor);
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                resolve(srcUrl);
-                return;
-              }
-
-              ctx.imageSmoothingEnabled = true;
-              ctx.imageSmoothingQuality = 'high';
-
-              // Fill canvas background
-              ctx.fillStyle = backgroundColor;
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-
               const nw = img.naturalWidth || img.width || targetWidth;
               const nh = img.naturalHeight || img.height || targetHeight;
+              const aspectRatio = nw / nh;
 
-              let drawW: number;
-              let drawH: number;
-              let drawX: number;
-              let drawY: number;
+              if (fit === 'proportional' || fit === 'contain') {
+                // Compute exact proportional dimensions that fit inside target bounding box
+                // while strictly preserving 100% of the image without any stretching or cropping
+                let scaledW = targetWidth;
+                let scaledH = Math.round(targetWidth / aspectRatio);
 
-              if (fit === 'cover') {
-                const scale = Math.max(canvas.width / nw, canvas.height / nh);
-                drawW = nw * scale;
-                drawH = nh * scale;
-                drawX = (canvas.width - drawW) / 2;
-                drawY = (canvas.height - drawH) / 2;
+                // If height exceeds allowable ceiling, constrain height proportionally
+                if (scaledH > targetHeight) {
+                  scaledH = targetHeight;
+                  scaledW = Math.round(targetHeight * aspectRatio);
+                }
+
+                scaledW = Math.max(60, scaledW);
+                scaledH = Math.max(60, scaledH);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(scaledW * scaleFactor);
+                canvas.height = Math.round(scaledH * scaleFactor);
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  resolve({ dataUrl: srcUrl, width: scaledW, height: scaledH, aspectRatio });
+                  return;
+                }
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve({
+                  dataUrl: canvas.toDataURL('image/jpeg', 0.95),
+                  width: scaledW,
+                  height: scaledH,
+                  aspectRatio,
+                });
               } else {
-                const scale = Math.min(canvas.width / nw, canvas.height / nh);
-                drawW = nw * scale;
-                drawH = nh * scale;
-                drawX = (canvas.width - drawW) / 2;
-                drawY = (canvas.height - drawH) / 2;
-              }
+                // Cover fit (used for full-bleed cover art)
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(targetWidth * scaleFactor);
+                canvas.height = Math.round(targetHeight * scaleFactor);
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  resolve({ dataUrl: srcUrl, width: targetWidth, height: targetHeight, aspectRatio });
+                  return;
+                }
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.fillStyle = backgroundColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-              ctx.drawImage(img, drawX, drawY, drawW, drawH);
-              resolve(canvas.toDataURL('image/jpeg', 0.92));
+                const scale = Math.max(canvas.width / nw, canvas.height / nh);
+                const drawW = nw * scale;
+                const drawH = nh * scale;
+                const drawX = (canvas.width - drawW) / 2;
+                // Pin strictly to the top (drawY = 0) so character faces, heads, and skies are never cropped from above
+                const drawY = 0;
+
+                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                resolve({
+                  dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+                  width: targetWidth,
+                  height: targetHeight,
+                  aspectRatio,
+                });
+              }
             } catch (err) {
               console.warn('Canvas image processing fallback:', err);
-              resolve(srcUrl);
+              resolve({ dataUrl: srcUrl, width: targetWidth, height: targetHeight, aspectRatio: 1 });
             }
           };
-          img.onerror = () => resolve(srcUrl);
+          img.onerror = () => resolve({ dataUrl: srcUrl, width: targetWidth, height: targetHeight, aspectRatio: 1 });
           img.src = srcUrl;
         });
       };
 
-      const coverDataUrl = coverUrl ? await processImageForPdfCanvas(coverUrl, 794, 1122, 'cover') : '';
+      const coverImgResult = coverUrl ? await processImageForPdfCanvas(coverUrl, 794, 1122, 'cover') : null;
+      const coverDataUrl = coverImgResult?.dataUrl || '';
 
       const html2canvasModule = await import('html2canvas');
       const html2canvas = html2canvasModule.default;
@@ -867,7 +1010,7 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(168, 85, 247, 0.3)',
           dividerColor: 'rgba(255, 255, 255, 0.08)',
           imgBorder: 'rgba(255, 255, 255, 0.12)',
-          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 28%, rgba(15, 23, 42, 0.1) 50%, rgba(15, 23, 42, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.72) 15%, rgba(15, 23, 42, 0.2) 26%, rgba(15, 23, 42, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#f1f5f9',
           pageBadgeBg: 'rgba(255, 255, 255, 0.08)',
           pageBadgeColor: '#e2e8f0',
@@ -887,7 +1030,7 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(124, 58, 237, 0.25)',
           dividerColor: 'rgba(0, 0, 0, 0.08)',
           imgBorder: 'rgba(0, 0, 0, 0.1)',
-          coverOverlay: 'linear-gradient(to top, rgba(250, 246, 238, 0.98) 0%, rgba(250, 246, 238, 0.65) 30%, rgba(250, 246, 238, 0.1) 50%, rgba(250, 246, 238, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(250, 246, 238, 0.98) 0%, rgba(250, 246, 238, 0.72) 15%, rgba(250, 246, 238, 0.2) 26%, rgba(250, 246, 238, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#475569',
           pageBadgeBg: 'rgba(124, 58, 237, 0.08)',
           pageBadgeColor: '#475569',
@@ -907,7 +1050,7 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(52, 211, 153, 0.3)',
           dividerColor: 'rgba(52, 211, 153, 0.12)',
           imgBorder: 'rgba(52, 211, 153, 0.2)',
-          coverOverlay: 'linear-gradient(to top, rgba(4, 31, 24, 0.96) 0%, rgba(4, 31, 24, 0.6) 28%, rgba(4, 31, 24, 0.1) 50%, rgba(4, 31, 24, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(4, 31, 24, 0.98) 0%, rgba(4, 31, 24, 0.72) 15%, rgba(4, 31, 24, 0.2) 26%, rgba(4, 31, 24, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#a7f3d0',
           pageBadgeBg: 'rgba(16, 185, 129, 0.15)',
           pageBadgeColor: '#a7f3d0',
@@ -927,7 +1070,7 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(251, 191, 36, 0.35)',
           dividerColor: 'rgba(255, 255, 255, 0.08)',
           imgBorder: 'rgba(251, 191, 36, 0.2)',
-          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.96) 0%, rgba(15, 23, 42, 0.6) 28%, rgba(15, 23, 42, 0.1) 50%, rgba(15, 23, 42, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.72) 15%, rgba(15, 23, 42, 0.2) 26%, rgba(15, 23, 42, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#fde68a',
           pageBadgeBg: 'rgba(245, 158, 11, 0.12)',
           pageBadgeColor: '#fde68a',
@@ -947,7 +1090,7 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(244, 63, 94, 0.4)',
           dividerColor: 'rgba(255, 255, 255, 0.1)',
           imgBorder: 'rgba(6, 182, 212, 0.3)',
-          coverOverlay: 'linear-gradient(to top, rgba(9, 9, 11, 0.97) 0%, rgba(9, 9, 11, 0.65) 28%, rgba(9, 9, 11, 0.1) 50%, rgba(9, 9, 11, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(9, 9, 11, 0.98) 0%, rgba(9, 9, 11, 0.72) 15%, rgba(9, 9, 11, 0.2) 26%, rgba(9, 9, 11, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#f43f5e',
           pageBadgeBg: 'rgba(6, 182, 212, 0.15)',
           pageBadgeColor: '#22d3ee',
@@ -967,14 +1110,151 @@ function StoryCreatorContent() {
           badgeBorder: 'rgba(251, 113, 133, 0.35)',
           dividerColor: 'rgba(251, 113, 133, 0.12)',
           imgBorder: 'rgba(251, 113, 133, 0.22)',
-          coverOverlay: 'linear-gradient(to top, rgba(28, 13, 24, 0.96) 0%, rgba(28, 13, 24, 0.6) 28%, rgba(28, 13, 24, 0.1) 50%, rgba(28, 13, 24, 0) 100%)',
+          coverOverlay: 'linear-gradient(to top, rgba(28, 13, 24, 0.98) 0%, rgba(28, 13, 24, 0.72) 15%, rgba(28, 13, 24, 0.2) 26%, rgba(28, 13, 24, 0) 36%, transparent 100%)',
           coverSubtitleColor: '#fecdd3',
           pageBadgeBg: 'rgba(244, 63, 94, 0.15)',
           pageBadgeColor: '#fecdd3',
+        },
+        gothic_noir: {
+          bg: '#0a0a0c',
+          cardBg: 'rgba(20, 20, 24, 0.88)',
+          headerBg: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(148, 163, 184, 0.08) 100%)',
+          headerBorder: 'rgba(148, 163, 184, 0.3)',
+          titleColor: '#ffffff',
+          textColor: '#e2e8f0',
+          mutedColor: '#94a3b8',
+          subtextColor: '#64748b',
+          accentColor: '#cbd5e1',
+          badgeBg: 'rgba(255, 255, 255, 0.12)',
+          badgeColor: '#ffffff',
+          badgeBorder: 'rgba(255, 255, 255, 0.25)',
+          dividerColor: 'rgba(255, 255, 255, 0.08)',
+          imgBorder: 'rgba(255, 255, 255, 0.15)',
+          coverOverlay: 'linear-gradient(to top, rgba(10, 10, 12, 0.98) 0%, rgba(10, 10, 12, 0.72) 15%, rgba(10, 10, 12, 0.2) 26%, rgba(10, 10, 12, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#cbd5e1',
+          pageBadgeBg: 'rgba(255, 255, 255, 0.08)',
+          pageBadgeColor: '#cbd5e1',
+        },
+        sakura_bloom: {
+          bg: '#fff5f7',
+          cardBg: 'rgba(255, 240, 244, 0.92)',
+          headerBg: 'linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)',
+          headerBorder: 'rgba(244, 63, 94, 0.25)',
+          titleColor: '#881337',
+          textColor: '#4c0519',
+          mutedColor: '#9f1239',
+          subtextColor: '#be123c',
+          accentColor: '#e11d48',
+          badgeBg: 'rgba(244, 63, 94, 0.12)',
+          badgeColor: '#be123c',
+          badgeBorder: 'rgba(244, 63, 94, 0.25)',
+          dividerColor: 'rgba(244, 63, 94, 0.12)',
+          imgBorder: 'rgba(244, 63, 94, 0.18)',
+          coverOverlay: 'linear-gradient(to top, rgba(255, 245, 247, 0.98) 0%, rgba(255, 245, 247, 0.72) 15%, rgba(255, 245, 247, 0.2) 26%, rgba(255, 245, 247, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#9f1239',
+          pageBadgeBg: 'rgba(244, 63, 94, 0.1)',
+          pageBadgeColor: '#9f1239',
+        },
+        nordic_frost: {
+          bg: '#0b1320',
+          cardBg: 'rgba(17, 30, 49, 0.85)',
+          headerBg: 'linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%)',
+          headerBorder: 'rgba(56, 189, 248, 0.35)',
+          titleColor: '#ffffff',
+          textColor: '#f0f9ff',
+          mutedColor: '#7dd3fc',
+          subtextColor: '#38bdf8',
+          accentColor: '#38bdf8',
+          badgeBg: 'rgba(56, 189, 248, 0.2)',
+          badgeColor: '#7dd3fc',
+          badgeBorder: 'rgba(56, 189, 248, 0.35)',
+          dividerColor: 'rgba(56, 189, 248, 0.12)',
+          imgBorder: 'rgba(56, 189, 248, 0.25)',
+          coverOverlay: 'linear-gradient(to top, rgba(11, 19, 32, 0.98) 0%, rgba(11, 19, 32, 0.72) 15%, rgba(11, 19, 32, 0.2) 26%, rgba(11, 19, 32, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#7dd3fc',
+          pageBadgeBg: 'rgba(56, 189, 248, 0.15)',
+          pageBadgeColor: '#bae6fd',
+        },
+        golden_dynasty: {
+          bg: '#1a0505',
+          cardBg: 'rgba(42, 10, 10, 0.88)',
+          headerBg: 'linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(220, 38, 38, 0.18) 100%)',
+          headerBorder: 'rgba(234, 179, 8, 0.38)',
+          titleColor: '#ffffff',
+          textColor: '#fef2f2',
+          mutedColor: '#fca5a5',
+          subtextColor: '#eab308',
+          accentColor: '#fbbf24',
+          badgeBg: 'rgba(234, 179, 8, 0.2)',
+          badgeColor: '#fde047',
+          badgeBorder: 'rgba(234, 179, 8, 0.35)',
+          dividerColor: 'rgba(234, 179, 8, 0.12)',
+          imgBorder: 'rgba(234, 179, 8, 0.25)',
+          coverOverlay: 'linear-gradient(to top, rgba(26, 5, 5, 0.98) 0%, rgba(26, 5, 5, 0.72) 15%, rgba(26, 5, 5, 0.2) 26%, rgba(26, 5, 5, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#fde047',
+          pageBadgeBg: 'rgba(234, 179, 8, 0.15)',
+          pageBadgeColor: '#fde047',
+        },
+        celestial_nebula: {
+          bg: '#080616',
+          cardBg: 'rgba(20, 15, 45, 0.88)',
+          headerBg: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%)',
+          headerBorder: 'rgba(168, 85, 247, 0.4)',
+          titleColor: '#ffffff',
+          textColor: '#faf5ff',
+          mutedColor: '#d8b4fe',
+          subtextColor: '#c084fc',
+          accentColor: '#e879f9',
+          badgeBg: 'rgba(168, 85, 247, 0.25)',
+          badgeColor: '#f0abfc',
+          badgeBorder: 'rgba(168, 85, 247, 0.4)',
+          dividerColor: 'rgba(168, 85, 247, 0.15)',
+          imgBorder: 'rgba(168, 85, 247, 0.3)',
+          coverOverlay: 'linear-gradient(to top, rgba(8, 6, 22, 0.98) 0%, rgba(8, 6, 22, 0.72) 15%, rgba(8, 6, 22, 0.2) 26%, rgba(8, 6, 22, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#f0abfc',
+          pageBadgeBg: 'rgba(168, 85, 247, 0.18)',
+          pageBadgeColor: '#f0abfc',
+        },
+        vintage_botanical: {
+          bg: '#f4f6f0',
+          cardBg: 'rgba(234, 239, 228, 0.9)',
+          headerBg: 'linear-gradient(135deg, rgba(84, 110, 89, 0.1) 0%, rgba(132, 112, 87, 0.1) 100%)',
+          headerBorder: 'rgba(84, 110, 89, 0.28)',
+          titleColor: '#2d372e',
+          textColor: '#384639',
+          mutedColor: '#5e7360',
+          subtextColor: '#788a79',
+          accentColor: '#416345',
+          badgeBg: 'rgba(65, 99, 69, 0.12)',
+          badgeColor: '#2d4a31',
+          badgeBorder: 'rgba(65, 99, 69, 0.28)',
+          dividerColor: 'rgba(65, 99, 69, 0.12)',
+          imgBorder: 'rgba(65, 99, 69, 0.18)',
+          coverOverlay: 'linear-gradient(to top, rgba(244, 246, 240, 0.98) 0%, rgba(244, 246, 240, 0.72) 15%, rgba(244, 246, 240, 0.2) 26%, rgba(244, 246, 240, 0) 36%, transparent 100%)',
+          coverSubtitleColor: '#416345',
+          pageBadgeBg: 'rgba(65, 99, 69, 0.1)',
+          pageBadgeColor: '#2d4a31',
         }
       };
 
       const selectedTheme = PDF_THEME_STYLES[settings.pdfTheme || 'midnight'] || PDF_THEME_STYLES.midnight;
+
+      // Helper to convert hex color to RGB string for transparent gradients
+      const hexToRgbStr = (hex: string): string => {
+        const clean = hex.replace('#', '');
+        if (clean.length === 3) {
+          const r = parseInt(clean[0] + clean[0], 16);
+          const g = parseInt(clean[1] + clean[1], 16);
+          const b = parseInt(clean[2] + clean[2], 16);
+          return `${r}, ${g}, ${b}`;
+        }
+        const r = parseInt(clean.substring(0, 2), 16) || 15;
+        const g = parseInt(clean.substring(2, 4), 16) || 23;
+        const b = parseInt(clean.substring(4, 6), 16) || 42;
+        return `${r}, ${g}, ${b}`;
+      };
+
+      const themeBgRgb = hexToRgbStr(selectedTheme.bg);
 
       container = document.createElement('div');
       container.style.position = 'absolute';
@@ -1070,7 +1350,7 @@ function StoryCreatorContent() {
       let coverHtml = `
         <div style="position: relative; height: 1122px; width: 794px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background-color: ${selectedTheme.bg}; padding: 56px 40px;">
             ${coverDataUrl ? `
-              <img src="${coverDataUrl}" style="position: absolute; inset: 0; width: 794px; height: 1122px; object-fit: cover; display: block;" />
+              <img src="${coverDataUrl}" style="position: absolute; inset: 0; width: 794px; height: 1122px; object-fit: cover; object-position: top center; display: block;" />
               <div style="position: absolute; inset: 0; background: ${selectedTheme.coverOverlay};"></div>
             ` : ''}
 
@@ -1099,7 +1379,8 @@ function StoryCreatorContent() {
         let thumbDataUrl = '';
         if (firstSegment?.imageUrl) {
           try {
-            thumbDataUrl = await processImageForPdfCanvas(firstSegment.imageUrl, 160, 160, 'cover');
+            const thumbImg = await processImageForPdfCanvas(firstSegment.imageUrl, 160, 160, 'cover');
+            thumbDataUrl = thumbImg?.dataUrl || '';
           } catch (e) {
             console.warn('TOC thumbnail generation fallback:', e);
           }
@@ -1214,21 +1495,29 @@ function StoryCreatorContent() {
         const isChapterStart = chapters.some(c => c.startIndex === i);
         const sceneIndexInChapter = (i - currentChapter.startIndex) + 1;
 
-        // Dynamic font size and image height adjustment based on paragraph length and chapter header
+        // Dynamic font size and image height adjustment based on paragraph length, chapter header, and user font size setting
+        const userFontSize = settings.fontSize || 18;
+        const fontScale = userFontSize / 18;
         const paraLength = segment.paragraph.length;
-        const fontSize = paraLength > 450 ? '16px' : paraLength > 300 ? '19px' : '22px';
-        const targetImageWidth = 698;
-        const targetImageHeight = isChapterStart 
-          ? (paraLength > 350 ? 290 : 330)
-          : (paraLength > 350 ? 350 : 390);
-        const imageMarginBottom = isChapterStart ? '16px' : '22px';
+        const baseSizePx = paraLength > 450 ? 16 : paraLength > 300 ? 18 : 20;
+        const calculatedFontSize = Math.round(baseSizePx * fontScale);
+        const fontSize = `${calculatedFontSize}px`;
+        const targetImageWidth = 794; // Full page width to touch both side edges
+        
+        // Dynamically adjust image height if larger font size is chosen so text never overflows the page
+        const heightReduction = Math.max(0, Math.round((calculatedFontSize - baseSizePx) * 14));
+        const baseImageHeight = isChapterStart 
+          ? (paraLength > 400 ? 340 : paraLength > 250 ? 380 : 420)
+          : (paraLength > 400 ? 390 : paraLength > 250 ? 440 : 490);
+        const targetImageHeight = Math.max(200, baseImageHeight - heightReduction);
+        const imageMarginBottom = isChapterStart ? '16px' : '20px';
 
-        const segmentImageDataUrl = segment.imageUrl 
-          ? await processImageForPdfCanvas(segment.imageUrl, targetImageWidth, targetImageHeight, 'cover')
-          : '';
+        const segmentImg = segment.imageUrl 
+          ? await processImageForPdfCanvas(segment.imageUrl, targetImageWidth, targetImageHeight, 'cover', selectedTheme.bg)
+          : null;
 
         let pageHtml = `
-          <div style="padding: 36px 48px; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; background: ${selectedTheme.bg}; color: ${selectedTheme.textColor}; position: relative;">
+          <div style="padding: 36px 48px; height: 1122px; width: 794px; box-sizing: border-box; display: flex; flex-direction: column; background: ${selectedTheme.bg}; color: ${selectedTheme.textColor}; position: relative; overflow: hidden;">
               <!-- Running Header -->
               <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: ${isChapterStart ? '14px' : '18px'}; border-bottom: 1px solid ${selectedTheme.dividerColor}; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.mutedColor}; text-transform: uppercase; letter-spacing: 1.5px;">
                 <span>${title}</span>
@@ -1237,24 +1526,25 @@ function StoryCreatorContent() {
 
               ${isChapterStart ? `
                 <!-- Chapter Section Hero Header -->
-                <div style="margin-bottom: 18px; padding: 14px 20px; background: ${selectedTheme.headerBg}; border: 1px solid ${selectedTheme.headerBorder}; border-radius: 14px; text-align: center;">
-                  <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 2.5px; color: ${selectedTheme.accentColor}; display: block; margin-bottom: 3px;">Section • Chapter ${currentChapter.chapterNumber}</span>
-                  <h2 style="font-family: ${pdfFontCss}; font-size: 25px; font-weight: bold; color: ${selectedTheme.titleColor}; margin: 0;">${currentChapter.title}</h2>
+                <div style="margin-bottom: 16px; padding: 12px 20px; background: ${selectedTheme.headerBg}; border: 1px solid ${selectedTheme.headerBorder}; border-radius: 12px; text-align: center;">
+                  <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2.5px; color: ${selectedTheme.accentColor}; display: block; margin-bottom: 3px;">Section • Chapter ${currentChapter.chapterNumber}</span>
+                  <h2 style="font-family: ${pdfFontCss}; font-size: 24px; font-weight: bold; color: ${selectedTheme.titleColor}; margin: 0;">${currentChapter.title}</h2>
                 </div>
               ` : ''}
 
-              ${segmentImageDataUrl ? `
-                <div style="text-align: center; margin-bottom: ${imageMarginBottom}; width: 100%; display: flex; justify-content: center;">
-                  <img src="${segmentImageDataUrl}" style="width: ${targetImageWidth}px; height: ${targetImageHeight}px; border-radius: 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); border: 1px solid ${selectedTheme.imgBorder}; display: block;" />
+              ${segmentImg && segmentImg.dataUrl ? `
+                <!-- Story Scene Image with Uniform Rounded Corners & Theme Border (No Bottom Fade) -->
+                <div style="position: relative; width: 698px; height: ${targetImageHeight}px; overflow: hidden; border-radius: 16px; border: 1px solid ${selectedTheme.imgBorder || selectedTheme.headerBorder}; margin-bottom: ${imageMarginBottom}; flex-shrink: 0; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
+                  <img src="${segmentImg.dataUrl}" style="width: 100%; height: ${targetImageHeight}px; object-fit: cover; object-position: top center; display: block; border-radius: 16px;" />
                 </div>
               ` : ''}
 
-              <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start;">
-                <p style="font-family: ${pdfFontCss}; font-size: ${fontSize}; line-height: 1.75; color: ${selectedTheme.textColor}; text-align: justify; padding: 0 6px; margin: 0;">${segment.paragraph}</p>
+              <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 0 4px;">
+                <p style="font-family: ${pdfFontCss}; font-size: ${fontSize}; line-height: 1.75; color: ${selectedTheme.textColor}; text-align: ${settings.justifyText !== false ? 'justify' : 'left'}; text-justify: inter-word; hyphens: auto; margin: 0;">${segment.paragraph}</p>
               </div>
 
               <!-- Running Footer -->
-              <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid ${selectedTheme.dividerColor}; display: flex; justify-content: space-between; align-items: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; color: ${selectedTheme.subtextColor}; font-weight: 600;">
+              <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid ${selectedTheme.dividerColor}; display: flex; justify-content: space-between; align-items: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: ${selectedTheme.subtextColor}; font-weight: 600;">
                 <span>Chapter ${currentChapter.chapterNumber}: ${currentChapter.title.replace(/^Chapter\s*\d+\s*:\s*/i, '')}</span>
                 <span style="font-weight: bold; letter-spacing: 1.5px;">- Page ${pageNumber} of ${totalPages} -</span>
               </div>
@@ -1331,19 +1621,24 @@ function StoryCreatorContent() {
         <header className="no-print w-full px-4 sm:px-6 py-3 sticky top-0 z-20 flex flex-col gap-2 bg-slate-950/75 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
           <div className="flex justify-between items-center w-full max-w-6xl mx-auto">
             <div className="text-left flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-900/80 via-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] border border-purple-400/30">
-                  <CrystalPrismIcon className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={handleResetToHome} 
+                className="flex items-center gap-2 group cursor-pointer hover:opacity-95 transition-opacity text-left bg-transparent border-0 p-0 select-none"
+                title="Novellaio Home - Start Fresh Story"
+              >
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-900/80 via-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] border border-purple-400/30 group-hover:scale-105 transition-transform">
+                  <SparklesIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-xl md:text-2xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-fuchsia-200 to-indigo-200 leading-none">
+                  <h1 className="text-xl md:text-2xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-fuchsia-200 to-indigo-200 leading-none group-hover:from-white group-hover:to-purple-200 transition-colors">
                     Novellaio
                   </h1>
                   <p className="hidden md:block text-[11px] font-medium text-purple-200/50 mt-0.5">
                     AI Interactive Story Studio
                   </p>
                 </div>
-              </div>
+              </button>
               <Link 
                 to="/library" 
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-purple-200 text-xs font-semibold transition-all duration-200 ml-2"
@@ -1534,6 +1829,8 @@ function StoryCreatorContent() {
               storyLength={settings.storyLength}
               isGenerating={isGenerating}
               fontFamilyPreference={settings.fontFamilyPreference}
+              fontSize={settings.fontSize}
+              justifyText={settings.justifyText}
               activeAudioSegmentIndex={activeAudioSegmentIndex}
               isAudioPlaying={isAudioPlaying}
               audioProgress={audioProgressRatio}
@@ -1634,6 +1931,8 @@ function StoryCreatorContent() {
           <AudioController 
             segments={segments} 
             activeSegmentIndex={activeAudioSegmentIndex}
+            autoPlayNarration={settings.autoPlayNarration ?? true}
+            isGenerating={isGenerating}
             onActiveSegmentChange={setActiveAudioSegmentIndex}
             onPlayStateChange={setIsAudioPlaying}
             onAudioProgressUpdate={handleAudioProgressUpdate}
@@ -1651,6 +1950,7 @@ function StoryCreatorContent() {
               settings={settings}
               externalPrompt={externalPrompt}
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
+              onSurpriseMe={handleSurpriseMe}
           />
         </footer>
       )}
@@ -1692,6 +1992,9 @@ function StoryCreatorContent() {
         />
       )}
 
+      {/* Floating Background Video Generation Indicator */}
+      <VideoGenerationIndicator onOpenVideoModal={() => setIsVideoModalOpen(true)} />
+
       <ChapterOutlineDrawer
         isOpen={isChapterDrawerOpen}
         onClose={() => setIsChapterDrawerOpen(false)}
@@ -1707,9 +2010,11 @@ function StoryCreatorContent() {
 
 function StoryCreator() {
   return (
-    <VfxProvider>
-      <StoryCreatorContent />
-    </VfxProvider>
+    <NovellaioEngineProvider>
+      <VfxProvider>
+        <StoryCreatorContent />
+      </VfxProvider>
+    </NovellaioEngineProvider>
   );
 }
 

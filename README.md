@@ -101,15 +101,15 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - The **VFX Aura Canvas** shifts ambient background glows and particle streams to mirror the mood.
 
 ### Step 4: Interactive Reading & Time-Travel Rewind
-- Read the illustrated segment in high-contrast typography with customizable book fonts (*Cinzel, Merriweather, Lora, Outfit, MedievalSharp, Caveat, Playfair Display*).
+- Read the illustrated segment in high-contrast typography with customizable book fonts (*Cinzel, Merriweather, Lora, Outfit, MedievalSharp, Caveat, Playfair Display*) and an interactive **Font Size Slider** (14px–28px with live preview & quick presets).
 - Listen with the floating continuous audio player or seek through individual paragraph scrubbers.
 - Use **Rebranch & Rewind** to step back to any previous chapter segment and explore alternative timelines.
 - Open the **Plot Twists Panel** for AI-suggested unexpected turns across 6 categories (*Shock Revelation, Supernatural Shift, Betrayal, Dramatic Catalyst, Cryptic Mystery, High Stakes Action*).
 
 ### Step 5: Professional Publishing & Agent Orchestration
 - **EPUB 3.0**: 1-click generation of fully compliant `.epub` books with cover art and table of contents for Apple Books, Kindle, and Kobo.
-- **Worker-Rendered PDF**: Export formatted books in 6 designer themes (*Midnight Slate, Classic Ivory, Emerald Parchment, Royal Slate, Cyberpunk, Sunset Crimson*) using background OffscreenCanvas threads.
-- **Social Video Reels Studio**: Record 9:16 vertical shorts or 16:9 widescreen videos with word-by-word karaoke-style highlighted subtitles and Ken Burns motion.
+- **Worker-Rendered PDF**: Export formatted books in 15 designer themes with full font size and typography persistence using background OffscreenCanvas threads.
+- **Social Video Reels Studio**: Record 9:16 vertical shorts or 16:9 widescreen videos with word-by-word karaoke-style highlighted subtitles, discreet top-right watermark, and Ken Burns motion.
 - **MCP Server**: Connect autonomous AI agents in Claude Desktop, Cursor, or Gemini ADK to co-author and manage stories via JSON-RPC 2.0.
 
 ---
@@ -124,22 +124,29 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - **Chapter Outline Drawer**: Visual table of contents tracking chapter titles, segment counts, reading times, and quick navigation.
 
 ### 2. 🎨 Multi-Provider Visual Art Studio
-- **15 Curated Art Styles**:
+- **Ultra-Sharp High-Fidelity Synthesis**: Enhanced prompt construction with deep scene context awareness, 8k texture clarity, raytraced volumetric lighting, and razor-sharp outlines matching the chosen style.
+- **Top-Aligned Subject Framing**: Intelligent portrait and widescreen headroom ensuring character faces, eyes, and expressions are never cut off or cropped awkwardly.
+- **20+ Curated Art Styles**:
   | Style | Visual Archetype | Best For |
   | :--- | :--- | :--- |
   | **Whimsical** | Vibrant storybook watercolors, playful lighting | Children & bedtime fables |
   | **Anime / Manga** | Makoto Shinkai aesthetic, luminous skies | Fantasy, YA, Sci-Fi |
+  | **Studio Ghibli** | Nostalgic hand-painted pastoral backgrounds | Heartfelt magic, folklore |
   | **3D Pixar / CGI** | Volumetric lighting, stylized 3D character design | Animated family adventures |
   | **Cinematic Realistic** | Photorealistic 35mm film rendering, depth of field | Mystery, thrillers, drama |
   | **Pixel Art** | 16-bit retro isometric sprite rendering | Sci-fi, comedy, retro quests |
   | **Classical Oil** | Renaissance brushwork, chiaroscuro lighting | Historical fiction & high fantasy |
   | **Claymation** | Tactile stop-motion textures, studio lighting | Whimsical, comedy, novelty |
   | **Cyberpunk** | High-contrast neon hues, rain-slicked chrome | Dystopian sci-fi, urban noir |
+  | **Ukiyo-e** | Traditional Japanese woodblock print & washi | Historical myths & samurai lore |
+  | **Stained Glass** | Luminous jewel-toned gothic leaded glass | Sacred legends, cathedral lore |
+  | **Paper Cutout** | Layered 3D tactile papercraft with depth | Bedtime, children, whimsical |
+  | **Pop Art Comic** | Ben-Day dots, bold ink lines, dynamic angles | Superhero, action graphic novels |
 - **Shimmer Skeleton Preloaders**: High-polish animated loading states while graphics are rendered.
 - **Single-Scene Regenerator**: Re-roll any individual illustration with adjusted style or prompt overrides.
 
 ### 3. 🎙️ Expressive Audio Narration & Web Audio Synth
-- **Multi-Provider TTS**: Gemini Expressive TTS, OpenAI Voice Engine (Alloy, Echo, Fable, Onyx, Nova, Shimmer), and Pollinations TTS.
+- **Multi-Provider TTS**: Google Gemini Expressive TTS (Default), OpenAI Voice Engine (Alloy, Echo, Fable, Onyx, Nova, Shimmer), and Pollinations TTS.
 - **Continuous Global Audio Player**: Floating bottom controller with playback progression, chapter skips, speed controls (0.75x–2.0x), and volume mixer.
 - **Procedural Ambient Music Engine**: Custom Web Audio oscillators generate generative drones, pad chords, and atmospheric textures matched to genre and sentiment without external audio files.
 
@@ -152,12 +159,14 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 ### 5. 📚 Automated eBook & PDF Publishing
 - **Standard EPUB 3.0 Compiler**: Pure client-side generation of valid `.epub` files ready for major eBook readers.
 - **OffscreenCanvas Web Worker PDF Export**: Multi-page rendering offloaded to dedicated web workers to eliminate UI freezing during high-res canvas composition.
-- **6 Designer PDF Themes**: *Midnight Slate*, *Classic Ivory*, *Emerald Parchment*, *Royal Slate*, *Cyberpunk*, *Sunset Crimson*.
+- **15 Designer PDF Themes**: *Midnight Slate*, *Classic Ivory*, *Emerald Parchment*, *Royal Slate*, *Cyberpunk*, *Sunset Crimson*, *Warm Amber*, *Rose Gold*, *Starlight Sapphire*, *Forest Whisper*, *Lavender Dream*, *Dark Obsidian*, *Cozy Autumn*, *Nordic Frost*, *Neon Synthwave*.
+- **Themed Borders & Refined Layout**: Story images feature delicate theme-matched rounded borders, bottom-aligned page transitions, and proportional cover page titles.
 - **Story-Titled Naming**: Automatic filename sanitization ensuring all exports match the story's actual title.
 
 ### 6. 🎬 Social Video Reels Studio & Karaoke Subtitles
 - **Multi-Aspect Ratio Canvas**: 9:16 (TikTok / Reels / Shorts), 16:9 (YouTube), 1:1 (Instagram).
-- **Karaoke Word-by-Word Subtitles**: Synchronized text highlighting matching speech cadence.
+- **Discreet Top-Right Watermark**: Elegant `✦ StorySpark AI` branding rendered in the top-right corner across video exports and real-time previews.
+- **Karaoke Word-by-Word Subtitles**: Synchronized golden active word highlighting matching speech cadence.
 - **Ken Burns Cinematic Motion**: Dynamic zoom-and-pan cameras across scene illustrations.
 - **Dual-Stem Audio Recorder**: Combines speech voiceovers and procedural ambient background music into a single recorded canvas stream.
 

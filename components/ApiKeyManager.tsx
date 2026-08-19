@@ -223,13 +223,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
     {
       id: 'pollinations',
       name: 'Pollinations.ai',
-      badge: '100% Free (No Key)',
+      badge: 'Bearer Token & Free',
       badgeColor: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
-      description: 'Free text, voice, and Flux / Nano Banana image synthesis via open API.',
-      freeTierInfo: 'Open public endpoints without mandatory API key.',
-      portalUrl: 'https://pollinations.ai',
-      keyPlaceholder: 'No API Key required (Optional)',
-      requiresKey: false,
+      description: 'Free & Pro AI text, voice, and Flux / Nano Banana / SeeDream image synthesis. Supports secret token (sk_...) or publishable token (pk_...) from enter.pollinations.ai.',
+      freeTierInfo: 'Free public tier works without any key; adding a Bearer token from enter.pollinations.ai unlocks dedicated priority GPUs, private models, and higher rate limits.',
+      portalUrl: 'https://enter.pollinations.ai',
+      keyPlaceholder: 'sk_... or pk_... (Optional Bearer Token)',
+      requiresKey: true,
     },
     {
       id: 'siliconflow',
@@ -387,16 +387,16 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
               <label className="text-xs font-semibold text-slate-200">
-                API Key for {currentProvider.name}
+                {currentProvider.id === 'pollinations' ? 'Bearer Token (Optional - Free tier works without token)' : `API Key for ${currentProvider.name}`}
               </label>
               {currentStatus.state === 'success' && (
                 <span className="flex items-center gap-1 text-xs text-emerald-400 font-bold">
-                  <CheckIcon className="w-3.5 h-3.5" /> Key Verified & Ready
+                  <CheckIcon className="w-3.5 h-3.5" /> Verified & Ready
                 </span>
               )}
               {currentStatus.state === 'error' && (
                 <span className="flex items-center gap-1 text-xs text-rose-400 font-bold">
-                  <AlertTriangleIcon className="w-3.5 h-3.5" /> Check API Key
+                  <AlertTriangleIcon className="w-3.5 h-3.5" /> Check Key/Token
                 </span>
               )}
             </div>
@@ -424,7 +424,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
               <button
                 type="button"
                 onClick={() => handleTest(activeTab)}
-                disabled={!currentKeyValue || currentStatus.state === 'testing'}
+                disabled={(activeTab !== 'pollinations' && !currentKeyValue) || currentStatus.state === 'testing'}
                 className="px-3.5 py-1.5 text-xs font-semibold text-white bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-xl transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm active:scale-95"
               >
                 {currentStatus.state === 'testing' ? (
@@ -435,7 +435,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
                 ) : (
                   <>
                     <ShieldCheck className="w-3.5 h-3.5 text-purple-300" />
-                    <span>Test & Verify Key</span>
+                    <span>{activeTab === 'pollinations' && !currentKeyValue ? 'Check Free Status' : 'Test & Verify'}</span>
                   </>
                 )}
               </button>
