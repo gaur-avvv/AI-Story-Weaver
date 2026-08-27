@@ -18,17 +18,23 @@ import {
   Zap, 
   Shield, 
   Clock, 
-  Wand2 
+  Wand2,
+  Download,
+  Headphones,
+  FileAudio,
+  Check
 } from 'lucide-react';
 import type { StorySegment } from '../types';
 import { useVfx } from '../vfx/VfxContext';
 import { vfxAudioSynth, SoundscapeType } from '../vfx/VfxAudioEffects';
+import { downloadFullStoryAudio, downloadSingleSegmentAudio, hasAvailableAudio, countAudioSegments } from '../utils/audioExporter';
 
 interface AudioControllerProps {
   segments: StorySegment[];
   activeSegmentIndex?: number;
   autoPlayNarration?: boolean;
   isGenerating?: boolean;
+  storyTitle?: string;
   onActiveSegmentChange?: (index: number) => void;
   onPlayStateChange?: (isPlaying: boolean) => void;
   onAudioProgressUpdate?: (currentTime: number, duration: number, progressRatio: number) => void;
@@ -40,6 +46,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({
   activeSegmentIndex: controlledActiveIndex,
   autoPlayNarration = true,
   isGenerating = false,
+  storyTitle = 'novella-story',
   onActiveSegmentChange,
   onPlayStateChange,
   onAudioProgressUpdate,
@@ -74,6 +81,9 @@ export const AudioController: React.FC<AudioControllerProps> = ({
   const [isDynamicAutoSelect, setIsDynamicAutoSelect] = useState<boolean>(true);
   const [showAmbiencePanel, setShowAmbiencePanel] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isExportingAudio, setIsExportingAudio] = useState(false);
+  const [isExportingSceneAudio, setIsExportingSceneAudio] = useState(false);
+  const [audioDownloadMessage, setAudioDownloadMessage] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -512,6 +522,55 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     }
   };
 
+  const handleDownloadFullStoryAudio = async () => {
+    if (!segments || segments.length === 0) return;
+    const hasAudio = hasAvailableAudio(segments);
+    if (!hasAudio) {
+      setAudioError("No generated voice narration is available to download.");
+      return;
+    }
+
+    setIsExportingAudio(true);
+    setAudioDownloadMessage("Assembling story audio tracks...");
+    try {
+      const result = await downloadFullStoryAudio(
+        segments,
+        storyTitle,
+        (pct, msg) => {
+          setAudioDownloadMessage(`${msg} (${pct}%)`);
+        }
+      );
+      if (!result.success) {
+        setAudioError(result.error || "Failed to export story audio.");
+      } else {
+        setAudioDownloadMessage("Audiobook track downloaded!");
+        setTimeout(() => setAudioDownloadMessage(null), 3000);
+      }
+    } catch (e: any) {
+      setAudioError(e.message || "Failed to download audio narration.");
+    } finally {
+      setIsExportingAudio(false);
+    }
+  };
+
+  const handleDownloadCurrentSceneAudio = async () => {
+    if (!activeSegment?.audioUrl) {
+      setAudioError("No narration audio available for the active scene.");
+      return;
+    }
+
+    setIsExportingSceneAudio(true);
+    try {
+      await downloadSingleSegmentAudio(activeSegment, activeSegmentIndex, storyTitle);
+      setAudioDownloadMessage(`Scene ${activeSegmentIndex + 1} audio downloaded!`);
+      setTimeout(() => setAudioDownloadMessage(null), 3000);
+    } catch (e: any) {
+      setAudioError(e.message || "Failed to download scene audio.");
+    } finally {
+      setIsExportingSceneAudio(false);
+    }
+  };
+
   if (!segments || segments.length === 0) return null;
   const hasAnyAudio = segments.some(s => s.audioUrl || s.isLoadingAudio);
   if (!hasAnyAudio) return null;
@@ -655,16 +714,34 @@ export const AudioController: React.FC<AudioControllerProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Minimal Status Badge */}
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
+          {/* Minimal Status Badge & Action Buttons */}
+          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
             <span className="font-mono text-[11px] text-purple-200">
               P{activeSegmentIndex + 1}/{segments.length}
             </span>
 
+            {/* Download Audio Only Quick Button */}
+            <button
+              onClick={handleDownloadFullStoryAudio}
+              disabled={isExportingAudio}
+              title="Download Full Story Audio (.wav)"
+              className={`p-1.5 rounded-full transition-colors border ${
+                isExportingAudio
+                  ? 'bg-purple-500/30 text-purple-200 border-purple-400'
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {isExportingAudio ? (
+                <div className="w-3.5 h-3.5 border-2 border-t-transparent border-purple-300 rounded-full animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+            </button>
+
             {/* Toggle Ambience Panel Button */}
             <button
               onClick={() => setShowAmbiencePanel(!showAmbiencePanel)}
-              title="Ambience Soundscape Mixer"
+              title="Ambience Soundscape & Audio Export Studio"
               className={`p-1.5 rounded-full transition-colors border ${
                 selectedAmbience !== 'off' 
                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' 
@@ -807,6 +884,71 @@ export const AudioController: React.FC<AudioControllerProps> = ({
                       onChange={(e) => setAmbienceVolume(parseFloat(e.target.value))}
                       className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-400"
                     />
+                  </div>
+                </div>
+
+                {/* Audio Export & Download Section */}
+                <div className="pt-2 border-t border-white/5 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-purple-200/80 font-medium flex items-center gap-1.5">
+                      <Headphones className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Audiobook & Narration Export</span>
+                      <span className="text-[10px] text-purple-300/60 font-mono">
+                        ({countAudioSegments(segments)}/{segments.length} voiced)
+                      </span>
+                    </span>
+                    {audioDownloadMessage && (
+                      <span className="text-[10px] font-medium text-purple-300 truncate max-w-[200px]">
+                        {audioDownloadMessage}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDownloadFullStoryAudio}
+                      disabled={isExportingAudio || !hasAvailableAudio(segments)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-[11px] font-semibold transition-all ${
+                        isExportingAudio
+                          ? 'bg-purple-600/40 text-purple-200 border-purple-400/50 cursor-wait'
+                          : !hasAvailableAudio(segments)
+                          ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed'
+                          : 'bg-purple-600/30 hover:bg-purple-600/50 text-white border-purple-500/40 hover:border-purple-400 active:scale-[0.98]'
+                      }`}
+                      title="Stitch and download full narration audiobook (.wav)"
+                    >
+                      {isExportingAudio ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-t-transparent border-purple-300 rounded-full animate-spin shrink-0" />
+                          <span>Assembling Audio...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+                          <span>Download Full Audiobook (.wav)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={handleDownloadCurrentSceneAudio}
+                      disabled={isExportingSceneAudio || !activeSegment?.audioUrl}
+                      className={`flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl border text-[11px] font-semibold transition-all shrink-0 ${
+                        isExportingSceneAudio
+                          ? 'bg-white/10 text-purple-200 border-white/20 cursor-wait'
+                          : !activeSegment?.audioUrl
+                          ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed'
+                          : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-white/20 active:scale-[0.98]'
+                      }`}
+                      title={`Download Scene ${activeSegmentIndex + 1} narration audio`}
+                    >
+                      {isExportingSceneAudio ? (
+                        <div className="w-3.5 h-3.5 border-2 border-t-transparent border-purple-300 rounded-full animate-spin" />
+                      ) : (
+                        <FileAudio className="w-3.5 h-3.5 text-purple-300" />
+                      )}
+                      <span>Scene {activeSegmentIndex + 1}</span>
+                    </button>
                   </div>
                 </div>
               </div>

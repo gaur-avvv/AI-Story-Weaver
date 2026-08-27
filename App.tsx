@@ -17,7 +17,7 @@ import { BackgroundManager } from './components/BackgroundManager';
 import { StoryLibrary } from './components/StoryLibrary';
 import { AudioController } from './components/AudioController';
 import { useToast } from './components/ToastContext';
-import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2 } from 'lucide-react';
+import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2, Headphones, Music } from 'lucide-react';
 import { extractChapters, setChapterAtSegment, removeChapterAtSegment, getChapterStats } from './utils/chapterUtils';
 import { AuthCallback } from './components/AuthCallback';
 import { VoicePromptModal } from './components/VoicePromptModal';
@@ -25,6 +25,7 @@ import { getRandomStarters, getRandomSingleStarter, StoryStarter } from './utils
 import { Shuffle, Dices, Layers } from 'lucide-react';
 import { saveStoriesSafelyWithQuotaProtection, compressAndCleanLocalStorage } from './utils/storageManager';
 import { generatePdfWithWorker, downloadBlobAsFile } from './utils/pdfGenerator';
+import { downloadFullStoryAudio, hasAvailableAudio } from './utils/audioExporter';
 import { mediaGenerationManager } from './utils/MediaGenerationManager';
 import { globalStoryGraph } from './services/storyGraphState';
 import { extractTriplesHeuristic } from './services/graphExtractor';
@@ -81,6 +82,7 @@ function StoryCreatorContent() {
   const [initialPrompt, setInitialPrompt] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isSavingPdf, setIsSavingPdf] = useState<boolean>(false);
+  const [isDownloadingAudio, setIsDownloadingAudio] = useState<boolean>(false);
   const [isTranslatingLanguage, setIsTranslatingLanguage] = useState<boolean>(false);
   const [lastSavedTimestamp, setLastSavedTimestamp] = useState<number | null>(() => {
     try {
@@ -1584,6 +1586,39 @@ function StoryCreatorContent() {
     }
   };
 
+  const handleDownloadAudioOnly = async () => {
+    if (segments.length === 0) {
+      showWarningToast('Please generate a story first before downloading audio.', 'No Story Active');
+      return;
+    }
+
+    const hasAudio = hasAvailableAudio(segments);
+    if (!hasAudio) {
+      showWarningToast('No narration audio is available yet. Voice narration might still be synthesizing or disabled in Settings.', 'Audio Not Ready');
+      return;
+    }
+
+    setIsDownloadingAudio(true);
+    try {
+      showSuccessToast('Assembling story audio narration tracks...', 'Audio Export');
+      const result = await downloadFullStoryAudio(
+        segments,
+        title || 'novella-audiobook'
+      );
+
+      if (result.success) {
+        showSuccessToast(`Audio narration track "${result.filename}" downloaded!`, 'Audio Downloaded');
+      } else {
+        showErrorToast(result.error || 'Failed to download audio narration.', 'Audio Export Failed');
+      }
+    } catch (e: any) {
+      console.error('Audio download failure:', e);
+      showErrorToast(e.message || 'Failed to download story audio narration.', 'Audio Export Error');
+    } finally {
+      setIsDownloadingAudio(false);
+    }
+  };
+
   return (
     <motion.div 
       className="min-h-screen flex flex-col items-center font-sans text-slate-100 selection:bg-purple-500/30"
@@ -1709,6 +1744,18 @@ function StoryCreatorContent() {
                       className="flex items-center justify-center w-9 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white rounded-full transition-all duration-200 active:scale-95 bg-white/5 border border-white/10"
                     >
                       <VideoIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleDownloadAudioOnly}
+                      disabled={isDownloadingAudio}
+                      title="Download Audio Only (Full Story Audiobook / Narration .wav)"
+                      className="flex items-center justify-center w-9 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white rounded-full transition-all duration-200 active:scale-95 bg-white/5 border border-white/10 relative"
+                    >
+                      {isDownloadingAudio ? (
+                        <div className="w-4 h-4 border-2 border-t-transparent border-purple-200 rounded-full animate-spin" />
+                      ) : (
+                        <Headphones className="w-4 h-4 text-purple-300" />
+                      )}
                     </button>
                     <button
                       onClick={handleSaveAsPdf}
@@ -1849,6 +1896,7 @@ function StoryCreatorContent() {
                 customBaseUrl: settings.customBaseUrl,
                 cloudflareAccountId: settings.cloudflareAccountId,
               }}
+              imageAspectRatio={settings.imageAspectRatio || '16:9'}
             />
             {!isFocusMode && !isGenerating && (!segments[segments.length - 1]?.choices || segments[segments.length - 1]?.choices?.length === 0) && (
               <div className="no-print">
@@ -1933,6 +1981,7 @@ function StoryCreatorContent() {
             activeSegmentIndex={activeAudioSegmentIndex}
             autoPlayNarration={settings.autoPlayNarration ?? true}
             isGenerating={isGenerating}
+            storyTitle={title}
             onActiveSegmentChange={setActiveAudioSegmentIndex}
             onPlayStateChange={setIsAudioPlaying}
             onAudioProgressUpdate={handleAudioProgressUpdate}

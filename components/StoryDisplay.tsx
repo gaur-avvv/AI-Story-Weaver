@@ -34,6 +34,7 @@ interface StoryDisplayProps {
   textModel?: string;
   otherApiKey?: string;
   options?: { customBaseUrl?: string; cloudflareAccountId?: string };
+  imageAspectRatio?: string;
 }
 
 export const StoryDisplay: React.FC<StoryDisplayProps> = ({ 
@@ -61,6 +62,7 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   textModel = 'gemini-2.5-flash',
   otherApiKey,
   options,
+  imageAspectRatio = '16:9',
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
   const endOfStoryRef = useRef<HTMLDivElement>(null);
@@ -166,6 +168,7 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
                 isAudioActive={isAudioPlaying && activeAudioSegmentIndex === index}
                 audioProgress={activeAudioSegmentIndex === index ? audioProgress : 0}
                 onSeekWord={(ratio) => onSeekAudioRatio?.(index, ratio)}
+                imageAspectRatio={imageAspectRatio}
               />
 
               {/* Optional inline button to start a chapter right after this segment */}

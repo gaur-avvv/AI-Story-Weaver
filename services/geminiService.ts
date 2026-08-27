@@ -114,62 +114,127 @@ const getAiClient = (apiKey?: string | null): GoogleGenAI => {
 
 export function getOpenAIProviderConfig(
   provider: string,
-  options?: { apiKey?: string; customBaseUrl?: string; cloudflareAccountId?: string }
+  options?: { apiKey?: string; customBaseUrl?: string; cloudflareAccountId?: string; localEndpoint?: string; azureOpenaiEndpoint?: string }
 ): { baseURL: string; effectiveApiKey: string } {
   let baseURL = '';
   switch (provider) {
-    case 'zai':
-      baseURL = 'https://api.z.ai/api/paas/v4';
+    case 'openai':
+      baseURL = 'https://api.openai.com/v1';
       break;
-    case 'inception':
-      baseURL = 'https://api.inceptionlabs.ai/v1';
+    case 'anthropic':
+      baseURL = options?.customBaseUrl || 'https://api.anthropic.com/v1';
       break;
-    case 'groq':
-      baseURL = 'https://api.groq.com/openai/v1';
+    case 'deepseek':
+      baseURL = 'https://api.deepseek.com/v1';
       break;
-    case 'cerebras':
-      baseURL = 'https://api.cerebras.ai/v1';
+    case 'xai':
+      baseURL = 'https://api.x.ai/v1';
       break;
     case 'mistral':
       baseURL = 'https://api.mistral.ai/v1';
       break;
-    case 'cohere':
-      baseURL = 'https://api.cohere.com/compatibility/v1';
+    case 'minimax':
+      baseURL = 'https://api.minimax.chat/v1';
       break;
-    case 'nvidia':
-      baseURL = 'https://integrate.api.nvidia.com/v1';
+    case 'kimi':
+      baseURL = 'https://api.moonshot.cn/v1';
+      break;
+    case 'alibaba':
+      baseURL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+      break;
+    case 'together':
+      baseURL = 'https://api.together.xyz/v1';
       break;
     case 'openrouter':
       baseURL = 'https://openrouter.ai/api/v1';
       break;
+    case 'huggingface':
+      baseURL = 'https://router.huggingface.co/novita/v1';
+      break;
+    case 'fireworks':
+      baseURL = 'https://api.fireworks.ai/inference/v1';
+      break;
+    case 'zai':
+    case 'z_ai':
+    case 'zhipuai':
+      baseURL = 'https://api.z.ai/api/paas/v4';
+      break;
+    case 'cohere':
+      baseURL = 'https://api.cohere.com/compatibility/v1';
+      break;
+    case 'cerebras':
+      baseURL = 'https://api.cerebras.ai/v1';
+      break;
+    case 'groq':
+      baseURL = 'https://api.groq.com/openai/v1';
+      break;
+    case 'inception':
+      baseURL = 'https://api.inceptionlabs.ai/v1';
+      break;
+    case 'nvidia':
+      baseURL = 'https://integrate.api.nvidia.com/v1';
+      break;
     case 'requesty':
       baseURL = 'https://router.requesty.ai/v1';
       break;
-    case 'huggingface':
-      baseURL = 'https://router.huggingface.co/novita/v1';
+    case 'siliconflow':
+      baseURL = 'https://api.siliconflow.cn/v1';
       break;
     case 'cloudflare': {
       const accountId = options?.cloudflareAccountId || 'your-account-id';
       baseURL = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
       break;
     }
-    case 'siliconflow':
-      baseURL = 'https://api.siliconflow.cn/v1';
+    case 'azure_openai':
+      baseURL = options?.azureOpenaiEndpoint || options?.customBaseUrl || 'https://api.openai.com/v1';
+      break;
+    case 'aws_bedrock':
+      baseURL = options?.customBaseUrl || 'https://bedrock-runtime.us-east-1.amazonaws.com';
+      break;
+    case 'llamacpp':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:8080/v1';
+      break;
+    case 'ollama':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:11434/v1';
+      break;
+    case 'lmstudio':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:1234/v1';
+      break;
+    case 'jan':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:1337/v1';
+      break;
+    case 'vllm':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:8000/v1';
+      break;
+    case 'sglang':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:30000/v1';
+      break;
+    case 'localai':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:8080/v1';
+      break;
+    case 'gpt4all':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:4891/v1';
+      break;
+    case 'local_openai_proxy':
+      baseURL = options?.localEndpoint || options?.customBaseUrl || 'http://localhost:5000/v1';
       break;
     case 'pollinations':
       baseURL = 'https://gen.pollinations.ai/v1';
       break;
-    case 'openai':
-      baseURL = 'https://api.openai.com/v1';
+    case 'webgpu':
+      baseURL = 'http://localhost:0/webgpu';
       break;
     case 'others':
     default:
-      baseURL = options?.customBaseUrl?.trim() || 'https://api.openai.com/v1';
+      baseURL = options?.customBaseUrl?.trim() || options?.localEndpoint?.trim() || 'https://api.openai.com/v1';
       break;
   }
 
   const rawKey = options?.apiKey ? options.apiKey.replace(/^Bearer\s+/i, '').trim() : '';
-  const effectiveApiKey = rawKey || (provider === 'pollinations' ? 'anonymous' : '');
+  const isLocalOrFree = [
+    'pollinations', 'llamacpp', 'ollama', 'lmstudio', 'jan', 'vllm', 'sglang', 'localai', 'gpt4all', 'local_openai_proxy', 'webgpu'
+  ].includes(provider);
+  const effectiveApiKey = rawKey || (isLocalOrFree ? 'local-or-anonymous' : '');
   return { baseURL, effectiveApiKey };
 }
 
@@ -440,7 +505,8 @@ export function buildSceneImagePrompt(
   paragraph: string,
   imageStyle: string = 'whimsical',
   genre?: string,
-  targetAudience?: string
+  targetAudience?: string,
+  aspectRatio: string = '16:9'
 ): string {
   // Clean quotes, dialogues, and formatting to distill the core visual scene
   const cleanedScene = paragraph
@@ -458,7 +524,7 @@ VISUAL SUBJECTS & NARRATIVE FOCUS: Faithfully depict the exact characters, speci
 ART STYLE: ${styleVisuals}. Strictly preserve this chosen artistic medium and visual grammar across all elements.
 GENRE & MOOD: ${genreVisuals} (${(genre || 'fantasy').toUpperCase()}).
 TARGET AUDIENCE: ${audienceVisuals}.
-COMPOSITION & FRAMING: Vertical portrait orientation, top-aligned subject framing with comfortable headroom (character faces and upper bodies clearly visible and never cropped from top), dynamic foreground, atmospheric midground, and richly detailed background depth.
+COMPOSITION & FRAMING: Framed in ${aspectRatio} aspect ratio composition, top-aligned subject framing with comfortable headroom (character faces and upper bodies clearly visible and never cropped), dynamic foreground, atmospheric midground, and richly detailed background depth.
 QUALITY & FIDELITY: 8k resolution, razor-sharp outlines, pristine micro-textures, raytraced volumetric lighting, vibrant harmonious colors, professional studio concept art standard.
 NEGATIVE PROMPT / CONSTRAINTS: blurry, out of focus, low resolution, noisy, muddy colors, deformed anatomy, extra limbs, cropped heads, distorted faces, text, words, letters, subtitles, watermarks, signatures, logos, frames, split screens.`;
 }
@@ -1239,15 +1305,49 @@ export const generateImage = async (
   model: string = 'gemini-3.1-flash-lite-image',
   provider: string = 'gemini',
   otherApiKey?: string,
-  options?: { customBaseUrl?: string; cloudflareAccountId?: string; genre?: string; targetAudience?: string; storyTitle?: string }
+  options?: { 
+    customBaseUrl?: string; 
+    cloudflareAccountId?: string; 
+    genre?: string; 
+    targetAudience?: string; 
+    storyTitle?: string;
+    aspectRatio?: string;
+  }
 ): Promise<string> => {
+  const targetRatio = options?.aspectRatio || '16:9';
   
   const fullPrompt = buildSceneImagePrompt(
     prompt,
     imageStyle,
     options?.genre,
-    options?.targetAudience
+    options?.targetAudience,
+    targetRatio
   );
+
+  // Gemini & Imagen aspect ratio mapping: "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
+  const geminiRatioMap: Record<string, '1:1' | '3:4' | '4:3' | '9:16' | '16:9'> = {
+    '16:9': '16:9',
+    '1:1': '1:1',
+    '4:3': '4:3',
+    '3:2': '4:3',
+    '9:16': '9:16',
+    '21:9': '16:9',
+  };
+  const geminiRatio = geminiRatioMap[targetRatio] || '16:9';
+
+  // Pollinations pixel dimensions mapping
+  const pollinationsDimensions: Record<string, { width: number; height: number }> = {
+    '16:9': { width: 1280, height: 720 },
+    '1:1': { width: 1024, height: 1024 },
+    '4:3': { width: 1024, height: 768 },
+    '3:2': { width: 1080, height: 720 },
+    '9:16': { width: 720, height: 1280 },
+    '21:9': { width: 1344, height: 576 },
+  };
+  const { width: pWidth, height: pHeight } = pollinationsDimensions[targetRatio] || { width: 1280, height: 720 };
+
+  // OpenAI size mapping
+  const openaiSize = targetRatio === '9:16' ? "1024x1792" : targetRatio === '1:1' ? "1024x1024" : "1792x1024";
 
   // Define resilient tier strategies
   const tryGemini = async (mdl: string): Promise<string | null> => {
@@ -1263,7 +1363,7 @@ export const generateImage = async (
             config: {
               numberOfImages: 1,
               outputMimeType: 'image/jpeg',
-              aspectRatio: '1:1',
+              aspectRatio: geminiRatio,
             },
           });
           if (response.generatedImages?.[0]?.image?.imageBytes) {
@@ -1282,7 +1382,7 @@ export const generateImage = async (
         },
         config: {
           imageConfig: {
-            aspectRatio: "1:1",
+            aspectRatio: geminiRatio,
             imageSize: "1K"
           }
         }
@@ -1327,7 +1427,7 @@ export const generateImage = async (
         model: mdl,
         prompt: fullPrompt,
         n: 1,
-        size: "1024x1024",
+        size: openaiSize as any,
       });
       const imageUrl = response.data[0]?.url || (response.data[0] as any)?.b64_json ? `data:image/png;base64,${(response.data[0] as any).b64_json}` : '';
       if (imageUrl) return imageUrl;
@@ -1342,7 +1442,7 @@ export const generateImage = async (
     const seed = Math.floor(Math.random() * 1000000);
     const rawKey = otherApiKey ? otherApiKey.replace(/^Bearer\s+/i, '').trim() : '';
     const keyParam = rawKey ? `&key=${encodeURIComponent(rawKey)}` : '';
-    return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&model=${mdl}&nologo=true${keyParam}`;
+    return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${pWidth}&height=${pHeight}&seed=${seed}&model=${mdl}&nologo=true${keyParam}`;
   };
 
   // Step 1: Attempt the user's primary selected provider & model
@@ -1955,6 +2055,71 @@ export const testProviderKey = async (
       };
     }
   }
+
+  if (provider === 'cloudflare') {
+    const accountId = options?.cloudflareAccountId?.trim();
+    const cleanKey = key ? key.replace(/^Bearer\s+/i, '').trim() : '';
+
+    if (!cleanKey) {
+      return { success: false, message: 'Cloudflare API Token cannot be empty. Create one in Cloudflare Dashboard with "Workers AI:Edit/Read" permissions.' };
+    }
+
+    if (!accountId || accountId === 'your-account-id') {
+      return {
+        success: false,
+        message: 'Cloudflare requires your 32-character Account ID. Please enter your Account ID in the field below.',
+      };
+    }
+
+    try {
+      // Step 1: Verify token status using Cloudflare standard token verification
+      const verifyRes = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
+        headers: {
+          'Authorization': `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (verifyRes.status === 401 || verifyRes.status === 403) {
+        return {
+          success: false,
+          message: 'Invalid Cloudflare API Token. Please check token permissions in Cloudflare Dashboard.',
+        };
+      }
+
+      // Step 2: Test Cloudflare Workers AI execution
+      const { baseURL, effectiveApiKey } = getOpenAIProviderConfig('cloudflare', {
+        apiKey: cleanKey,
+        cloudflareAccountId: accountId,
+      });
+      const openai = getOpenAIClient(effectiveApiKey, baseURL);
+
+      await openai.chat.completions.create({
+        model: '@cf/meta/llama-3.1-8b-instruct',
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 2,
+      });
+
+      return { success: true, message: 'Success! Cloudflare Workers AI is verified and ready.' };
+    } catch (err: any) {
+      console.warn('Cloudflare test key issue:', err);
+      const msg = err?.message || String(err);
+      if (msg.includes('401')) {
+        return { success: false, message: 'Cloudflare 401 Unauthorized: Invalid API Token.' };
+      } else if (msg.includes('403')) {
+        return { success: false, message: 'Cloudflare 403 Forbidden: Ensure token has "Workers AI" permissions for Account ID: ' + accountId };
+      } else if (msg.includes('404')) {
+        return { success: false, message: 'Cloudflare 404: Account ID not found. Verify your 32-character Account ID.' };
+      } else if (msg.includes('429')) {
+        return { success: false, message: 'Cloudflare 429: Daily free neuron quota reached.' };
+      }
+      return {
+        success: false,
+        message: `Cloudflare connection error: ${msg}. Verify your 32-char Account ID and API Token permissions.`,
+      };
+    }
+  }
+
   if (!key) return { success: false, message: 'API Key cannot be empty.' };
 
   if (provider === 'gemini') {
@@ -1976,14 +2141,23 @@ export const testProviderKey = async (
     else if (provider === 'cerebras') testModel = 'llama3.1-8b';
     else if (provider === 'mistral') testModel = 'mistral-small-latest';
     else if (provider === 'cohere') testModel = 'command-r-08-2024';
-    else if (provider === 'nvidia') testModel = 'meta/llama-3.3-70b-instruct';
+    else if (provider === 'nvidia') testModel = 'meta/llama-3.1-8b-instruct';
     else if (provider === 'openrouter') testModel = 'meta-llama/llama-3.2-3b-instruct:free';
     else if (provider === 'requesty') testModel = 'meta-llama/llama-3.3-70b';
-    else if (provider === 'zai') testModel = 'glm-4-flash';
+    else if (provider === 'zai' || provider === 'z_ai' || provider === 'zhipuai') testModel = 'glm-4-flash';
     else if (provider === 'siliconflow') testModel = 'Qwen/Qwen2.5-7B-Instruct';
     else if (provider === 'huggingface') testModel = 'meta-llama/Llama-3.3-70B-Instruct';
-    else if (provider === 'cloudflare') testModel = '@cf/meta/llama-3.3-70b-instruct';
     else if (provider === 'openai') testModel = 'gpt-4o-mini';
+    else if (provider === 'anthropic') testModel = 'claude-3-haiku-20240307';
+    else if (provider === 'deepseek') testModel = 'deepseek-chat';
+    else if (provider === 'xai') testModel = 'grok-beta';
+    else if (provider === 'together') testModel = 'meta-llama/Llama-3.3-70B-Instruct-Turbo';
+    else if (provider === 'fireworks') testModel = 'accounts/fireworks/models/llama-v3p3-70b-instruct';
+    else if (provider === 'minimax') testModel = 'abab6.5s';
+    else if (provider === 'kimi') testModel = 'moonshot-v1-8k';
+    else if (provider === 'alibaba') testModel = 'qwen-turbo';
+    else if (['llamacpp', 'ollama', 'lmstudio', 'jan', 'vllm', 'sglang', 'localai', 'gpt4all', 'local_openai_proxy'].includes(provider)) testModel = '(loaded model)';
+    else if (provider === 'webgpu') return { success: true, message: 'WebGPU runtime is ready in your browser!' };
 
     await openai.chat.completions.create({
       model: testModel,

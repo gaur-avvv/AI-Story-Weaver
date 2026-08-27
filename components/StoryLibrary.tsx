@@ -6,7 +6,8 @@ import { BookText, PlayIcon } from './icons';
 import { 
   ArrowLeft, Sparkles, Trash2, Search, Calendar, BookOpen, Layers, 
   Cloud, CloudOff, CheckSquare, Square, Download, RefreshCw, AlertCircle,
-  ArrowUpDown, ArrowUp, ArrowDown, X, Clock, ArrowDownAZ, ArrowUpAZ, Filter
+  ArrowUpDown, ArrowUp, ArrowDown, X, Clock, ArrowDownAZ, ArrowUpAZ, Filter,
+  Headphones
 } from 'lucide-react';
 import { 
   loadStories, 
@@ -17,6 +18,7 @@ import {
   isCloudSyncEnabled,
   type StorageHealth 
 } from '../services/storageService';
+import { downloadFullStoryAudio, hasAvailableAudio } from '../utils/audioExporter';
 
 type SortOption = 'recent' | 'alphabetical';
 type SortDirection = 'asc' | 'desc';
@@ -29,6 +31,7 @@ export const StoryLibrary: React.FC = () => {
   const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingAudioStoryId, setDownloadingAudioStoryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id?: string; title?: string; isBatch?: boolean; count?: number } | null>(null);
   const navigate = useNavigate();
@@ -106,6 +109,19 @@ export const StoryLibrary: React.FC = () => {
       else next.add(id);
       return next;
     });
+  };
+
+  const handleDownloadAudioFromLibrary = async (story: SavedStory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!hasAvailableAudio(story.segments)) return;
+    setDownloadingAudioStoryId(story.id);
+    try {
+      await downloadFullStoryAudio(story.segments, story.title || 'novella-audiobook');
+    } catch (err) {
+      console.error('Failed to download audio from library:', err);
+    } finally {
+      setDownloadingAudioStoryId(null);
+    }
   };
 
   const filteredAndSortedStories = useMemo(() => {
@@ -463,6 +479,18 @@ export const StoryLibrary: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Story Cover Image or First Scene Image */}
+                      {(story.coverImageUrl || story.segments[0]?.imageUrl) && (
+                        <div className="relative w-full h-36 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 my-2">
+                          <img 
+                            src={story.coverImageUrl || story.segments[0]?.imageUrl} 
+                            alt={story.title || "Story scene"} 
+                            className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+
                       <div>
                         <h3 className="text-base font-bold font-display text-white group-hover:text-purple-200 transition-colors line-clamp-2">
                           {story.title || "Untitled Adventure"}
@@ -474,14 +502,33 @@ export const StoryLibrary: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/10">
-                      <button 
-                        type="button"
-                        onClick={(e) => openDeleteSingleModal(story, e)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors active:scale-95"
-                        title="Delete Story"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          type="button"
+                          onClick={(e) => openDeleteSingleModal(story, e)}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors active:scale-95"
+                          title="Delete Story"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {hasAvailableAudio(story.segments) && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDownloadAudioFromLibrary(story, e)}
+                            disabled={downloadingAudioStoryId === story.id}
+                            className="p-1.5 text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/20 rounded-lg transition-colors active:scale-95 flex items-center gap-1 text-[11px]"
+                            title="Download Audio Only (.wav narration)"
+                          >
+                            {downloadingAudioStoryId === story.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-300" />
+                            ) : (
+                              <Headphones className="w-3.5 h-3.5" />
+                            )}
+                            <span className="hidden sm:inline">Audio</span>
+                          </button>
+                        )}
+                      </div>
 
                       <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 group-hover:text-purple-100 transition-colors">
                         <span>Read Story</span>

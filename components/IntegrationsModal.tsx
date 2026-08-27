@@ -27,12 +27,15 @@ import {
   DollarSign,
   Film,
   PlusCircle,
-  Wand2
+  Wand2,
+  Headphones,
+  Music
 } from 'lucide-react';
 import { useToast } from './ToastContext';
 import type { StorySegment, Settings } from '../types';
 import { generateEpubBlob, downloadBlobAsFile } from '../utils/epubGenerator';
 import { generatePdfWithWorker } from '../utils/pdfGenerator';
+import { downloadFullStoryAudio, hasAvailableAudio, countAudioSegments } from '../utils/audioExporter';
 
 interface IntegrationsModalProps {
   isOpen: boolean;
@@ -122,6 +125,8 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   const [isGeneratingEpub, setIsGeneratingEpub] = useState<boolean>(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [pdfProgressMsg, setPdfProgressMsg] = useState<string>('');
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
+  const [audioProgressMsg, setAudioProgressMsg] = useState<string>('');
 
   // Video Settings
   const [videoAspectRatio, setVideoAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
@@ -569,6 +574,42 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     } finally {
       setIsGeneratingPdf(false);
       setPdfProgressMsg('');
+    }
+  };
+
+  // Download Stitched Full Story Audio Narration / Audiobook Track
+  const handleDownloadAudio = async () => {
+    if (segments.length === 0) {
+      showWarningToast('Please generate story chapters before exporting audio.');
+      return;
+    }
+
+    if (!hasAvailableAudio(segments)) {
+      showWarningToast('No narration voice tracks are available yet. Generate narration first or check speech settings.');
+      return;
+    }
+
+    setIsGeneratingAudio(true);
+    setAudioProgressMsg('Assembling and stitching audio narration tracks...');
+    try {
+      const result = await downloadFullStoryAudio(
+        segments,
+        title || 'novellaio_audiobook',
+        (prog, msg) => {
+          setAudioProgressMsg(`${msg} (${prog}%)`);
+        }
+      );
+
+      if (result.success) {
+        showSuccessToast(`Audio narration track "${result.filename}" downloaded!`);
+      } else {
+        showErrorToast(result.error || 'Failed to generate audio track.');
+      }
+    } catch (e: any) {
+      showErrorToast(`Failed to export audio: ${e.message}`);
+    } finally {
+      setIsGeneratingAudio(false);
+      setAudioProgressMsg('');
     }
   };
 
@@ -1300,13 +1341,13 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   {/* EPUB Generator */}
                   <div className="p-6 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between space-y-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <BookOpen className="w-5 h-5 text-purple-400" />
-                        <h4 className="font-bold text-white text-base">Compile EPUB 3.0 Storybook</h4>
+                        <h4 className="font-bold text-white text-base">Compile EPUB 3.0</h4>
                       </div>
                       <p className="text-xs text-slate-300/80 mb-3">
                         Compiles an industry-standard `.epub` file containing XHTML chapter structures, table of contents, embedded stylesheet, and cover illustration.
@@ -1339,7 +1380,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       ) : (
                         <DownloadIcon className="w-4 h-4" />
                       )}
-                      <span>Download .EPUB Storybook</span>
+                      <span>Download .EPUB</span>
                     </button>
                   </div>
 
@@ -1375,7 +1416,43 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       ) : (
                         <DownloadIcon className="w-4 h-4" />
                       )}
-                      <span>{isGeneratingPdf ? 'Exporting PDF...' : 'Download .PDF Storybook'}</span>
+                      <span>{isGeneratingPdf ? 'Exporting PDF...' : 'Download .PDF'}</span>
+                    </button>
+                  </div>
+
+                  {/* Audio Narration & Audiobook Only Export */}
+                  <div className="p-6 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Headphones className="w-5 h-5 text-indigo-400" />
+                        <h4 className="font-bold text-white text-base">Download Audio Only</h4>
+                      </div>
+                      <p className="text-xs text-slate-300/80 mb-3">
+                        Stitches all story scenes into a seamless single audio narration track (.wav) with chapter pauses, ready for audiobooks & podcasts.
+                      </p>
+
+                      <div className="space-y-2 mb-3">
+                        <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs font-mono text-indigo-300">
+                          {isGeneratingAudio ? audioProgressMsg : `Status: ${countAudioSegments(segments)}/${segments.length} Scenes Voiced`}
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                          <span>Format: <strong className="text-indigo-400">16-bit PCM WAV</strong></span>
+                          <span>Sample: <strong className="text-emerald-400">24kHz Stereo</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleDownloadAudio}
+                      disabled={isGeneratingAudio || !hasAvailableAudio(segments)}
+                      className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                    >
+                      {isGeneratingAudio ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <DownloadIcon className="w-4 h-4" />
+                      )}
+                      <span>{isGeneratingAudio ? 'Stitching Audio...' : 'Download Full Audio (.wav)'}</span>
                     </button>
                   </div>
 
@@ -1384,7 +1461,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <DollarSign className="w-5 h-5 text-emerald-400" />
-                        <h4 className="font-bold text-white text-base">Marketplace Listing & Pricing</h4>
+                        <h4 className="font-bold text-white text-base">Marketplace Listing</h4>
                       </div>
                       <p className="text-xs text-slate-300/80 mb-3">
                         Auto-generated tags, BISAC categories, and sales descriptions optimized for Amazon Kindle Direct Publishing & Gumroad.
@@ -1392,8 +1469,8 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
                       <div className="space-y-2 text-xs text-slate-300/90 font-mono bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                         <div>• Category: Fiction / {currentGenre.toUpperCase()}</div>
-                        <div>• Target Retail: ${ebookPrice} USD (70% Royalty: ${(ebookPrice * 0.70).toFixed(2)})</div>
-                        <div>• Keywords: interactive fiction, illustrated story, {currentGenre}, {currentAudience}</div>
+                        <div>• Target Retail: ${ebookPrice} USD (70%: ${(ebookPrice * 0.70).toFixed(2)})</div>
+                        <div>• Keywords: interactive, audio, {currentGenre}</div>
                       </div>
                     </div>
 
@@ -1405,7 +1482,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all flex items-center justify-center gap-2 border border-slate-700"
                     >
                       <Copy className="w-4 h-4 text-purple-400" />
-                      <span>Copy Amazon & Gumroad Listing Copy</span>
+                      <span>Copy Listing Copy</span>
                     </button>
                   </div>
                 </div>

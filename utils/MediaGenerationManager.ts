@@ -216,6 +216,7 @@ class MediaGenerationManagerClass {
             cloudflareAccountId: settings.cloudflareAccountId,
             genre: settings.genre,
             targetAudience: settings.targetAudience,
+            aspectRatio: settings.imageAspectRatio || '16:9',
           }
         );
 
@@ -225,16 +226,27 @@ class MediaGenerationManagerClass {
         
         if (attempt === maxAttempts) {
           // Final safety fallback: Direct zero-cost deterministic Pollinations URL with full scene prompt
+          const targetRatio = settings.imageAspectRatio || '16:9';
           const fullScenePrompt = buildSceneImagePrompt(
             paragraph,
             settings.imageStyle,
             settings.genre,
-            settings.targetAudience
+            settings.targetAudience,
+            targetRatio
           );
+          const pollinationsDimensions: Record<string, { width: number; height: number }> = {
+            '16:9': { width: 1280, height: 720 },
+            '1:1': { width: 1024, height: 1024 },
+            '4:3': { width: 1024, height: 768 },
+            '3:2': { width: 1080, height: 720 },
+            '9:16': { width: 720, height: 1280 },
+            '21:9': { width: 1344, height: 576 },
+          };
+          const { width: pWidth, height: pHeight } = pollinationsDimensions[targetRatio] || { width: 1280, height: 720 };
           const seed = Math.floor(Math.random() * 1000000);
           const rawKey = settings.pollinationsApiKey ? settings.pollinationsApiKey.replace(/^Bearer\s+/i, '').trim() : '';
           const keyParam = rawKey ? `&key=${encodeURIComponent(rawKey)}` : '';
-          return `https://image.pollinations.ai/prompt/${encodeURIComponent(fullScenePrompt)}?width=1024&height=1024&seed=${seed}&model=nanobanana-2-lite&nologo=true${keyParam}`;
+          return `https://image.pollinations.ai/prompt/${encodeURIComponent(fullScenePrompt)}?width=${pWidth}&height=${pHeight}&seed=${seed}&model=nanobanana-2-lite&nologo=true${keyParam}`;
         }
       }
     }

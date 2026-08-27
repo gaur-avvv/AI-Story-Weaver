@@ -329,35 +329,270 @@ curl -X POST http://localhost:3000/api/mcp \
 
 ---
 
-## 🛠️ Supported AI Providers & Models
+## 🛠️ Supported AI Providers & Models (100+ Global Providers)
 
-Novellaio features a decoupled, multi-provider engine allowing users to mix and match LLMs, image synthesis engines, and audio providers:
+Novellaio features a universal, decoupled multi-provider architecture supporting **over 100+ AI providers** across cloud models, high-throughput inference routers, local runtimes, and WebGPU in-browser models:
 
-### Text & Storytelling LLMs
-- **Google Gemini**: Gemini 2.5 Flash, Gemini 2.5 Pro, Gemini 2.0 Flash
-- **Puter.js**: Free tier zero-configuration cloud LLM
-- **Groq**: Llama 3.3 70B Versatile, Mixtral 8x7B
-- **OpenAI**: GPT-4o, GPT-4o-mini, o3-mini
-- **Mistral AI**: Mistral Large, Mistral Small, Codestral
-- **Cohere**: Command R+, Command R
-- **Cerebras**: Ultra-fast Llama 3.1 8B / 70B
-- **SiliconFlow & Cloudflare Workers AI**: DeepSeek, Qwen, Llama series
-- **OpenRouter & Hugging Face**: Access to 100+ open-source foundation models
-- **Custom Base URL**: Any OpenAI-compatible REST API endpoint
+### ⭐ Recommended & Cloud LLMs
+- **Google AI Studio (Gemini - Default)**: Gemini 2.5 Flash, Gemini 2.5 Pro, Gemini 3.1 Flash Preview, Gemini 2.0 Flash
+- **OpenAI**: GPT-5.6 Terra, GPT-4o, GPT-4o-mini, o3-mini, o1
+- **Anthropic**: Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku
+- **DeepSeek**: DeepSeek V3, DeepSeek R1 Reasoning
+- **xAI**: Grok 2, Grok Beta
+- **Mistral AI**: Mistral Large 3, Mistral Small, Codestral
+- **MiniMax**: MiniMax-Text-01, ABAB-6.5s
+- **Moonshot Kimi**: Moonshot V1 8K / 32K / 128K
+- **Alibaba Qwen**: Qwen 2.5 72B / 32B / 7B Instruct
+- **Z.AI / Zhipu**: GLM-4-Flash (Free tier), GLM-4-Plus
+- **Cohere**: Command R+, Command R, Aya Expanse
+- **Inception AI**: Mercury 2 (100M free tokens tier)
+- **Azure OpenAI & AWS Bedrock**: Custom enterprise deployments
 
-### Image Art Generators
-- **Google Gemini**: Imagen 3 / Imagen 3 Fast
-- **Pollinations.ai**: FLUX.1, SDXL (zero API key required)
-- **SiliconFlow**: FLUX.1-schnell, FLUX.1-dev, SDXL
-- **Hugging Face Inference API**: Stable Diffusion 3.5, FLUX
-- **OpenAI**: DALL-E 3
-- **Cloudflare Workers AI**: @cf/black-forest-labs/flux-1-schnell
+### 🚀 High-Throughput Inference Routers
+- **Groq Cloud**: Llama 3.3 70B Versatile, Llama 3.1 8B, Mixtral 8x7B (1K RPD Free)
+- **Cerebras Cloud**: Ultra-fast Llama 3.1 8B / 70B (1,800 tok/s Free)
+- **NVIDIA NIM**: Llama 3.3 70B, Nemotron 70B (40 RPM / 1K Credits Free)
+- **Together AI**: Llama 3.3 70B Turbo, Qwen 2.5 72B
+- **OpenRouter**: Access to 300+ foundation models with `:free` models tier
+- **Hugging Face**: Serverless Inference API (Llama, Mistral, Gemma 2)
+- **Fireworks AI**: Llama 3.3 70B, FireFunction
+- **Cloudflare Workers AI**: Llama 3.3 70B, Qwen 2.5 (10,000 Neurons/Day Free)
+- **SiliconFlow**: DeepSeek V3, Qwen 2.5, Llama 3.3 Free Tier
+- **Requesty AI**: OpenRouter-compatible unified router (200 RPD Free)
 
-### Voice Narration & Audio
-- **Google Gemini**: Native expressive Text-to-Speech
+### 💻 Local LLMs & WebGPU
+- **Llama.cpp**: Direct local GGUF model execution (`http://localhost:8080/v1`)
+- **Ollama**: Local models (`llama3.3`, `mistral`, `deepseek-r1`) at `http://localhost:11434/v1`
+- **LM Studio**: Multi-model local server at `http://localhost:1234/v1`
+- **Jan AI**: Open-source local assistant runtime at `http://localhost:1337/v1`
+- **vLLM & SGLang**: High-concurrency local inference servers
+- **LocalAI & GPT4All**: Self-hosted OpenAI-compatible local endpoints
+- **Local OpenAI Proxy**: Generic proxy router for custom microservices
+- **WebGPU (Chromium)**: Pure in-browser client-side execution (LFM2.5 2.6B / Bonsai 27B)
+
+### 🌐 Extended Provider Catalog (77+ Direct Integrations)
+Full support for Ai21, Aleph Alpha, Anyscale, Baichuan, Baseten, Baidu Ernie, ByteDance Doubao, CentML, Cohere Platform, DeepInfra, Decart, Databricks, DeepBrain, Fireworks, Friendli, GMI Cloud, Hyperbolic, Lepton AI, MonsterAPI, Moonshot, Modal, Nebius, Novita AI, OctoAI, Perplexity, Replicate, RunPod, Sambanova, Scaleway, StepFun, Tencent Hunyuan, Together, Upstage, Voyage AI, WatsonX, XetHub, Yi (01.AI), and custom base endpoints.
+
+### 🎨 Image Generation & Visual Template Engine Matrix
+
+Novellaio integrates with both generative diffusion models and automated visual template APIs, allowing users to choose the optimal balance of speed, price, and synchronization:
+
+| Provider | Best For | Starting Price | Free Tier | API Type | Regions |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Google AI Studio (Gemini / Imagen 4)** | Ultra-high photorealism & scene awareness | Usage Based | 15 RPM Free Tier | Sync REST / SDK | Global |
+| **Pollinations.ai (Flux / Nano Banana)** | Instant scene generation with 0 configuration | $0 (Free) | 100% Free Unlimited | Sync REST | Global CDN |
+| **Puter.js AI Image** | Zero-key client-side Flux generation | $0 (Free) | 100% Free | In-Browser JS | Global |
+| **Imejis.io** | Template-based generation | $14.99/mo | 100/mo | Sync | 4 |
+| **Bannerbear** | Video + image workflows | $49/mo | 30 trial | Async | 1 |
+| **Placid** | No-code marketing | $19/mo | Trial only | Async | 1 |
+| **Creatomate** | Video-first teams | $54/mo | 50 trial | Async | 1 |
+| **Cloudinary** | Image CDN + transforms | $99/mo | 25 credits | URL-based | Global CDN |
+| **DynaPictures** | Speed | $29/mo | 30 trial | Sync | 1 |
+| **APITemplate.io** | PDF + image generation | $14/mo | 50/mo | Sync/Async | 2 |
+| **RenderForm** | Budget teams | $9/mo | 50/mo | Sync | 1 |
+| **Templated.io** | Automations | $29/mo | 50/mo | Async | 1 |
+| **HTML/CSS to Image** | Custom designs | $19/mo | 50 trial | Sync | Global CDN |
+| **Pictify** | Developer APIs | $19/mo | 50/mo | Sync | 3 |
+| **OKZest** | Email personalization | $15/mo | 250/mo | URL-based | Global CDN |
+| **Switchboard Canvas** | High-volume teams | $99/mo | 100 trial | Sync/Async | 2 |
+| **Robolly** | Multi-format generation | $29/mo | Trial only | Sync | 1 |
+| **Abyssale** | Enterprise compliance | $289/mo | Trial only | Async | 2 |
+| **Cloudflare Workers AI** | Serverless Edge Flux.1 Schnell | Usage Based | 10k Neurons/Day Free | Edge REST | 300+ Edge POPS |
+| **Hugging Face Inference** | Open-source community models | Usage Based | Free Serverless Tier | REST API | Global |
+| **SiliconFlow** | High-speed Flux.1 & SDXL | Usage Based | 20M Free Tokens Tier | Sync REST | Asia / Global |
+| **Z.AI / Zhipu (CogView-3)** | Cost-effective illustrations | Usage Based | Free Tier Tokens | Sync REST | Asia / Global |
+| **OpenAI (DALL-E 3)** | High-fidelity conceptual artwork | $0.040/img | Pay-as-you-go | Sync REST | Global |
+
+---
+
+## 🔬 Core Technologies & Technical Deep Dives
+
+### 1. ⚙️ Web Workers Architecture: Non-Blocking Multithreading
+
+#### What Web Workers Do & Why They Are Critical
+In modern single-page applications, intensive operations—such as compiling 50-page graphic-heavy PDF storybooks, formatting EPUB ZIP packages, generating word-by-word subtitle alignments, and rendering high-resolution canvas frames—can easily monopolize the browser's single **Main Thread**. When the main thread is blocked, UI frame rates drop below 60fps, resulting in jittery animations, frozen buttons, and unresponsive scroll interactions.
+
+Novellaio offloads heavy computational workloads into dedicated background **Web Workers** running in isolated operating system threads.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           BROWSER MAIN THREAD                           │
+│  • React 19 Virtual DOM Reconciliation  • 60 FPS Framer Motion VFX     │
+│  • Audio Player State & User Controls   • Real-Time Typography Layout  │
+└────────────────┬───────────────────────────────────────▲────────────────┘
+                 │ postMessage({ action, payload })      │ onmessage({ data })
+                 ▼                                       │
+┌────────────────────────────────────────────────────────┴────────────────┐
+│                     BACKGROUND DEDICATED WEB WORKERS                    │
+│  ┌───────────────────────────┐         ┌─────────────────────────────┐  │
+│  │     PDF Export Worker     │         │     Video Canvas Worker     │  │
+│  │ • OffscreenCanvas Render  │         │ • Subtitle Timestamp Slicing│  │
+│  │ • Vector Font Embedding   │         │ • Image Interpolation/Filter│  │
+│  │ • Multi-Theme Layout Math │         │ • Dual-Stem Audio Splice    │  │
+│  └───────────────────────────┘         └─────────────────────────────┘  │
+│  ┌───────────────────────────┐         ┌─────────────────────────────┐  │
+│  │    EPUB 3 Compiler Worker │         │   Semantic NLP Token Worker │  │
+│  │ • XML DOM Builder (OPF)   │         │ • Triplet Extraction Matrix │  │
+│  │ • Deflate Compression     │         │ • Flesch-Kincaid Metric Math│  │
+│  └───────────────────────────┘         └─────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### How Web Workers Work in Novellaio
+1. **Message-Passing Concurrency (`postMessage` & `Transferable Objects`)**:
+   - The main React application dispatches structured messages containing story segments, font definitions, and visual assets to the worker instance.
+   - Heavy binary arrays (e.g. `ArrayBuffer` for raw image buffers and audio PCM chunks) are transferred using zero-copy **Transferable Objects**, avoiding memory duplication overhead.
+2. **OffscreenCanvas Background Rendering**:
+   - Rather than rendering hidden DOM nodes on the main thread, the worker utilizes the `OffscreenCanvas` API to composite pages, draw theme borders, format drop caps, and calculate line wraps in pure headless memory.
+3. **Graceful Worker Lifecycle & Termination**:
+   - Workers are instantiated on-demand, execute their batch task with progress callbacks streamed back to the UI progress bar, and automatically terminate when idle to free browser memory.
+
+---
+
+### 2. 🧠 Dynamic Lore Knowledge Graph: Memory & Continuity Engine
+
+#### What the Knowledge Graph Does
+One of the most pervasive weaknesses of generative AI in extended storytelling is **contextual amnesia** (e.g., forgetting a character's magical sword in chapter 8, changing a protagonist's eye color in chapter 12, or resurrecting a fallen ally). 
+
+Novellaio solves this through a dedicated, client-persisted **Semantic Lore Knowledge Graph**.
+
+```
+                ┌──────────────────────────────┐
+                │  Chapter Narrative Segment   │
+                └──────────────┬───────────────┘
+                               │
+                               ▼
+                ┌──────────────────────────────┐
+                │ NLP Entity & Relation Parser │
+                │ (Characters, Places, Items)  │
+                └──────────────┬───────────────┘
+                               │
+            ┌──────────────────┴──────────────────┐
+            ▼                                     ▼
+┌───────────────────────┐             ┌───────────────────────┐
+│     Entity Nodes      │             │    Semantic Edges     │
+│ • Elena (Heroine)     │ ──────────► │ guards, owns, travels │
+│ • Astral Relic (Item) │ ◄────────── │ ally_of, located_at   │
+│ • Silverkeep (Place)  │             └───────────────────────┘
+└───────────┬───────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Continuity Context Injector                 │
+│ Automatically prepends active lore state into LLM prompt    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### How the Knowledge Graph Works
+1. **Entity-Relation Triple Extraction**:
+   - Each newly generated segment is parsed to identify named entities classified into 5 core types:
+     - `Character` (e.g., *Elena*, *Archmage Theresa*, *The Clockwork Dragon*)
+     - `Location` (e.g., *Silverkeep Citadel*, *Crystal Caverns*, *Whispering Bog*)
+     - `Item / Artifact` (e.g., *Starlight Amulet*, *Ancient Tome*, *Vibranium Shield*)
+     - `Faction / Group` (e.g., *Guild of Shadows*, *Solar Knights*)
+     - `Plot Event` (e.g., *The Great Cataclysm*, *Battle of High Peak*)
+2. **Graph Relational Triples**:
+   - Connections are stored as directed semantic triples: `[Subject] --[Predicate]--> [Object]`, with properties such as `confidence`, `firstMentionedChapter`, and `lastActiveChapter`.
+3. **Dynamic Prompt Lore Injection**:
+   - When generating Chapter $N+1$, the engine runs a graph traversal query to extract entities active in the current scene and injects a condensed, structured lore block into the LLM's system instructions. This ensures strict continuity adherence across 30+ chapter arcs.
+
+---
+
+### 3. 📊 Semantic Analysis & Narrative Pacing Engine
+
+#### What Semantic Analysis Does
+Novellaio continuously evaluates generated text to provide quantitative narrative metrics, emotional trajectory curves, and pacing feedback:
+
+- **Emotional Sentiment Polarity (-1.0 to +1.0)**: Measures whether a scene is triumphant (+0.8), melancholic (-0.6), or tense/neutral (0.0).
+- **Tension & Conflict Density (0% to 100%)**: Detects narrative stakes, pacing velocity, and climax proximity.
+- **Flesch-Kincaid Readability & Lexile Scoring**: Verifies that vocabulary, sentence complexity, and syllable count strictly match the configured audience (*Children*, *Teen*, *Adult*).
+
+```
+ Narrative Tension (%)
+  100 │                                            ╭── High Stakes Climax (Ch 12)
+   80 │                           ╭─ Tension Spike │
+   60 │                  ╭────────╯ (Ch 7)         │
+   40 │     ╭────────────╯                         ╰── Cathartic Resolution (Ch 14)
+   20 │ ────╯ Story Incipit (Ch 1)
+    0 └──────────────────────────────────────────────────────────► Chapters
+```
+
+#### How the Semantic Engine Works
+1. **Lexical & Syntactic Tokenization**:
+   - Calculates average sentence length, syllable distribution, and passive vs. active voice ratios.
+2. **Sentiment Lexicon & Context Window Scoring**:
+   - Maps descriptive adjectives and verb valences across an emotional taxonomy (*Joy, Fear, Wonder, Sorrow, Suspense, Fury*).
+3. **Adaptive Audio & VFX Feedback**:
+   - The computed sentiment and tension scores are fed in real-time to the **Web Audio Synthesizer** (to modulate harmonic drone pitches) and the **Particle Canvas** (to morph ambient aura color frequencies from warm amber to ominous violet).
+
+---
+
+### 4. 🤖 Model Context Protocol (MCP 2024-11-05) Autonomous Agent Architecture
+
+#### What MCP Is & What It Enables
+The **Model Context Protocol (MCP)** is an open standard created by Anthropic that allows external AI assistants (e.g., **Claude Desktop**, **Cursor IDE**, **Gemini ADK Agent**) to securely discover, inspect, and invoke local application tools via standard JSON-RPC 2.0 over HTTP or stdio.
+
+Novellaio acts as a complete **MCP Host Server** (`/api/mcp`), enabling autonomous AI agents to act as intelligent co-authors, story directors, and publishing automators.
+
+```
+┌────────────────────────────────────────┐
+│     Autonomous AI Agent (Client)       │
+│  (Claude Desktop / Cursor / Gemini)    │
+└───────────────────┬────────────────────┘
+                    │ 1. POST /api/mcp (method: "tools/list")
+                    ▼
+┌────────────────────────────────────────┐
+│        Novellaio MCP Server            │
+│ Returns schemas for 7 creative tools   │
+└───────────────────┬────────────────────┘
+                    │ 2. Agent decides to invoke: "generate_story_chapter"
+                    │    POST /api/mcp (method: "tools/call", arguments: {...})
+                    ▼
+┌────────────────────────────────────────┐
+│    Novellaio Core Story Pipeline       │
+│ Executes generation, extracts lore,    │
+│ updates state, synthesizes artwork     │
+└───────────────────┬────────────────────┘
+                    │ 3. Returns JSON-RPC Result:
+                    │    { content: [{ type: "text", text: JSON_STRING }] }
+                    ▼
+┌────────────────────────────────────────┐
+│ Agent reads result & presents to user  │
+└────────────────────────────────────────┘
+```
+
+#### How MCP Works in Novellaio
+1. **Bidirectional Tool Discovery (`tools/list`)**:
+   - The agent queries `/api/mcp` to inspect available tools with their strict JSON Schema parameter definitions.
+2. **Safe Atomic Tool Execution (`tools/call`)**:
+   - When an agent calls a tool (e.g., `audit_narrative_flow` or `publish_ebook`), Novellaio executes the request, performs schema validation, and returns structured data back to the agent.
+3. **Zero Configuration Bridge**:
+   - Developers can connect their IDE or desktop AI assistant in under 60 seconds using the provided configuration snippet.
+
+---
+
+### 5. 🎹 Procedural Web Audio Ambient Engine
+
+#### What the Procedural Synth Does
+Rather than playing static, repetitive MP3 audio files that loop unnaturally, Novellaio features a 100% code-based **Procedural Ambient Soundscape Synthesizer** powered by the native browser **Web Audio API**. It generates infinite, non-repeating musical atmospheric beds tailored specifically to the story's genre, tension, and emotional arc.
+
+#### How Procedural Synthesis Works
+1. **Oscillator Architecture & Harmonic Waves**:
+   - Multi-oscillator banks (`sine`, `triangle`, `sawtooth` with band-limiting) generate root notes, fifths, and octaves based on the genre's modal scale (e.g., *Dorian* for Mystery, *Lydian* for Whimsical Fantasy, *Phrygian* for Dark Thrillers).
+2. **Biquad Dynamic Filter Modulation**:
+   - Low-pass and band-pass filters are swept with low-frequency oscillators (LFOs at 0.05Hz–0.2Hz) to create the sensation of breathing, cosmic wind, and gentle oceanic movement.
+3. **Algorithmic Nature & Noise Generators**:
+   - Filtered white and pink noise buffers simulate rain patter, forest breezes, and crackling campfires without loading external audio assets.
+4. **Volume Smoothing & Crossfading**:
+   - Gain nodes utilize exponential ramp curves (`linearRampToValueAtTime`) to ensure silky-smooth transitions whenever the story tension shifts.
+
+---
+
+### 🎙️ Expressive Audio Narration & Voice
+- **Google Gemini TTS (Default)**: Native expressive voice narration (`Kore`, `Puck`, `Fenrir`, `Aoede`)
 - **OpenAI Audio**: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`
-- **Pollinations Audio**: Multi-voice TTS
-- **Novellaio Procedural Synth**: Genre-adaptive Web Audio ambient music generator
+- **Pollinations Audio**: Multi-voice open TTS
+- **Novellaio Procedural Synth**: Genre-adaptive Web Audio ambient music generator without external audio files
 
 ---
 

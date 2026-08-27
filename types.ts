@@ -105,6 +105,8 @@ export type StoryImageStyle =
   | 'pixar_3d' 
   | 'vintage_disney';
 
+export type ImageAspectRatio = '16:9' | '1:1' | '4:3' | '3:2' | '9:16' | '21:9';
+
 export type StoryAudience = 
   | 'early_reader' 
   | 'children' 
@@ -142,28 +144,51 @@ export interface Settings {
 
   // Text Generation
   textProvider: 
-    | 'puter' 
     | 'gemini' 
+    | 'puter' 
+    | 'pollinations'
+    | 'openai' 
+    | 'anthropic'
+    | 'deepseek'
+    | 'xai'
+    | 'mistral'
+    | 'minimax'
+    | 'kimi'
+    | 'alibaba'
+    | 'z_ai'
+    | 'zai'
+    | 'cohere'
     | 'inception'
-    | 'zai' 
+    | 'azure_openai'
+    | 'aws_bedrock'
     | 'groq' 
     | 'cerebras' 
-    | 'mistral' 
-    | 'cohere' 
     | 'nvidia' 
+    | 'together'
     | 'openrouter' 
-    | 'requesty' 
     | 'huggingface' 
+    | 'fireworks'
     | 'cloudflare' 
-    | 'pollinations' 
     | 'siliconflow' 
-    | 'openai' 
-    | 'others';
+    | 'requesty' 
+    | 'llamacpp'
+    | 'ollama'
+    | 'lmstudio'
+    | 'jan'
+    | 'vllm'
+    | 'sglang'
+    | 'localai'
+    | 'gpt4all'
+    | 'local_openai_proxy'
+    | 'webgpu'
+    | 'others'
+    | (string & {});
   textModel: string;
 
   // Image Generation
-  imageProvider: 'gemini' | 'puter' | 'pollinations' | 'zai' | 'siliconflow' | 'huggingface' | 'cloudflare' | 'openai';
+  imageProvider: 'gemini' | 'puter' | 'pollinations' | 'zai' | 'siliconflow' | 'huggingface' | 'cloudflare' | 'openai' | (string & {});
   imageModel: string;
+  imageAspectRatio?: ImageAspectRatio;
 
   // Cloud Storage Preference
   storageProvider?: 'hybrid' | 'puter' | 'local';
@@ -177,23 +202,36 @@ export interface Settings {
 
   // API Keys & Configs
   geminiApiKey?: string;
-  inceptionApiKey?: string;
-  groqApiKey?: string;
-  openRouterApiKey?: string;
-  siliconFlowApiKey?: string;
   openaiApiKey?: string;
-  pollinationsApiKey?: string;
-  zaiApiKey?: string;
-  cerebrasApiKey?: string;
+  anthropicApiKey?: string;
+  deepseekApiKey?: string;
+  xaiApiKey?: string;
   mistralApiKey?: string;
+  minimaxApiKey?: string;
+  kimiApiKey?: string;
+  alibabaApiKey?: string;
+  zaiApiKey?: string;
   cohereApiKey?: string;
+  inceptionApiKey?: string;
+  azureOpenaiApiKey?: string;
+  azureOpenaiEndpoint?: string;
+  awsBedrockApiKey?: string;
+  groqApiKey?: string;
+  cerebrasApiKey?: string;
   nvidiaApiKey?: string;
-  requestyApiKey?: string;
+  togetherApiKey?: string;
+  openRouterApiKey?: string;
   huggingfaceApiKey?: string;
+  fireworksApiKey?: string;
   cloudflareApiKey?: string;
   cloudflareAccountId?: string;
+  siliconFlowApiKey?: string;
+  requestyApiKey?: string;
+  pollinationsApiKey?: string;
+  localEndpoint?: string;
   othersApiKey?: string;
   customBaseUrl?: string;
+  extendedApiKeys?: Record<string, string>;
 }
 
 export type EntityType = 'character' | 'location' | 'item' | 'faction' | 'event';

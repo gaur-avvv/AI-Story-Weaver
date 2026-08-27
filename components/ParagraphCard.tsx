@@ -14,6 +14,7 @@ interface ParagraphCardProps {
   isAudioActive?: boolean;
   audioProgress?: number;
   onSeekWord?: (progressRatio: number) => void;
+  imageAspectRatio?: string;
 }
 
 export const ParagraphCard: React.FC<ParagraphCardProps> = ({ 
@@ -25,8 +26,28 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
   isAudioActive,
   audioProgress = 0,
   onSeekWord,
+  imageAspectRatio = '16:9',
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
+
+  const getMediaAspectClass = () => {
+    switch (imageAspectRatio) {
+      case '16:9':
+        return 'aspect-[16/9] min-h-[260px] sm:min-h-[380px] md:min-h-[440px] max-h-[620px]';
+      case '1:1':
+        return 'aspect-[1/1] min-h-[300px] sm:min-h-[440px] md:min-h-[520px] max-h-[640px]';
+      case '4:3':
+        return 'aspect-[4/3] min-h-[280px] sm:min-h-[420px] md:min-h-[500px] max-h-[620px]';
+      case '3:2':
+        return 'aspect-[3/2] min-h-[280px] sm:min-h-[400px] md:min-h-[480px] max-h-[600px]';
+      case '9:16':
+        return 'aspect-[9/16] max-w-sm mx-auto min-h-[380px] sm:min-h-[500px] md:min-h-[580px] max-h-[720px]';
+      case '21:9':
+        return 'aspect-[21/9] min-h-[200px] sm:min-h-[300px] md:min-h-[360px] max-h-[480px]';
+      default:
+        return 'aspect-[16/9] sm:aspect-[16/10] min-h-[280px] sm:min-h-[400px] md:min-h-[460px] max-h-[600px]';
+    }
+  };
 
   const getFontClass = () => {
     switch (fontFamilyPreference) {
@@ -170,7 +191,7 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
       </div>
 
       {/* Media Frame with rounded corners, thin theme border, and no bottom fade */}
-      <div className={`relative w-full aspect-[1/1] sm:aspect-[4/3] md:aspect-[16/13] min-h-[340px] sm:min-h-[460px] md:min-h-[540px] max-h-[680px] bg-slate-950/70 rounded-2xl sm:rounded-3xl shadow-[inset_0_2px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(0,0,0,0.3)] overflow-hidden mb-6 border ${theme.borderStyle || 'border-white/15'} z-10 card-media-frame group/media`}>
+      <div className={`relative w-full ${getMediaAspectClass()} bg-slate-950/70 rounded-2xl sm:rounded-3xl shadow-[inset_0_2px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(0,0,0,0.3)] overflow-hidden mb-6 border ${theme.borderStyle || 'border-white/15'} z-10 card-media-frame group/media`}>
         {segment.isLoadingImage ? (
           <div className="w-full h-full bg-slate-950/80 animate-shimmer flex flex-col items-center justify-center p-6 text-center gap-2.5">
             <div className={`w-11 h-11 rounded-full flex items-center justify-center ${

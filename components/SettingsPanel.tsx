@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookText, Paintbrush, Theater, AudioWaveform, ChevronDownIcon } from './icons';
 import { 
   Sparkles, Wand2, Sliders, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle, Type, AlignJustify,
-  Ghost, Rocket, Heart, Search, Smile, Scroll, Compass, Shield, Check, Activity, SlidersHorizontal
+  Ghost, Rocket, Heart, Search, Smile, Scroll, Compass, Shield, Check, Activity, SlidersHorizontal, Film, Image as ImageIcon
 } from 'lucide-react';
 import type { Settings } from '../types';
 import { ApiKeyManager } from './ApiKeyManager';
@@ -11,6 +11,15 @@ import { useVfx } from '../vfx/VfxContext';
 import { VfxGenre, VfxTension, VfxWeather } from '../vfx/types';
 import { getStorageHealth, isCloudSyncEnabled, setCloudSyncEnabled, clearAllCache, downloadStoriesJSON, loadStories, type StorageHealth } from '../services/storageService';
 import { PROVIDER_OPTIMAL_DEFAULTS } from '../utils/modelPresets';
+import { 
+  ALL_PROVIDERS, 
+  RECOMMENDED_PROVIDERS, 
+  CLOUD_PROVIDERS, 
+  ROUTER_PROVIDERS, 
+  LOCAL_PROVIDERS, 
+  EXTENDED_PROVIDERS, 
+  getProviderById 
+} from '../utils/providersCatalog';
 
 type SettingsTab = 'story' | 'vfx' | 'models' | 'storage';
 
@@ -78,179 +87,52 @@ const CustomToggle: React.FC<{
   </button>
 );
 
-const textModels: Record<string, { id: string; name: string }[]> = {
-  puter: [
-    { id: 'openai/gpt-5.4-nano', name: 'GPT-5.4 Nano (Puter Free)' },
-    { id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5 (Puter Free)' },
-    { id: 'google/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Puter Free)' },
-    { id: 'x-ai/grok-4.5', name: 'Grok 4.5 (Puter Free)' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet (Puter Free)' },
-    { id: 'claude-3-haiku', name: 'Claude 3 Haiku (Puter Free)' },
-    { id: 'gpt-4o', name: 'GPT-4o (Puter Free)' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Puter Free)' },
-    { id: 'deepseek-chat', name: 'DeepSeek V3 (Puter Free)' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Puter Free)' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Puter Free)' },
-    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (Puter Free)' },
-    { id: 'mistral-large-latest', name: 'Mistral Large (Puter Free)' },
-    { id: 'qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B (Puter Free)' },
-    { id: 'gemma-2-9b-it', name: 'Gemma 2 9B (Puter Free)' },
-  ],
-  gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fast, 1K RPD Free)' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Deep Reasoning)' },
-    { id: 'gemini-3.1-flash-preview', name: 'Gemini 3.1 Flash' },
-    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-  ],
-  zai: [
-    { id: 'glm-4-flash', name: 'GLM-4 Flash (Free Tier / High Speed)' },
-    { id: 'glm-4-plus', name: 'GLM-4 Plus (Flagship Intelligence)' },
-    { id: 'glm-4-0520', name: 'GLM-4 0520' },
-    { id: 'glm-4-air', name: 'GLM-4 Air (Fast & Cost Effective)' },
-    { id: 'glm-4-long', name: 'GLM-4 Long (1M Context)' },
-    { id: 'glm-4v-plus', name: 'GLM-4V Plus (Multimodal)' },
-  ],
-  inception: [
-    { id: 'mercury-2', name: 'Mercury 2 (Inception AI - Fast Reasoning)' },
-  ],
-  groq: [
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile (1,000 RPD Free)' },
-    { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill 70B' },
-    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B' },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
-    { id: 'llama3-70b-8192', name: 'Llama 3 70B' },
-    { id: 'llama3-8b-8192', name: 'Llama 3 8B' },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9B' },
-    { id: 'qwen-2.5-32b', name: 'Qwen 2.5 32B' },
-  ],
-  cerebras: [
-    { id: 'llama-3.3-70b', name: 'Llama 3.3 70B (1,800 tokens/s Free)' },
-    { id: 'llama3.1-70b', name: 'Llama 3.1 70B' },
-    { id: 'llama3.1-8b', name: 'Llama 3.1 8B (Super Instant)' },
-  ],
-  mistral: [
-    { id: 'mistral-large-latest', name: 'Mistral Large 3 (Flagship Free Tier)' },
-    { id: 'mistral-small-latest', name: 'Mistral Small 24B' },
-    { id: 'ministral-8b-latest', name: 'Ministral 8B' },
-    { id: 'ministral-3b-latest', name: 'Ministral 3B' },
-    { id: 'codestral-latest', name: 'Codestral (Creative & Code)' },
-  ],
-  cohere: [
-    { id: 'command-r-plus-08-2024', name: 'Command R+ (Trial Free Tier)' },
-    { id: 'command-r-08-2024', name: 'Command R' },
-    { id: 'command-a-03-2025', name: 'Command A (Next Gen)' },
-    { id: 'aya-expanse-32b', name: 'Aya Expanse 32B (Multilingual)' },
-    { id: 'aya-expanse-8b', name: 'Aya Expanse 8B' },
-  ],
-  nvidia: [
-    { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct (40 RPM Free)' },
-    { id: 'nvidia/llama-3.1-nemotron-70b-instruct', name: 'Nemotron 70B Instruct' },
-    { id: 'deepseek-ai/deepseek-r1', name: 'DeepSeek R1' },
-    { id: 'mistralai/mistral-large-2-instruct', name: 'Mistral Large 2' },
-  ],
-  openrouter: [
-    { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (100% Free)' },
-    { id: 'deepseek/deepseek-chat:free', name: 'DeepSeek V3 (100% Free)' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (100% Free)' },
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (100% Free)' },
-    { id: 'google/gemini-2.0-flash-thinking-exp:free', name: 'Gemini 2.0 Flash Thinking (100% Free)' },
-    { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (100% Free)' },
-    { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (100% Free)' },
-    { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B (100% Free)' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B' },
-  ],
-  requesty: [
-    { id: 'meta-llama/llama-3.3-70b', name: 'Llama 3.3 70B (200 RPD Free)' },
-    { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' },
-    { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-  ],
-  huggingface: [
-    { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B Instruct (Free Serverless)' },
-    { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B', name: 'DeepSeek R1 Distill Qwen 32B' },
-    { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B Instruct' },
-    { id: 'mistralai/Mistral-7B-Instruct-v0.3', name: 'Mistral 7B Instruct v0.3' },
-  ],
-  cloudflare: [
-    { id: '@cf/meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (10K Neurons/Day Free)' },
-    { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', name: 'DeepSeek R1 Distill 32B' },
-    { id: '@cf/meta/llama-3.1-8b-instruct', name: 'Llama 3.1 8B Instruct' },
-    { id: '@cf/mistral/mistral-7b-instruct-v0.1', name: 'Mistral 7B Instruct' },
-  ],
-  pollinations: [
-    { id: 'openai', name: 'OpenAI GPT-4o (100% Free)' },
-    { id: 'openai-fast', name: 'OpenAI Fast (100% Free)' },
-    { id: 'openai-large', name: 'OpenAI Large (100% Free)' },
-    { id: 'deepseek', name: 'DeepSeek R1 (100% Free)' },
-    { id: 'deepseek-v3', name: 'DeepSeek V3 (100% Free)' },
-    { id: 'mistral', name: 'Mistral Large (100% Free)' },
-    { id: 'qwen-coder', name: 'Qwen Coder (100% Free)' },
-    { id: 'claude-hybrid', name: 'Claude Hybrid (100% Free)' },
-    { id: 'llama', name: 'Llama 3.3 (100% Free)' },
-    { id: 'gemini', name: 'Gemini 2.0 Flash (100% Free)' },
-  ],
-  siliconflow: [
-    { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3' },
-    { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1' },
-    { id: 'deepseek-ai/DeepSeek-V2.5', name: 'DeepSeek V2.5' },
-    { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B' },
-    { id: 'Qwen/Qwen2.5-32B-Instruct', name: 'Qwen 2.5 32B' },
-    { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B' },
-    { id: 'meta-llama/Meta-Llama-3.1-70B-Instruct', name: 'Llama 3.1 70B' },
-    { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B' },
-    { id: 'THUDM/glm-4-9b-chat', name: 'GLM-4 9B' },
-  ],
-  openai: [
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'o3-mini', name: 'o3-mini' },
-    { id: 'o1', name: 'o1' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-  ],
-  others: [
-    { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3' },
-    { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1' },
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'o3-mini', name: 'o3-mini' },
-    { id: 'o1', name: 'o1' },
-    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-    { id: 'MiniMaxAI/MiniMax-M2.5', name: 'MiniMax M2.5' },
-    { id: 'zai-org/GLM-5', name: 'GLM-5' },
-    { id: 'stepfun-ai/Step-3.5-Flash', name: 'Step 3.5 Flash' },
-    { id: 'moonshotai/Kimi-K2.5', name: 'Kimi K2.5' },
-    { id: 'Qwen/Qwen3-32B', name: 'Qwen3 32B' },
-  ]
+const getTextModelsForProvider = (providerId: string): { id: string; name: string }[] => {
+  const meta = getProviderById(providerId);
+  if (meta && meta.models && meta.models.length > 0) {
+    return meta.models;
+  }
+  return [{ id: 'default', name: 'Default Model' }];
 };
 
 const imageModels: Record<string, { id: string; name: string }[]> = {
+  gemini: [
+    { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image (8K Scene Illustration)' },
+    { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image (Ultra Dynamic)' },
+    { id: 'gemini-3.1-pro-image', name: 'Gemini 3.1 Pro Image (Studio Masterpiece)' },
+    { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image (Fast)' },
+    { id: 'imagen-4-ultra-generate', name: 'Imagen 4 Ultra Generate (Google Photorealism)' },
+    { id: 'imagen-4-generate', name: 'Imagen 4 Generate' },
+    { id: 'imagen-4-fast-generate', name: 'Imagen 4 Fast Generate' },
+  ],
+  pollinations: [
+    { id: 'nanobanana-2-lite', name: 'Nano Banana 2 Lite (Fast & Vibrant 100% Free)' },
+    { id: 'nanobanana-2', name: 'Nano Banana 2 (HDR Crisp 100% Free)' },
+    { id: 'nanobanana-pro', name: 'Nano Banana Pro (Studio Quality 100% Free)' },
+    { id: 'nanobanana-ultra', name: 'Nano Banana Ultra (Cinematic 4K 100% Free)' },
+    { id: 'nanobanana', name: 'Nano Banana Classic' },
+    { id: 'nanobanana-lite', name: 'Nano Banana Lite' },
+    { id: 'flux', name: 'Flux.1 (Default Free)' },
+    { id: 'flux-realism', name: 'Flux Realism' },
+    { id: 'flux-3d', name: 'Flux 3D CGI' },
+    { id: 'flux-anime', name: 'Flux Anime' },
+    { id: 'turbo', name: 'Turbo (Instant)' },
+    { id: 'midjourney', name: 'Midjourney Style' },
+    { id: 'seedream-pro', name: 'SeeDream Pro' },
+    { id: 'gptimage', name: 'GPT Image' },
+    { id: 'gptimage-large', name: 'GPT Image Large' },
+  ],
   puter: [
     { id: 'nanobanana-2-lite', name: 'Nano Banana 2 Lite (Puter Free)' },
-    { id: 'nanobanana-lite', name: 'Nano Banana Lite (Puter Free)' },
-    { id: 'nanobanana', name: 'Nano Banana (Puter Free)' },
     { id: 'nanobanana-2', name: 'Nano Banana 2 (Puter Free)' },
     { id: 'nanobanana-pro', name: 'Nano Banana Pro (Puter Free)' },
     { id: 'nanobanana-ultra', name: 'Nano Banana Ultra (Puter Free)' },
+    { id: 'nanobanana', name: 'Nano Banana (Puter Free)' },
     { id: 'puter-txt2img', name: 'Puter Free AI Image (Flux / Txt2Img)' },
   ],
-  gemini: [
-    { id: 'gemini-3.1-flash-lite-image', name: 'Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)' },
-    { id: 'gemini-2.5-flash-image', name: 'Nano Banana (Gemini 2.5 Flash Preview Image)' },
-    { id: 'gemini-3.1-flash-image', name: 'Nano Banana 2 (Gemini 3.1 Flash Image)' },
-    { id: 'gemini-3.1-pro-image', name: 'Nano Banana Pro (Gemini 3.1 Pro Image)' },
-    { id: 'imagen-4-fast-generate', name: 'Imagen 4 Fast Generate' },
-    { id: 'imagen-4-generate', name: 'Imagen 4 Generate' },
-    { id: 'imagen-4-ultra-generate', name: 'Imagen 4 Ultra Generate' },
+  openai: [
+    { id: 'dall-e-3', name: 'DALL-E 3 (High Quality)' },
+    { id: 'dall-e-2', name: 'DALL-E 2' },
   ],
   zai: [
     { id: 'cogview-3-flash', name: 'CogView-3-Flash (Fast / Free Tier)' },
@@ -258,50 +140,19 @@ const imageModels: Record<string, { id: string; name: string }[]> = {
     { id: 'cogview-3', name: 'CogView-3' },
   ],
   huggingface: [
-    { id: 'black-forest-labs/FLUX.1-schnell', name: 'Flux.1 Schnell (Hugging Face)' },
+    { id: 'black-forest-labs/FLUX.1-schnell', name: 'Flux.1 Schnell (Hugging Face Free)' },
+    { id: 'black-forest-labs/FLUX.1-dev', name: 'Flux.1 Dev' },
     { id: 'stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0 (Hugging Face)' },
   ],
   cloudflare: [
-    { id: '@cf/black-forest-labs/flux-1-schnell', name: 'Flux.1 Schnell (Cloudflare Workers AI)' },
+    { id: '@cf/black-forest-labs/flux-1-schnell', name: 'Flux.1 Schnell (Cloudflare Free)' },
     { id: '@cf/stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0 (Cloudflare)' },
   ],
-  openai: [
-    { id: 'dall-e-3', name: 'DALL-E 3' },
-    { id: 'dall-e-2', name: 'DALL-E 2' },
-  ],
-  pollinations: [
-    { id: 'nanobanana-2-lite', name: 'Nano Banana 2 Lite (Fast & Vibrant)' },
-    { id: 'nanobanana-lite', name: 'Nano Banana Lite (Ultra-fast)' },
-    { id: 'nanobanana', name: 'Nano Banana (Storybook Art)' },
-    { id: 'nanobanana-2', name: 'Nano Banana 2 (HDR Crisp)' },
-    { id: 'nanobanana-pro', name: 'Nano Banana Pro (Studio Quality)' },
-    { id: 'nanobanana-ultra', name: 'Nano Banana Ultra (Cinematic 4K)' },
-    { id: 'flux', name: 'Flux (Default)' },
-    { id: 'flux-realism', name: 'Flux Realism' },
-    { id: 'flux-coda', name: 'Flux Coda' },
-    { id: 'flux-3d', name: 'Flux 3D' },
-    { id: 'flux-anime', name: 'Flux Anime' },
-    { id: 'turbo', name: 'Turbo (Super Fast)' },
-    { id: 'midjourney', name: 'Midjourney Style' },
-    { id: 'seedream-pro', name: 'SeeDream Pro' },
-    { id: 'gptimage', name: 'GPT Image' },
-    { id: 'gptimage-large', name: 'GPT Image Large' },
-    { id: 'zimage', name: 'Z Image' },
-    { id: 'klein', name: 'Klein' },
-    { id: 'klein-large', name: 'Klein Large' },
-    { id: 'imagen-4', name: 'Imagen 4 Style' },
-    { id: 'flux-2-dev', name: 'Flux 2 Dev' },
-    { id: 'grok-imagine', name: 'Grok Imagine' },
-    { id: 'majicmix', name: 'MajicMix' },
-    { id: 'deliberate', name: 'Deliberate' },
-    { id: 'dreamshaper', name: 'Dreamshaper' },
-  ],
   siliconflow: [
-    { id: 'black-forest-labs/FLUX.1-schnell', name: 'Flux.1 Schnell' },
+    { id: 'black-forest-labs/FLUX.1-schnell', name: 'Flux.1 Schnell (SiliconFlow)' },
     { id: 'black-forest-labs/FLUX.1-dev', name: 'Flux.1 Dev' },
     { id: 'stabilityai/stable-diffusion-3-medium', name: 'Stable Diffusion 3' },
-    { id: 'stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0' },
-  ]
+  ],
 };
 
 const audioModels = {
@@ -494,7 +345,7 @@ export const SettingsPanel: React.FC<{
 
   // Ensure model is valid and optimal when provider changes
   useEffect(() => {
-    const validTextModels = textModels[localSettings.textProvider] || [];
+    const validTextModels = getTextModelsForProvider(localSettings.textProvider);
     const optimalModel = PROVIDER_OPTIMAL_DEFAULTS[localSettings.textProvider]?.textModel;
     const isCurrentValid = validTextModels.some(m => m.id === localSettings.textModel);
     
@@ -563,28 +414,62 @@ export const SettingsPanel: React.FC<{
   };
 
   const handleApiKeySave = (fieldOrProvider: string, value: string) => {
-    if (fieldOrProvider === 'gemini') {
+    if (fieldOrProvider === 'gemini' || fieldOrProvider === 'geminiApiKey') {
         setLocalApiKey(value);
-        triggerAutoSave(value, localSettings);
+        setLocalSettings(prev => ({ ...prev, geminiApiKey: value }));
+        triggerAutoSave(value, { ...localSettings, geminiApiKey: value });
+    } else if (fieldOrProvider === 'extendedApiKeys') {
+        try {
+          const parsed = JSON.parse(value);
+          setLocalSettings(prev => {
+            const next = { ...prev, extendedApiKeys: parsed };
+            triggerAutoSave(localApiKey, next);
+            return next;
+          });
+        } catch {
+          // ignore parsing error
+        }
     } else {
         let field: keyof Settings;
         if (fieldOrProvider === 'openai' || fieldOrProvider === 'openaiApiKey') field = 'openaiApiKey';
-        else if (fieldOrProvider === 'groq' || fieldOrProvider === 'groqApiKey') field = 'groqApiKey';
-        else if (fieldOrProvider === 'openrouter' || fieldOrProvider === 'openRouterApiKey') field = 'openRouterApiKey';
-        else if (fieldOrProvider === 'siliconflow' || fieldOrProvider === 'siliconFlowApiKey') field = 'siliconFlowApiKey';
-        else if (fieldOrProvider === 'pollinations' || fieldOrProvider === 'pollinationsApiKey') field = 'pollinationsApiKey';
-        else if (fieldOrProvider === 'zai' || fieldOrProvider === 'zaiApiKey') field = 'zaiApiKey';
-        else if (fieldOrProvider === 'cerebras' || fieldOrProvider === 'cerebrasApiKey') field = 'cerebrasApiKey';
+        else if (fieldOrProvider === 'anthropic' || fieldOrProvider === 'anthropicApiKey') field = 'anthropicApiKey';
+        else if (fieldOrProvider === 'deepseek' || fieldOrProvider === 'deepseekApiKey') field = 'deepseekApiKey';
+        else if (fieldOrProvider === 'xai' || fieldOrProvider === 'xaiApiKey') field = 'xaiApiKey';
         else if (fieldOrProvider === 'mistral' || fieldOrProvider === 'mistralApiKey') field = 'mistralApiKey';
+        else if (fieldOrProvider === 'minimax' || fieldOrProvider === 'minimaxApiKey') field = 'minimaxApiKey';
+        else if (fieldOrProvider === 'kimi' || fieldOrProvider === 'kimiApiKey') field = 'kimiApiKey';
+        else if (fieldOrProvider === 'alibaba' || fieldOrProvider === 'alibabaApiKey') field = 'alibabaApiKey';
+        else if (fieldOrProvider === 'zai' || fieldOrProvider === 'zaiApiKey' || fieldOrProvider === 'z_ai') field = 'zaiApiKey';
         else if (fieldOrProvider === 'cohere' || fieldOrProvider === 'cohereApiKey') field = 'cohereApiKey';
+        else if (fieldOrProvider === 'inception' || fieldOrProvider === 'inceptionApiKey') field = 'inceptionApiKey';
+        else if (fieldOrProvider === 'azure_openai' || fieldOrProvider === 'azureOpenaiApiKey') field = 'azureOpenaiApiKey';
+        else if (fieldOrProvider === 'azureOpenaiEndpoint') field = 'azureOpenaiEndpoint';
+        else if (fieldOrProvider === 'aws_bedrock' || fieldOrProvider === 'awsBedrockApiKey') field = 'awsBedrockApiKey';
+        else if (fieldOrProvider === 'groq' || fieldOrProvider === 'groqApiKey') field = 'groqApiKey';
+        else if (fieldOrProvider === 'cerebras' || fieldOrProvider === 'cerebrasApiKey') field = 'cerebrasApiKey';
         else if (fieldOrProvider === 'nvidia' || fieldOrProvider === 'nvidiaApiKey') field = 'nvidiaApiKey';
-        else if (fieldOrProvider === 'requesty' || fieldOrProvider === 'requestyApiKey') field = 'requestyApiKey';
+        else if (fieldOrProvider === 'together' || fieldOrProvider === 'togetherApiKey') field = 'togetherApiKey';
+        else if (fieldOrProvider === 'openrouter' || fieldOrProvider === 'openRouterApiKey') field = 'openRouterApiKey';
         else if (fieldOrProvider === 'huggingface' || fieldOrProvider === 'huggingfaceApiKey') field = 'huggingfaceApiKey';
+        else if (fieldOrProvider === 'fireworks' || fieldOrProvider === 'fireworksApiKey') field = 'fireworksApiKey';
         else if (fieldOrProvider === 'cloudflare' || fieldOrProvider === 'cloudflareApiKey') field = 'cloudflareApiKey';
         else if (fieldOrProvider === 'cloudflareAccountId') field = 'cloudflareAccountId';
+        else if (fieldOrProvider === 'siliconflow' || fieldOrProvider === 'siliconFlowApiKey') field = 'siliconFlowApiKey';
+        else if (fieldOrProvider === 'requesty' || fieldOrProvider === 'requestyApiKey') field = 'requestyApiKey';
+        else if (fieldOrProvider === 'pollinations' || fieldOrProvider === 'pollinationsApiKey') field = 'pollinationsApiKey';
+        else if (fieldOrProvider === 'localEndpoint') field = 'localEndpoint';
         else if (fieldOrProvider === 'customBaseUrl') field = 'customBaseUrl';
         else if (fieldOrProvider === 'others' || fieldOrProvider === 'othersApiKey') field = 'othersApiKey';
-        else return;
+        else {
+          // Store in extendedApiKeys
+          setLocalSettings(prev => {
+            const ext = { ...(prev.extendedApiKeys || {}), [fieldOrProvider]: value };
+            const next = { ...prev, extendedApiKeys: ext };
+            triggerAutoSave(localApiKey, next);
+            return next;
+          });
+          return;
+        }
 
         setLocalSettings(prev => {
             const next = { ...prev, [field]: value };
@@ -780,7 +665,14 @@ export const SettingsPanel: React.FC<{
                         max="28" 
                         step="1"
                         value={localSettings.fontSize || 18} 
-                        onChange={(e) => setLocalSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                        onChange={(e) => {
+                          const size = parseInt(e.target.value);
+                          setLocalSettings(prev => {
+                            const next = { ...prev, fontSize: size };
+                            triggerAutoSave(localApiKey, next);
+                            return next;
+                          });
+                        }}
                         className="w-32 sm:w-36 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
                       />
                       <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/30 text-purple-200 font-mono text-xs min-w-[58px] text-center font-bold">
@@ -801,7 +693,13 @@ export const SettingsPanel: React.FC<{
                           <button
                             key={preset.size}
                             type="button"
-                            onClick={() => setLocalSettings(prev => ({ ...prev, fontSize: preset.size }))}
+                            onClick={() => {
+                              setLocalSettings(prev => {
+                                const next = { ...prev, fontSize: preset.size };
+                                triggerAutoSave(localApiKey, next);
+                                return next;
+                              });
+                            }}
                             className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all ${
                               active 
                                 ? 'bg-purple-600 border-purple-400 text-white shadow-sm' 
@@ -887,6 +785,20 @@ export const SettingsPanel: React.FC<{
                       <option value="vintage">Vintage 1950s Mid-Century</option>
                       <option value="abstract">Surrealist Abstract Fantasy</option>
                     </optgroup>
+                  </CustomSelect>
+                </SettingRow>
+
+                <SettingRow icon={<ImageIcon className="w-4 h-4 text-purple-400" />} label="Illustration Aspect Ratio" description="Shape & layout dimensions for generated scene artwork (Default: 16:9 Landscape - Best for Web & Video)">
+                  <CustomSelect 
+                    value={localSettings.imageAspectRatio || '16:9'} 
+                    onChange={handleSettingChange('imageAspectRatio' as any)}
+                  >
+                    <option value="16:9">16:9 Widescreen (Landscape • Best for Web & Cinema)</option>
+                    <option value="1:1">1:1 Square (Classic Balanced Square)</option>
+                    <option value="4:3">4:3 Standard Photo (Classic Photography)</option>
+                    <option value="3:2">3:2 Classic 35mm (Traditional Film Frame)</option>
+                    <option value="9:16">9:16 Vertical Story (Mobile Portrait & Reels)</option>
+                    <option value="21:9">21:9 Ultra-Wide (Panoramic Cinematic)</option>
                   </CustomSelect>
                 </SettingRow>
 
@@ -1153,23 +1065,37 @@ export const SettingsPanel: React.FC<{
                 </label>
                 <ApiKeyManager 
                   apiKeys={{
-                    gemini: localApiKey,
-                    openai: localSettings.openaiApiKey,
-                    groq: localSettings.groqApiKey,
-                    openrouter: localSettings.openRouterApiKey,
-                    siliconflow: localSettings.siliconFlowApiKey,
-                    pollinations: localSettings.pollinationsApiKey,
-                    zai: localSettings.zaiApiKey,
-                    cerebras: localSettings.cerebrasApiKey,
-                    mistral: localSettings.mistralApiKey,
-                    cohere: localSettings.cohereApiKey,
-                    nvidia: localSettings.nvidiaApiKey,
-                    requesty: localSettings.requestyApiKey,
-                    huggingface: localSettings.huggingfaceApiKey,
-                    cloudflare: localSettings.cloudflareApiKey,
-                    cloudflareAccountId: localSettings.cloudflareAccountId,
-                    customBaseUrl: localSettings.customBaseUrl,
-                    others: localSettings.othersApiKey
+                    gemini: localApiKey || localSettings.geminiApiKey || '',
+                    openai: localSettings.openaiApiKey || '',
+                    anthropic: localSettings.anthropicApiKey || '',
+                    deepseek: localSettings.deepseekApiKey || '',
+                    xai: localSettings.xaiApiKey || '',
+                    mistral: localSettings.mistralApiKey || '',
+                    minimax: localSettings.minimaxApiKey || '',
+                    kimi: localSettings.kimiApiKey || '',
+                    alibaba: localSettings.alibabaApiKey || '',
+                    zai: localSettings.zaiApiKey || '',
+                    cohere: localSettings.cohereApiKey || '',
+                    inception: localSettings.inceptionApiKey || '',
+                    azure_openai: localSettings.azureOpenaiApiKey || '',
+                    azureOpenaiEndpoint: localSettings.azureOpenaiEndpoint || '',
+                    aws_bedrock: localSettings.awsBedrockApiKey || '',
+                    groq: localSettings.groqApiKey || '',
+                    cerebras: localSettings.cerebrasApiKey || '',
+                    nvidia: localSettings.nvidiaApiKey || '',
+                    together: localSettings.togetherApiKey || '',
+                    openrouter: localSettings.openRouterApiKey || '',
+                    huggingface: localSettings.huggingfaceApiKey || '',
+                    fireworks: localSettings.fireworksApiKey || '',
+                    cloudflare: localSettings.cloudflareApiKey || '',
+                    cloudflareAccountId: localSettings.cloudflareAccountId || '',
+                    siliconflow: localSettings.siliconFlowApiKey || '',
+                    requesty: localSettings.requestyApiKey || '',
+                    pollinations: localSettings.pollinationsApiKey || '',
+                    localEndpoint: localSettings.localEndpoint || '',
+                    customBaseUrl: localSettings.customBaseUrl || '',
+                    others: localSettings.othersApiKey || '',
+                    ...(localSettings.extendedApiKeys || {})
                   }}
                   onSave={handleApiKeySave}
                 />
@@ -1198,29 +1124,37 @@ export const SettingsPanel: React.FC<{
 
                 <SettingRow icon={<BookText className="w-4 h-4" />} label="Text Provider">
                   <CustomSelect value={localSettings.textProvider} onChange={handleSettingChange('textProvider')}>
-                    <option value="puter">Puter.js (100% Free - Claude, GPT-4o, DeepSeek)</option>
-                    <option value="gemini">Google AI Studio (Gemini 2.5/3.1 - 1K RPD Free)</option>
-                    <option value="inception">Inception AI (Mercury 2 - 100M Free Tokens)</option>
-                    <option value="zai">Z.AI (GLM-4-Flash / Zhipu AI Free Tier)</option>
-                    <option value="groq">Groq Cloud (Llama 3.3 70B - 1K RPD Free)</option>
-                    <option value="cerebras">Cerebras Cloud (1,800 tok/s Free)</option>
-                    <option value="mistral">Mistral AI (Mistral Large 3 / Small Free Tier)</option>
-                    <option value="cohere">Cohere (Command R+ / Aya Expanse Free Tier)</option>
-                    <option value="nvidia">NVIDIA NIM (40 RPM / 1K Credits Free)</option>
-                    <option value="openrouter">OpenRouter (:free Models Free Tier)</option>
-                    <option value="requesty">Requesty AI (200 RPD Free)</option>
-                    <option value="huggingface">Hugging Face (Serverless Free API)</option>
-                    <option value="cloudflare">Cloudflare Workers AI (10K Neurons/Day Free)</option>
-                    <option value="pollinations">Pollinations.ai (100% Free Open Models)</option>
-                    <option value="siliconflow">SiliconFlow (DeepSeek & Qwen Free Tier)</option>
-                    <option value="openai">OpenAI Direct (GPT-4o, o3-mini)</option>
-                    <option value="others">Custom Endpoint / Local LLM (Ollama, vLLM)</option>
+                    <optgroup label="Recommended & Free Tiers">
+                      {RECOMMENDED_PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.badge || 'Recommended'})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="High-Speed Cloud LLMs">
+                      {CLOUD_PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.badge || 'Cloud'})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="High-Throughput Routers">
+                      {ROUTER_PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.badge || 'Router'})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Local LLMs & WebGPU">
+                      {LOCAL_PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.badge || 'Local'})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Extended Catalog (72+ Providers)">
+                      {EXTENDED_PROVIDERS.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.badge || 'Extended'})</option>
+                      ))}
+                    </optgroup>
                   </CustomSelect>
                 </SettingRow>
 
                 <SettingRow icon={<BookText className="w-4 h-4" />} label="Text Model">
                   <CustomSelect value={localSettings.textModel} onChange={handleSettingChange('textModel')}>
-                    {(textModels[localSettings.textProvider] || []).map(model => (
+                    {getTextModelsForProvider(localSettings.textProvider).map(model => (
                       <option key={model.id} value={model.id}>{model.name}</option>
                     ))}
                   </CustomSelect>
@@ -1228,14 +1162,14 @@ export const SettingsPanel: React.FC<{
 
                 <SettingRow icon={<Paintbrush className="w-4 h-4" />} label="Image Provider">
                   <CustomSelect value={localSettings.imageProvider} onChange={handleSettingChange('imageProvider')}>
-                    <option value="gemini">Google AI Studio (Imagen 4 / Nano Banana 2)</option>
-                    <option value="pollinations">Pollinations.ai (Flux & Nano Banana - 100% Free)</option>
-                    <option value="puter">Puter AI Image (Flux / Nano Banana - 100% Free)</option>
-                    <option value="zai">Z.AI (CogView-3-Flash Free Tier)</option>
-                    <option value="huggingface">Hugging Face (Flux.1 Schnell Serverless Free)</option>
                     <option value="cloudflare">Cloudflare Workers AI (Flux.1 Schnell Free)</option>
-                    <option value="siliconflow">SiliconFlow (Flux.1 Schnell)</option>
+                    <option value="gemini">Google AI Studio (Gemini 2.5 / 3.1 / Imagen 4)</option>
+                    <option value="huggingface">Hugging Face (Flux.1 Schnell Free API)</option>
                     <option value="openai">OpenAI (DALL-E 3)</option>
+                    <option value="pollinations">Pollinations.ai (Nano Banana & Flux - 100% Free)</option>
+                    <option value="puter">Puter AI Image (Flux / Nano Banana - 100% Free)</option>
+                    <option value="siliconflow">SiliconFlow (Flux.1 Schnell / Dev)</option>
+                    <option value="zai">Z.AI (CogView-3-Flash Free Tier)</option>
                   </CustomSelect>
                 </SettingRow>
 
@@ -1244,6 +1178,20 @@ export const SettingsPanel: React.FC<{
                     {(imageModels[localSettings.imageProvider] || []).map(model => (
                       <option key={model.id} value={model.id}>{model.name}</option>
                     ))}
+                  </CustomSelect>
+                </SettingRow>
+
+                <SettingRow icon={<ImageIcon className="w-4 h-4 text-purple-400" />} label="Image Aspect Ratio" description="Layout proportion for generated scenes (Default: 16:9 Landscape - Best for Web)">
+                  <CustomSelect 
+                    value={localSettings.imageAspectRatio || '16:9'} 
+                    onChange={handleSettingChange('imageAspectRatio' as any)}
+                  >
+                    <option value="16:9">16:9 Widescreen (Landscape • Best for Web)</option>
+                    <option value="1:1">1:1 Square (Classic Square)</option>
+                    <option value="4:3">4:3 Standard (Classic Photo)</option>
+                    <option value="3:2">3:2 Traditional (35mm Photo)</option>
+                    <option value="9:16">9:16 Vertical (Mobile Story & Reels)</option>
+                    <option value="21:9">21:9 Ultra-Wide (Panoramic Cinema)</option>
                   </CustomSelect>
                 </SettingRow>
 

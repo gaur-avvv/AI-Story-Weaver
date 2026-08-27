@@ -261,7 +261,8 @@ export const VideoModal: React.FC<VideoModalProps> = ({ isOpen, onClose, segment
            <div className="absolute top-16 right-4 z-20 pointer-events-none">
              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md border border-white/20 text-[11px] font-medium text-white/90 shadow-lg">
                <span className="text-purple-400">✦</span>
-               <span>StorySpark AI</span>
+               <span>Novellaio</span>
+               <span className="text-purple-400">✦</span>
              </div>
            </div>
 

@@ -430,7 +430,7 @@ class VideoExportManager {
 
             // Top-Right Discreet Watermark
             ctx.save();
-            const watermarkText = '✦ StorySpark AI';
+            const watermarkText = '✦ Novellaio ✦';
             ctx.font = '600 14px sans-serif';
             const wmMetrics = ctx.measureText(watermarkText);
             const wmPadX = 12;
