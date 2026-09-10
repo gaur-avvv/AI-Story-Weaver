@@ -69,6 +69,16 @@ const defaultSettings: Settings = {
   imageModel: 'gemini-2.5-flash-image',
 };
 
+const stripSensitiveSettingsForStorage = (settingsToPersist: Settings): Settings => {
+  const sanitized = { ...settingsToPersist } as Record<string, unknown>;
+  for (const key of Object.keys(sanitized)) {
+    if (key === 'extendedApiKeys' || /ApiKey$/i.test(String(key))) {
+      delete sanitized[key];
+    }
+  }
+  return sanitized as Settings;
+};
+
 function saveStoriesSafely(stories: SavedStory[]): boolean {
   return saveStoriesSafelyWithQuotaProtection(stories).success;
 }
@@ -265,17 +275,20 @@ function StoryCreatorContent() {
     // Proactively clean LocalStorage quota on boot
     compressAndCleanLocalStorage();
 
-    // Load user settings and API key from local storage on startup
-    const savedKey = localStorage.getItem('user-gemini-api-key');
-    if (savedKey) setUserApiKey(savedKey);
+    // Remove legacy plain-text key storage
+    localStorage.removeItem('user-gemini-api-key');
     
     const savedSettings = localStorage.getItem('user-story-settings');
     if (savedSettings) {
       try {
         const parsedSettings = JSON.parse(savedSettings);
-        setSettings({ ...defaultSettings, ...parsedSettings });
-        if (parsedSettings.genre) {
-          setGenre(parsedSettings.genre as VfxGenre);
+        const sanitizedSettings = stripSensitiveSettingsForStorage(parsedSettings);
+        if (JSON.stringify(parsedSettings) !== JSON.stringify(sanitizedSettings)) {
+          localStorage.setItem('user-story-settings', JSON.stringify(sanitizedSettings));
+        }
+        setSettings({ ...defaultSettings, ...sanitizedSettings });
+        if (sanitizedSettings.genre) {
+          setGenre(sanitizedSettings.genre as VfxGenre);
         }
       } catch {
         setSettings(defaultSettings);
@@ -390,13 +403,11 @@ function StoryCreatorContent() {
   const handleSaveSettings = (key: string | null, newSettings: Settings) => {
     const newKey = key?.trim() || null;
     if (newKey) {
-      localStorage.setItem('user-gemini-api-key', newKey);
       setUserApiKey(newKey);
     } else {
-      localStorage.removeItem('user-gemini-api-key');
       setUserApiKey(null);
     }
-    localStorage.setItem('user-story-settings', JSON.stringify(newSettings));
+    localStorage.setItem('user-story-settings', JSON.stringify(stripSensitiveSettingsForStorage(newSettings)));
     setSettings(newSettings);
     if (newSettings.genre) {
       setGenre(newSettings.genre as VfxGenre);
@@ -550,7 +561,7 @@ function StoryCreatorContent() {
     const activeSettings: Settings = overrides ? { ...settings, ...overrides } : settings;
     if (overrides) {
       setSettings(activeSettings);
-      localStorage.setItem('user-story-settings', JSON.stringify(activeSettings));
+      localStorage.setItem('user-story-settings', JSON.stringify(stripSensitiveSettingsForStorage(activeSettings)));
       if (activeSettings.genre) {
         setGenre(activeSettings.genre as VfxGenre);
       }
