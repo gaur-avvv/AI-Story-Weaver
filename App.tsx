@@ -111,6 +111,68 @@ function saveStoriesSafely(stories: SavedStory[]): boolean {
   return saveStoriesSafelyWithQuotaProtection(stories).success;
 }
 
+const sanitizeSettingsForStorage = (settings: Settings): Omit<Settings,
+  | 'geminiApiKey'
+  | 'openaiApiKey'
+  | 'anthropicApiKey'
+  | 'deepseekApiKey'
+  | 'xaiApiKey'
+  | 'mistralApiKey'
+  | 'minimaxApiKey'
+  | 'kimiApiKey'
+  | 'alibabaApiKey'
+  | 'zaiApiKey'
+  | 'cohereApiKey'
+  | 'inceptionApiKey'
+  | 'azureOpenaiApiKey'
+  | 'awsBedrockApiKey'
+  | 'groqApiKey'
+  | 'cerebrasApiKey'
+  | 'nvidiaApiKey'
+  | 'togetherApiKey'
+  | 'openRouterApiKey'
+  | 'huggingfaceApiKey'
+  | 'fireworksApiKey'
+  | 'cloudflareApiKey'
+  | 'siliconFlowApiKey'
+  | 'requestyApiKey'
+  | 'pollinationsApiKey'
+  | 'othersApiKey'
+  | 'extendedApiKeys'
+> => {
+  const {
+    geminiApiKey,
+    openaiApiKey,
+    anthropicApiKey,
+    deepseekApiKey,
+    xaiApiKey,
+    mistralApiKey,
+    minimaxApiKey,
+    kimiApiKey,
+    alibabaApiKey,
+    zaiApiKey,
+    cohereApiKey,
+    inceptionApiKey,
+    azureOpenaiApiKey,
+    awsBedrockApiKey,
+    groqApiKey,
+    cerebrasApiKey,
+    nvidiaApiKey,
+    togetherApiKey,
+    openRouterApiKey,
+    huggingfaceApiKey,
+    fireworksApiKey,
+    cloudflareApiKey,
+    siliconFlowApiKey,
+    requestyApiKey,
+    pollinationsApiKey,
+    othersApiKey,
+    extendedApiKeys,
+    ...safeSettings
+  } = settings;
+  return safeSettings;
+};
+
 function StoryCreatorContent() {
   const { vfx, setGenre, triggerScreenShake, processParagraphForVfx } = useVfx();
   const { profile, triggerMoodSoundscape } = useNovellaioEngine();
