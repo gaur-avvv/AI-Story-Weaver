@@ -160,7 +160,7 @@ export const AuthCallback: React.FC = () => {
               username: username || 'GitHub User',
               timestamp: Date.now(),
             },
-            '*'
+            window.location.origin
           );
         }
 
