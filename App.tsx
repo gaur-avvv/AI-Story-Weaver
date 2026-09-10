@@ -73,6 +73,68 @@ function saveStoriesSafely(stories: SavedStory[]): boolean {
   return saveStoriesSafelyWithQuotaProtection(stories).success;
 }
 
+const sanitizeSettingsForStorage = (settings: Settings): Omit<Settings,
+  | 'geminiApiKey'
+  | 'openaiApiKey'
+  | 'anthropicApiKey'
+  | 'deepseekApiKey'
+  | 'xaiApiKey'
+  | 'mistralApiKey'
+  | 'minimaxApiKey'
+  | 'kimiApiKey'
+  | 'alibabaApiKey'
+  | 'zaiApiKey'
+  | 'cohereApiKey'
+  | 'inceptionApiKey'
+  | 'azureOpenaiApiKey'
+  | 'awsBedrockApiKey'
+  | 'groqApiKey'
+  | 'cerebrasApiKey'
+  | 'nvidiaApiKey'
+  | 'togetherApiKey'
+  | 'openRouterApiKey'
+  | 'huggingfaceApiKey'
+  | 'fireworksApiKey'
+  | 'cloudflareApiKey'
+  | 'siliconFlowApiKey'
+  | 'requestyApiKey'
+  | 'pollinationsApiKey'
+  | 'othersApiKey'
+  | 'extendedApiKeys'
+> => {
+  const {
+    geminiApiKey,
+    openaiApiKey,
+    anthropicApiKey,
+    deepseekApiKey,
+    xaiApiKey,
+    mistralApiKey,
+    minimaxApiKey,
+    kimiApiKey,
+    alibabaApiKey,
+    zaiApiKey,
+    cohereApiKey,
+    inceptionApiKey,
+    azureOpenaiApiKey,
+    awsBedrockApiKey,
+    groqApiKey,
+    cerebrasApiKey,
+    nvidiaApiKey,
+    togetherApiKey,
+    openRouterApiKey,
+    huggingfaceApiKey,
+    fireworksApiKey,
+    cloudflareApiKey,
+    siliconFlowApiKey,
+    requestyApiKey,
+    pollinationsApiKey,
+    othersApiKey,
+    extendedApiKeys,
+    ...safeSettings
+  } = settings;
+  return safeSettings;
+};
+
 function StoryCreatorContent() {
   const { vfx, setGenre, triggerScreenShake, processParagraphForVfx } = useVfx();
   const { profile, triggerMoodSoundscape } = useNovellaioEngine();
@@ -396,7 +458,7 @@ function StoryCreatorContent() {
       localStorage.removeItem('user-gemini-api-key');
       setUserApiKey(null);
     }
-    localStorage.setItem('user-story-settings', JSON.stringify(newSettings));
+    localStorage.setItem('user-story-settings', JSON.stringify(sanitizeSettingsForStorage(newSettings)));
     setSettings(newSettings);
     if (newSettings.genre) {
       setGenre(newSettings.genre as VfxGenre);
@@ -550,7 +612,7 @@ function StoryCreatorContent() {
     const activeSettings: Settings = overrides ? { ...settings, ...overrides } : settings;
     if (overrides) {
       setSettings(activeSettings);
-      localStorage.setItem('user-story-settings', JSON.stringify(activeSettings));
+      localStorage.setItem('user-story-settings', JSON.stringify(sanitizeSettingsForStorage(activeSettings)));
       if (activeSettings.genre) {
         setGenre(activeSettings.genre as VfxGenre);
       }
