@@ -22,12 +22,28 @@ import {
   Download,
   Headphones,
   FileAudio,
-  Check
+  Check,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  ChevronUp,
+  Bird,
+  Moon,
+  CloudLightning,
+  BellRing
 } from 'lucide-react';
 import type { StorySegment } from '../types';
 import { useVfx } from '../vfx/VfxContext';
 import { vfxAudioSynth, SoundscapeType } from '../vfx/VfxAudioEffects';
 import { downloadFullStoryAudio, downloadSingleSegmentAudio, hasAvailableAudio, countAudioSegments } from '../utils/audioExporter';
+
+/** Formats seconds as m:ss for the storybook time labels. */
+const mmss = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 interface AudioControllerProps {
   segments: StorySegment[];
@@ -39,6 +55,9 @@ interface AudioControllerProps {
   onPlayStateChange?: (isPlaying: boolean) => void;
   onAudioProgressUpdate?: (currentTime: number, duration: number, progressRatio: number) => void;
   seekAudioRequest?: { segmentIndex: number; progressRatio: number; timestamp: number } | null;
+  /** 'default' renders the classic floating panel; 'storybook' renders the
+   *  compact ancient-gold "Storyteller bar" instead. */
+  variant?: 'default' | 'storybook';
 }
 
 export const AudioController: React.FC<AudioControllerProps> = ({ 
@@ -51,7 +70,9 @@ export const AudioController: React.FC<AudioControllerProps> = ({
   onPlayStateChange,
   onAudioProgressUpdate,
   seekAudioRequest,
+  variant = 'default',
 }) => {
+  const storybook = variant === 'storybook';
   const { vfx } = useVfx();
   const [internalActiveSegmentIndex, setInternalActiveSegmentIndex] = useState(0);
   const [isWaitingForNextGeneratedSegment, setIsWaitingForNextGeneratedSegment] = useState(false);
@@ -84,6 +105,8 @@ export const AudioController: React.FC<AudioControllerProps> = ({
   const [isExportingAudio, setIsExportingAudio] = useState(false);
   const [isExportingSceneAudio, setIsExportingSceneAudio] = useState(false);
   const [audioDownloadMessage, setAudioDownloadMessage] = useState<string | null>(null);
+  const [showStorybookVolume, setShowStorybookVolume] = useState(false);
+  const [showStorybookExpanded, setShowStorybookExpanded] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -522,6 +545,62 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     }
   };
 
+  /* ------------------------- Storybook bar helpers ----------------------- */
+
+  const storybookSeekRef = useRef<HTMLDivElement | null>(null);
+  const storybookSeekDraggingRef = useRef(false);
+
+  /** Pointer-seek inside the storybook bar: maps a client X position on the
+   *  track to a ratio and reuses the exact same seek logic as the default
+   *  panel (audioRef.currentTime = ratio * duration + progress state sync). */
+  const handleStorybookSeekToClientX = (clientX: number) => {
+    const el = storybookSeekRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+    const dur = audioRef.current?.duration || duration || 0;
+    const time = dur > 0 ? Math.min(dur, Math.max(0, ratio * dur)) : 0;
+    setProgress(time);
+    if (audioRef.current) audioRef.current.currentTime = time;
+    onAudioProgressUpdate?.(time, dur, dur > 0 ? Math.min(1, Math.max(0, time / dur)) : 0);
+  };
+
+  const handleStorybookSeekPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore browsers that reject pointer capture.
+    }
+    storybookSeekDraggingRef.current = true;
+    handleStorybookSeekToClientX(e.clientX);
+  };
+
+  const handleStorybookSeekPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!storybookSeekDraggingRef.current) return;
+    handleStorybookSeekToClientX(e.clientX);
+  };
+
+  const handleStorybookSeekPointerEnd = () => {
+    storybookSeekDraggingRef.current = false;
+  };
+
+  /** Wind-button ambience toggle: switches the current soundscape on/off. */
+  const toggleStorybookAmbience = () => {
+    if (selectedAmbience !== 'off') {
+      setIsDynamicAutoSelect(false);
+      setSelectedAmbience('off');
+      try {
+        vfxAudioSynth.stopSoundscape();
+      } catch (e) {
+        console.warn('Failed to stop soundscape:', e);
+      }
+    } else {
+      setIsDynamicAutoSelect(false);
+      handleSelectAmbience('forest_wind');
+    }
+  };
+
   const handleDownloadFullStoryAudio = async () => {
     if (!segments || segments.length === 0) return;
     const hasAudio = hasAvailableAudio(segments);
@@ -581,6 +660,10 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     { type: 'campfire', label: 'Campfire', icon: <Flame className="w-3.5 h-3.5 text-amber-400" /> },
     { type: 'ocean_waves', label: 'Ocean Waves', icon: <Waves className="w-3.5 h-3.5 text-teal-400" /> },
     { type: 'river_stream', label: 'River Stream', icon: <Droplets className="w-3.5 h-3.5 text-sky-400" /> },
+    { type: 'birdsong', label: 'Morning Birds', icon: <Bird className="w-3.5 h-3.5 text-lime-400" /> },
+    { type: 'crickets_night', label: 'Crickets at Night', icon: <Moon className="w-3.5 h-3.5 text-indigo-300" /> },
+    { type: 'thunderstorm', label: 'Thunderstorm', icon: <CloudLightning className="w-3.5 h-3.5 text-sky-300" /> },
+    { type: 'wind_chimes', label: 'Wind Chimes', icon: <BellRing className="w-3.5 h-3.5 text-fuchsia-300" /> },
     { type: 'ethereal_pad', label: 'Ethereal Pad', icon: <Music className="w-3.5 h-3.5 text-purple-400" /> },
     { type: 'space_hum', label: 'Space Hum', icon: <Orbit className="w-3.5 h-3.5 text-blue-400" /> },
     { type: 'cyberpunk_city', label: 'Cyberpunk', icon: <Zap className="w-3.5 h-3.5 text-fuchsia-400" /> },
@@ -593,17 +676,26 @@ export const AudioController: React.FC<AudioControllerProps> = ({
   return (
     <motion.div
       initial={{ y: 80, opacity: 0, scale: 0.95 }}
-      animate={{ 
+      animate={
+        storybook
+          ? { y: 0, opacity: 1, scale: 1 }
+          : {
         y: 0, 
         opacity: 1, 
         scale: isHovered ? 1.025 : 1,
-      }}
+      }
+      }
       transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-      className="AudioController fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-4 pointer-events-auto"
+      className={
+        storybook
+          ? 'AudioController fixed bottom-28 left-1/2 -translate-x-1/2 z-40 w-[min(56rem,calc(100%-2rem))] pointer-events-auto'
+          : 'AudioController fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-4 pointer-events-auto'
+      }
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Background Depth-of-Field Blur Aura Layer */}
+      {!storybook && (
       <motion.div
         animate={{
           opacity: isHovered ? 0.75 : 0.25,
@@ -613,26 +705,37 @@ export const AudioController: React.FC<AudioControllerProps> = ({
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="absolute -inset-2 bg-gradient-to-r from-purple-600/40 via-pink-500/30 to-indigo-600/40 rounded-3xl -z-10 pointer-events-none"
       />
+      )}
 
       <motion.div 
-        animate={{
+        animate={
+          storybook
+            ? { backdropFilter: 'blur(24px) saturate(140%)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)' }
+            : {
           backdropFilter: isHovered || showAmbiencePanel ? 'blur(28px) saturate(180%) brightness(110%)' : 'blur(12px) saturate(130%)',
           boxShadow: isHovered 
             ? '0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 30px rgba(168, 85, 247, 0.35)' 
             : isPlaying 
               ? `0 12px 32px rgba(0,0,0,0.5), 0 0 ${15 + pulseIntensity * 25}px rgba(168,85,247,${0.2 + pulseIntensity * 0.35})`
               : '0 12px 32px rgba(0,0,0,0.4)',
-        }}
+        }
+        }
         transition={{ duration: 0.25 }}
-        className={`relative bg-slate-900/85 border border-white/15 transition-all duration-300 overflow-hidden ${
+        className={
+          storybook
+            ? 'relative flex items-center gap-3 rounded-2xl border border-[#d4af37]/40 bg-[rgba(24,18,10,0.85)] px-4 py-3 shadow-2xl backdrop-blur-xl'
+            : `relative bg-slate-900/85 border border-white/15 transition-all duration-300 overflow-hidden ${
           isHovered || showAmbiencePanel ? 'rounded-2xl p-3.5 bg-slate-900/95 border-purple-500/40' : 'rounded-full px-4 py-2 bg-slate-950/80 border-white/10'
-        }`}
+        }`
+        }
       >
         {/* Subtle audio aura fill */}
+        {!storybook && (
         <div 
           className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-fuchsia-500/10 to-indigo-500/10 pointer-events-none transition-opacity duration-300"
           style={{ opacity: isPlaying ? 0.4 + pulseIntensity * 0.6 : 0.1 }}
         />
+        )}
 
         {/* Audio Error Alert Badge */}
         <AnimatePresence>
@@ -649,7 +752,155 @@ export const AudioController: React.FC<AudioControllerProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Minimalist Compact View (Always Visible) */}
+        {/* Storybook "Storyteller bar" — compact ancient-gold glass surface
+            reusing the exact same audio state and handlers as the default
+            panel (single shared <audio> element, no duplicated logic). */}
+        {storybook ? (
+        <div className="relative z-10 flex min-w-0 items-center gap-3">
+          {/* 1 — Big circular play / pause */}
+          <button
+            type="button"
+            onClick={togglePlayPause}
+            disabled={!activeSegment?.audioUrl || activeSegment?.isLoadingAudio}
+            title={isPlaying ? 'Pause narration' : 'Play narration'}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-600 text-slate-900 shadow-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {activeSegment?.isLoadingAudio ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent border-slate-900" />
+            ) : isPlaying ? (
+              <PauseIcon className="h-5 w-5" />
+            ) : (
+              <PlayIcon className="h-5 w-5 pl-0.5" />
+            )}
+          </button>
+
+          {/* 2 — Prev / next scene skip (same code path as auto-advance) */}
+          <button
+            type="button"
+            onClick={() => jumpToSegment(activeSegmentIndex - 1)}
+            disabled={activeSegmentIndex <= 0}
+            title="Previous scene"
+            className="shrink-0 rounded-full p-1.5 text-[#e8d9a8] transition-colors hover:bg-white/10 hover:text-[#f7efdc] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <SkipBack className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => jumpToSegment(activeSegmentIndex + 1)}
+            disabled={activeSegmentIndex >= segments.length - 1}
+            title="Next scene"
+            className="shrink-0 rounded-full p-1.5 text-[#e8d9a8] transition-colors hover:bg-white/10 hover:text-[#f7efdc] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <SkipForward className="h-4 w-4" />
+          </button>
+
+          {/* 3 — Scene label / seek slider / time labels */}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="shrink-0 text-xs font-semibold text-[#e8d9a8]">
+                Scene {activeSegmentIndex + 1} of {segments.length}
+              </span>
+              {activeSegment?.chapterTitle ? (
+                <span
+                  className="min-w-0 truncate text-[11px] text-amber-200/70"
+                  title={activeSegment.chapterTitle}
+                >
+                  {activeSegment.chapterTitle}
+                </span>
+              ) : null}
+            </div>
+            <div
+              ref={storybookSeekRef}
+              aria-label="Seek within scene"
+              title="Seek within scene"
+              className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/10"
+              onPointerDown={handleStorybookSeekPointerDown}
+              onPointerMove={handleStorybookSeekPointerMove}
+              onPointerUp={handleStorybookSeekPointerEnd}
+              onPointerCancel={handleStorybookSeekPointerEnd}
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#b08d3e] via-[#d4af37] to-[#f1d27a] transition-[width] duration-100"
+                style={{
+                  width: `${(duration > 0 ? Math.min(1, Math.max(0, progress / duration)) : 0) * 100}%`,
+                }}
+              />
+            </div>
+            <div className="text-[10px] tabular-nums text-amber-200/60">
+              {mmss(progress)} / {mmss(duration)}
+            </div>
+          </div>
+
+          {/* 4 — Mute / volume popover / ambience toggle */}
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleMute}
+              title={isMuted ? 'Unmute narration' : 'Mute narration'}
+              className="rounded-full p-1.5 text-[#e8d9a8] transition-colors hover:bg-white/10 hover:text-[#f7efdc]"
+            >
+              {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowStorybookVolume((v) => !v)}
+                title="Narration volume"
+                className={`rounded-full p-1.5 transition-colors hover:bg-white/10 ${
+                  showStorybookVolume ? 'text-[#f7efdc]' : 'text-[#e8d9a8] hover:text-[#f7efdc]'
+                }`}
+              >
+                <Volume1 className="h-4 w-4" />
+              </button>
+              {showStorybookVolume ? (
+                <div className="absolute bottom-full right-0 z-50 mb-3 flex items-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[rgba(24,18,10,0.95)] px-3 py-2 shadow-2xl backdrop-blur-xl">
+                  <Volume1 className="h-3.5 w-3.5 shrink-0 text-[#e8d9a8]" />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={isMuted ? 0 : narrationVolume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setNarrationVolume(val);
+                      if (isMuted && val > 0) setIsMuted(false);
+                    }}
+                    className="w-24 cursor-pointer accent-amber-400"
+                    title="Narration volume"
+                  />
+                  <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-amber-200/70">
+                    {Math.round((isMuted ? 0 : narrationVolume) * 100)}%
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={toggleStorybookAmbience}
+              title={selectedAmbience !== 'off' ? 'Turn off ambience soundscape' : 'Turn on ambience soundscape'}
+              className={`rounded-full p-1.5 transition-colors hover:bg-white/10 ${
+                selectedAmbience !== 'off' ? 'text-amber-300' : 'text-[#e8d9a8]/60 hover:text-[#f7efdc]'
+              }`}
+            >
+              <Wind className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* 5 — Expand chevron: reuses the full default expanded panel */}
+          <button
+            type="button"
+            onClick={() => setShowStorybookExpanded((v) => !v)}
+            title={showStorybookExpanded ? 'Hide audio studio' : 'Show audio studio'}
+            className="shrink-0 rounded-full p-1.5 text-[#e8d9a8] transition-colors hover:bg-white/10 hover:text-[#f7efdc]"
+          >
+            <ChevronUp
+              className={`h-4 w-4 transition-transform duration-200 ${showStorybookExpanded ? 'rotate-180' : ''}`}
+            />
+          </button>
+        </div>
+        ) : (
+        /* Minimalist Compact View (Always Visible) */
         <div className="flex items-center gap-3 relative z-10">
           {/* Play/Pause Minimal Trigger */}
           <button
@@ -752,16 +1003,21 @@ export const AudioController: React.FC<AudioControllerProps> = ({
             </button>
           </div>
         </div>
+        )}
 
         {/* Hidden-Until-Hover Expanded Playback Controls */}
         <AnimatePresence>
-          {(isHovered || showAmbiencePanel) && (
+          {(!storybook && (isHovered || showAmbiencePanel)) || (storybook && showStorybookExpanded) ? (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="pt-3 border-t border-white/10 mt-2 flex flex-col gap-2 relative z-10"
+              className={
+                storybook
+                  ? 'absolute bottom-full right-0 z-50 mb-3 flex max-h-[70vh] w-[26rem] max-w-[calc(100vw-3rem)] flex-col gap-2 overflow-y-auto rounded-2xl border border-[#d4af37]/40 bg-[rgba(24,18,10,0.95)] p-3 shadow-2xl backdrop-blur-xl'
+                  : 'pt-3 border-t border-white/10 mt-2 flex flex-col gap-2 relative z-10'
+              }
             >
               {/* Segment Progress Track */}
               <div className="flex items-center justify-between text-[11px] font-mono text-purple-200/80 px-1">
@@ -953,7 +1209,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({
                 </div>
               </div>
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         <audio 

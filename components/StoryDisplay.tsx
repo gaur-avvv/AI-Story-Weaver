@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { StorySegment } from '../types';
 import { ParagraphCard } from './ParagraphCard';
 import { ChapterDivider } from './ChapterDivider';
@@ -7,7 +7,11 @@ import { PlotTwistsPanel } from './PlotTwistsPanel';
 import { motion } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 import { extractChapters, getChapterStats } from '../utils/chapterUtils';
-import { Plus, BookOpen, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { buildBookPages } from './flipbook/bookTypes';
+import StoryFlipbook from './flipbook/StoryFlipbook';
+import { CssFlipbook } from './flipbook/CssFlipbook';
+import { isHtmlInCanvasSupported } from '../utils/pageflipSupport';
+import { Plus, BookOpen, BookMarked, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface StoryDisplayProps {
   segments: StorySegment[];
@@ -35,6 +39,8 @@ interface StoryDisplayProps {
   otherApiKey?: string;
   options?: { customBaseUrl?: string; cloudflareAccountId?: string };
   imageAspectRatio?: string;
+  /** Fires whenever the view mode changes (also once on mount) so the app chrome can mirror storybook mode. */
+  onViewModeChange?: (mode: 'scroll' | 'book') => void;
 }
 
 export const StoryDisplay: React.FC<StoryDisplayProps> = ({ 
@@ -63,9 +69,28 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   otherApiKey,
   options,
   imageAspectRatio = '16:9',
+  onViewModeChange,
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
   const endOfStoryRef = useRef<HTMLDivElement>(null);
+
+  // 'scroll' keeps the original card list; 'book' renders the flipbook view.
+  const [viewMode, setViewMode] = useState<'scroll' | 'book'>('scroll');
+
+  // Mirror the current view mode upward (also fires once on mount) so App.tsx
+  // can enter/exit its storybook chrome in sync with the flipbook view.
+  useEffect(() => {
+    onViewModeChange?.(viewMode);
+  }, [viewMode, onViewModeChange]);
+
+  // Flipbook pages derived from the same segments that drive scroll mode.
+  const bookPages = useMemo(
+    () => buildBookPages(segments, { storyTitle, genre, targetAudience }),
+    [segments, storyTitle, genre, targetAudience]
+  );
+
+  // Feature detection for <hic-pageflip>; the result is cached inside the util.
+  const supported = isHtmlInCanvasSupported();
 
   useEffect(() => {
     endOfStoryRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +98,10 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
 
   // Smoothly auto-scroll to the currently playing audio narration segment
   useEffect(() => {
+    if (viewMode === 'book') {
+      // The flipbook view has no story-segment-card-N elements; skip in book mode.
+      return;
+    }
     if (isAudioPlaying && typeof activeAudioSegmentIndex === 'number' && activeAudioSegmentIndex >= 0) {
       const el = document.getElementById(`story-segment-card-${activeAudioSegmentIndex}`);
       if (el) {
@@ -109,7 +138,7 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   const isAnyRetrying = segments.some(s => s.isRetryingImage || s.isRetryingAudio);
 
   return (
-    <div className="w-full flex-grow overflow-y-auto p-2 sm:p-4 md:p-8 story-container">
+    <div className="w-full flex-grow overflow-y-auto overflow-x-hidden p-2 sm:p-4 md:p-8 story-container">
       {isAnyRetrying && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -129,8 +158,77 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
         </motion.div>
       )}
 
+      {segments.length > 0 && (
+        <div className="sticky top-2 z-30 mb-6 flex justify-end no-print">
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-slate-900/70 p-1 shadow-lg backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setViewMode('scroll')}
+              aria-pressed={viewMode === 'scroll'}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                viewMode === 'scroll'
+                  ? 'bg-purple-600/80 text-white shadow'
+                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Scroll</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('book')}
+              aria-pressed={viewMode === 'book'}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                viewMode === 'book'
+                  ? 'bg-purple-600/80 text-white shadow'
+                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <BookMarked className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Storybook</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-8 pb-12">
-        {segments.map((segment, index) => {
+        {viewMode === 'book' && segments.length > 0 ? (
+          // Full-bleed stage: negative margins cancel the container's padding
+          // and the fixed height fills the viewport between the toolbar
+          // (~150px + progress line) and the input dock (~110px) with room for
+          // the stage's own spacing.
+          <div
+            className="relative -mx-2 mb-6 sm:-mx-4 md:-mx-8"
+            style={{ height: 'calc(100dvh - 285px)', minHeight: 520 }}
+          >
+            {supported ? (
+              <StoryFlipbook
+                pages={bookPages}
+                fontFamilyPreference={fontFamilyPreference}
+                fontSize={fontSize}
+                title={storyTitle}
+                activeSegmentIndex={activeAudioSegmentIndex}
+                isNarrating={isAudioPlaying}
+                fill
+              />
+            ) : (
+              <CssFlipbook
+                pages={bookPages}
+                fontFamilyPreference={fontFamilyPreference}
+                fontSize={fontSize}
+                title={storyTitle}
+                activeSegmentIndex={activeAudioSegmentIndex}
+                isNarrating={isAudioPlaying}
+                fill
+              />
+            )}
+            {!supported && (
+              <p className="pointer-events-none absolute left-4 top-3 z-30 max-w-md font-mono text-xs text-slate-500">
+                Full page-curl physics available in Chrome 155+ — showing the parchment flipbook. Hover a corner to bend the page, then hold and drag to turn it.
+              </p>
+            )}
+          </div>
+        ) : segments.map((segment, index) => {
           // Check if this segment starts a chapter
           const chapter = chapters.find(c => c.startIndex === index);
           const stats = chapter ? getChapterStats(segments, chapter) : null;

@@ -149,6 +149,7 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - **Multi-Provider TTS**: Google Gemini Expressive TTS (Default), OpenAI Voice Engine (Alloy, Echo, Fable, Onyx, Nova, Shimmer), and Pollinations TTS.
 - **Continuous Global Audio Player**: Floating bottom controller with playback progression, chapter skips, speed controls (0.75x–2.0x), and volume mixer.
 - **Procedural Ambient Music Engine**: Custom Web Audio oscillators generate generative drones, pad chords, and atmospheric textures matched to genre and sentiment without external audio files.
+- **15 Procedural Ambient Soundscapes**: Forest Wind, Rain, Campfire, Ocean Waves, River Stream, **Morning Birdsong** (pitch-swept chirp phrases over a forest bed), **Crickets at Night** (pulse-modulated stridulation voices), **Thunderstorm** (rain bed + brown-noise rumbles), **Wind Chimes** (pentatonic bell partials on a breeze), Ethereal Pad, Space Hum, Cyberpunk City, Medieval Tavern, Dark Drone, and Mystery Clock — all synthesized sample-by-sample with the Web Audio API, zero audio assets. A genre/keyword engine auto-selects the matching soundscape as the story unfolds.
 
 ### 4. 🧠 Entity Lore & Knowledge Graph
 - **Entity Semantic Extraction**: Identifies characters, locations, artifacts, factions, and key plot events.
@@ -169,6 +170,14 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - **Karaoke Word-by-Word Subtitles**: Synchronized golden active word highlighting matching speech cadence.
 - **Ken Burns Cinematic Motion**: Dynamic zoom-and-pan cameras across scene illustrations.
 - **Dual-Stem Audio Recorder**: Combines speech voiceovers and procedural ambient background music into a single recorded canvas stream.
+
+### 8. 📖 Ancient Storybook Flipbook Reading Mode
+- **Real Page-Curl Flipbook**: Stories render as a full-bleed, edge-to-edge ancient storybook powered by the [`hic-pageflip`](https://github.com/bramus/hic-pageflip) custom element — real, accessible DOM pages (selectable text, live images) deformed through a 2D Canvas or 3D WebGL page-curl pipeline (Chrome HTML-in-Canvas), with an automatic CSS-3D parchment flipbook fallback for every other browser.
+- **Classic Picture-Book Spreads**: Leather-bound gold-foil cover, parchment pages with fiber texture and gutter shadows, illustration on the left page and prose on the right, illuminated drop caps, chapter plaques, ornamental `❦` dividers, and "The End" back cover.
+- **Hold & Flip Corners**: Hovering near a page corner bends the sheet a little and shows a curved "Hold & flip" affordance — grab the corner and drag to turn the page exactly like a real book. Keyboard arrows, floating edge arrows, a seekable gold progress bar, and a page-jump input are always available.
+- **Narration-Synced Pages**: When TTS narration plays, the book turns itself to the passage being read and auto-advances spread by spread — with a synthesized paper-rustle page-turn sound (Web Audio, mutable) on every turn.
+- **Smart Prose Pagination**: Long paragraphs are split across spreads at sentence boundaries with "— continued —" markers, so no text ever clips and the illustration | text pairing never breaks.
+- **2D/3D Engine Toggle**: The crisp 2D canvas engine is the default; the 3D WebGL ribbon-curl engine is one click away — with automatic fallback if a pipeline cannot initialize.
 
 ### 7. 🌐 Cloud Storage & Community Integrations
 - **Google Workspace & Drive**: Export chapters as formatted Google Docs and manage Google Drive cloud backups.
@@ -645,6 +654,7 @@ npm run start
 
 - [ ] **Multiplayer Story Co-Op (WebSockets)**: Live classroom and party voting mode for real-time group storytelling.
 - [ ] **Multi-Voice Character Casting**: Automatic dialogue parsing to assign distinct AI voice actors to individual characters.
+- [x] **Storybook Flip-Book Reading Mode**: Shipped — HTML-in-Canvas page-curl storybook (2D/3D engines) with hold-&-flip corners, parchment theming, narration-synced pages, and a CSS-3D fallback. *(WebXR depth-parallax variant still open.)*
 - [ ] **3D WebXR Flip-Book**: Three.js realistic page-turn physics with depth parallax on illustrations.
 - [ ] **LoRA Character Consistency**: Facial reference anchors to maintain character likeness across 50+ chapters.
 - [ ] **Community Story Marketplace**: Share and fork branching story paths created by other storytellers.

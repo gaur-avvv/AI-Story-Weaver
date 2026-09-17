@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/verify-lucide-icons.cjs",
     "build": "vite build",
     "preview": "vite preview",
+    "lint:icons": "node scripts/verify-lucide-icons.cjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,6 +18,7 @@
     "@types/node": "^22.20.1",
     "@vitejs/plugin-react": "^5.2.0",
     "framer-motion": "^12.43.0",
+    "hic-pageflip": "^1.0.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.42.0",
@@ -25,6 +28,5 @@
     "react-router-dom": "^7.18.3",
     "typescript": "~5.9.3",
     "vite": "^8.2.1"
-  },
-  "devDependencies": {}
+  }
 }

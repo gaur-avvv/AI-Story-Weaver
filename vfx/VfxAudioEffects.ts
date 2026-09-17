@@ -6,6 +6,10 @@ export type SoundscapeType =
   | 'campfire'
   | 'ocean_waves' 
   | 'river_stream'
+  | 'birdsong'
+  | 'crickets_night'
+  | 'thunderstorm'
+  | 'wind_chimes'
   | 'ethereal_pad' 
   | 'space_hum' 
   | 'cyberpunk_city'
@@ -124,6 +128,18 @@ class AtmosphericAudioSynthesizer {
         case 'river_stream':
           this.createRiverStreamSoundscape(layerGain, layerNodes);
           break;
+        case 'birdsong':
+          this.createBirdsongSoundscape(layerGain, layerNodes);
+          break;
+        case 'crickets_night':
+          this.createCricketsNightSoundscape(layerGain, layerNodes);
+          break;
+        case 'thunderstorm':
+          this.createThunderstormSoundscape(layerGain, layerNodes);
+          break;
+        case 'wind_chimes':
+          this.createWindChimesSoundscape(layerGain, layerNodes);
+          break;
         case 'ethereal_pad':
           this.createEtherealPadSoundscape(layerGain, layerNodes);
           break;
@@ -160,14 +176,30 @@ class AtmosphericAudioSynthesizer {
     const lowerWeather = weather.toLowerCase();
     const lowerLocation = location.toLowerCase();
 
+    // Thunderstorm keywords (before the plain-rain check — a storm is more
+    // specific and dramatic than steady rain)
+    if (lowerText.includes('thunder') || lowerText.includes('lightning') || lowerText.includes('storm') || lowerWeather === 'stormy') {
+      return 'thunderstorm';
+    }
+
     // Direct weather overrides
-    if (lowerWeather === 'rainy' || lowerWeather === 'stormy' || lowerText.includes('rain') || lowerText.includes('thunder') || lowerText.includes('storm')) {
+    if (lowerWeather === 'rainy' || lowerText.includes('rain')) {
       return 'rain';
     }
 
     // Cozy / Campfire keywords
     if (lowerText.includes('campfire') || lowerText.includes('fireplace') || lowerText.includes('hearth') || lowerText.includes('flame') || lowerText.includes('embers') || lowerText.includes('cozy cabin')) {
       return 'campfire';
+    }
+
+    // Morning birdsong keywords (explicit bird/nature-morning references)
+    if (lowerText.includes('bird') || lowerText.includes('chirp') || lowerText.includes('sparrow') || lowerText.includes('robin') || lowerText.includes('dawn') || lowerLocation === 'garden' || lowerLocation === 'meadow') {
+      return 'birdsong';
+    }
+
+    // Wind-chime keywords (bells, shrines, temples, festivals)
+    if (lowerText.includes('chime') || lowerText.includes('bell') || lowerText.includes('temple') || lowerText.includes('shrine') || lowerText.includes('festival')) {
+      return 'wind_chimes';
     }
 
     // River / Stream keywords
@@ -203,6 +235,12 @@ class AtmosphericAudioSynthesizer {
     // Horror / Dark Drone
     if (lowerGenre.includes('horror') || lowerGenre.includes('thriller') || lowerText.includes('haunted') || lowerText.includes('shadow') || lowerText.includes('creepy') || lowerText.includes('dungeon') || lowerText.includes('monster') || lowerText.includes('darkness')) {
       return 'dark_drone';
+    }
+
+    // Crickets at night (after horror, so dark stories keep their drone; cozy
+    // night scenes — bedtime tales, fireflies, owls — get the summer night)
+    if (lowerText.includes('cricket') || lowerText.includes('cicada') || lowerText.includes('firefly') || lowerText.includes('owl') || lowerText.includes('summer night') || lowerText.includes('starry') || lowerGenre.includes('bedtime')) {
+      return 'crickets_night';
     }
 
     // Fantasy / Ethereal Pad
@@ -267,6 +305,218 @@ class AtmosphericAudioSynthesizer {
     noise.start();
 
     nodesList.push(noise, filter);
+  }
+
+  /**
+   * Renders a seamlessly-looping mono AudioBuffer of `seconds` length by
+   * delegating the sample math to `fill`. Event-based soundscapes (birds,
+   * chimes, thunder) bake their randomized event patterns straight into the
+   * buffer, so playback is a single looping BufferSource — no timers, and the
+   * standard node cleanup path fully tears the layer down.
+   */
+  private createLoopingAudioBuffer(
+    seconds: number,
+    fill: (data: Float32Array, sampleRate: number) => void
+  ): AudioBuffer | null {
+    if (!this.audioCtx) return null;
+    const length = Math.max(1, Math.floor(this.audioCtx.sampleRate * seconds));
+    const buffer = this.audioCtx.createBuffer(1, length, this.audioCtx.sampleRate);
+    fill(buffer.getChannelData(0), this.audioCtx.sampleRate);
+    return buffer;
+  }
+
+  private createBirdsongSoundscape(targetGain: GainNode, nodesList: any[]) {
+    if (!this.audioCtx) return;
+
+    const seconds = 12;
+    const sampleRate = this.audioCtx.sampleRate;
+    const buffer = this.createLoopingAudioBuffer(seconds, (data, rate) => {
+      const length = data.length;
+
+      // 1) Soft forest-wind bed under the whole loop. The swell completes
+      //    whole cycles across the loop so the seam is inaudible.
+      for (let i = 0; i < length; i++) {
+        const t = i / rate;
+        const swell = 0.5 + 0.5 * Math.sin((2 * Math.PI * t * 2) / seconds);
+        data[i] = (Math.random() * 2 - 1) * 0.02 * swell;
+      }
+
+      // 2) One chirp: a sine whose frequency sweeps up-then-down, with a
+      //    bell-shaped amplitude envelope — the classic "tweet" shape.
+      const addChirp = (startSec: number, baseFreq: number, sweep: number, dur: number, amp: number) => {
+        const start = Math.floor(startSec * rate);
+        const durSamples = Math.floor(dur * rate);
+        let phase = 0;
+        for (let i = 0; i < durSamples; i++) {
+          const idx = start + i;
+          if (idx >= length) break;
+          const p = i / durSamples;
+          const freq = baseFreq + sweep * Math.sin(Math.PI * p);
+          phase += (2 * Math.PI * freq) / rate;
+          const env = Math.sin(Math.PI * p) ** 2;
+          data[idx] += Math.sin(phase) * env * amp;
+        }
+      };
+
+      const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+      // 3) ~14 phrase events, each 2–5 quick notes, kept clear of the loop seam.
+      for (let e = 0; e < 14; e++) {
+        let t = rand(0.1, seconds - 1.5);
+        const notes = 2 + Math.floor(Math.random() * 4);
+        const base = rand(2200, 4300);
+        for (let n = 0; n < notes; n++) {
+          addChirp(t, base + rand(-150, 150), rand(300, 900), rand(0.05, 0.12), rand(0.05, 0.1));
+          t += rand(0.09, 0.2);
+        }
+      }
+    });
+    if (!buffer) return;
+
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(targetGain);
+    source.start();
+    nodesList.push(source);
+  }
+
+  private createCricketsNightSoundscape(targetGain: GainNode, nodesList: any[]) {
+    if (!this.audioCtx) return;
+
+    // 3s loop; carrier frequencies x 3 and pulse rates x 3 are whole numbers,
+    // so every voice loops phase-perfect with no click at the seam.
+    const seconds = 3;
+    const sampleRate = this.audioCtx.sampleRate;
+    const buffer = this.createLoopingAudioBuffer(seconds, (data, rate) => {
+      const length = data.length;
+
+      // Very faint still-night pad.
+      for (let i = 0; i < length; i++) {
+        const t = i / rate;
+        data[i] = Math.sin(2 * Math.PI * 110 * t) * 0.008;
+      }
+
+      // One cricket: a carrier tone amplitude-gated into fast stridulation
+      // pulses, grouped into chirp bursts (0.45s on, 0.55s off — 3 per loop).
+      const addCricket = (offsetSec: number, pulseRate: number, carrier: number, amp: number) => {
+        for (let i = 0; i < length; i++) {
+          const t = i / rate + offsetSec;
+          const pulsePhase = (t * pulseRate) % 1;
+          const pulse = pulsePhase < 0.55 ? Math.sin(Math.PI * (pulsePhase / 0.55)) : 0;
+          const burst = t % 1 < 0.45 ? 1 : 0;
+          data[i] += Math.sin(2 * Math.PI * carrier * t) * pulse * burst * amp;
+        }
+      };
+
+      addCricket(0, 26, 4200, 0.05);
+      addCricket(0.13, 31, 4600, 0.038);
+      addCricket(0.29, 23, 3900, 0.032);
+    });
+    if (!buffer) return;
+
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(targetGain);
+    source.start();
+    nodesList.push(source);
+  }
+
+  private createThunderstormSoundscape(targetGain: GainNode, nodesList: any[]) {
+    if (!this.audioCtx) return;
+
+    const seconds = 20;
+    const sampleRate = this.audioCtx.sampleRate;
+    const buffer = this.createLoopingAudioBuffer(seconds, (data, rate) => {
+      const length = data.length;
+
+      // Steady rain bed: plain white noise reads as rainfall at low level.
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.05;
+      }
+
+      // One rumble: brown-ish noise (one-pole low-pass) with a slow attack and
+      // long decay — the "distant thunder" shape.
+      const addRumble = (startSec: number, durSec: number, amp: number) => {
+        const start = Math.floor(startSec * rate);
+        const durSamples = Math.floor(durSec * rate);
+        let lowpassed = 0;
+        for (let i = 0; i < durSamples; i++) {
+          const idx = start + i;
+          if (idx >= length) break;
+          const p = i / durSamples;
+          const env = Math.min(1, p / 0.12) * Math.exp(-2.2 * p);
+          lowpassed += (Math.random() * 2 - 1 - lowpassed) * 0.02;
+          data[idx] += lowpassed * env * amp;
+        }
+      };
+
+      addRumble(2.5, 3.5, 0.55);
+      addRumble(12, 4.5, 0.4);
+    });
+    if (!buffer) return;
+
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(targetGain);
+    source.start();
+    nodesList.push(source);
+  }
+
+  private createWindChimesSoundscape(targetGain: GainNode, nodesList: any[]) {
+    if (!this.audioCtx) return;
+
+    const seconds = 12;
+    const sampleRate = this.audioCtx.sampleRate;
+    const buffer = this.createLoopingAudioBuffer(seconds, (data, rate) => {
+      const length = data.length;
+
+      // Gentle breeze bed.
+      let breeze = 0;
+      for (let i = 0; i < length; i++) {
+        breeze += (Math.random() * 2 - 1 - breeze) * 0.008;
+        data[i] = breeze * 0.9;
+      }
+
+      // One strike: inharmonic bell partials (classic chime ratios) with an
+      // exponential decay, like metal tubes struck by the wind.
+      const addStrike = (startSec: number, f0: number, amp: number) => {
+        const partials = [1, 2.756, 5.404];
+        const partialAmps = [1, 0.42, 0.18];
+        const dur = 2.2;
+        const start = Math.floor(startSec * rate);
+        const durSamples = Math.floor(dur * rate);
+        for (let i = 0; i < durSamples; i++) {
+          const idx = start + i;
+          if (idx >= length) break;
+          const t = i / rate;
+          const env = Math.exp(-2.8 * t);
+          let sample = 0;
+          for (let p = 0; p < partials.length; p++) {
+            sample += Math.sin(2 * Math.PI * f0 * partials[p] * t) * partialAmps[p];
+          }
+          data[idx] += sample * env * amp;
+        }
+      };
+
+      // C-pentatonic strike sequence, kept clear of the loop seam.
+      const scale = [523.25, 587.33, 698.46, 783.99, 880];
+      for (let s = 0; s < 6; s++) {
+        const t = 0.6 + s * 1.7 + Math.random() * 0.5;
+        if (t > seconds - 2.5) break;
+        addStrike(t, scale[Math.floor(Math.random() * scale.length)], 0.09);
+      }
+    });
+    if (!buffer) return;
+
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(targetGain);
+    source.start();
+    nodesList.push(source);
   }
 
   private createForestWindSoundscape(targetGain: GainNode, nodesList: any[]) {
