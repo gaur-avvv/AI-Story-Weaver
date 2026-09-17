@@ -30,7 +30,7 @@ import {
   Bird,
   Moon,
   CloudLightning,
-  BellWind
+  BellRing
 } from 'lucide-react';
 import type { StorySegment } from '../types';
 import { useVfx } from '../vfx/VfxContext';
@@ -663,7 +663,7 @@ export const AudioController: React.FC<AudioControllerProps> = ({
     { type: 'birdsong', label: 'Morning Birds', icon: <Bird className="w-3.5 h-3.5 text-lime-400" /> },
     { type: 'crickets_night', label: 'Crickets at Night', icon: <Moon className="w-3.5 h-3.5 text-indigo-300" /> },
     { type: 'thunderstorm', label: 'Thunderstorm', icon: <CloudLightning className="w-3.5 h-3.5 text-sky-300" /> },
-    { type: 'wind_chimes', label: 'Wind Chimes', icon: <BellWind className="w-3.5 h-3.5 text-fuchsia-300" /> },
+    { type: 'wind_chimes', label: 'Wind Chimes', icon: <BellRing className="w-3.5 h-3.5 text-fuchsia-300" /> },
     { type: 'ethereal_pad', label: 'Ethereal Pad', icon: <Music className="w-3.5 h-3.5 text-purple-400" /> },
     { type: 'space_hum', label: 'Space Hum', icon: <Orbit className="w-3.5 h-3.5 text-blue-400" /> },
     { type: 'cyberpunk_city', label: 'Cyberpunk', icon: <Zap className="w-3.5 h-3.5 text-fuchsia-400" /> },

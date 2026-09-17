@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/verify-lucide-icons.cjs",
     "build": "vite build",
     "preview": "vite preview",
+    "lint:icons": "node scripts/verify-lucide-icons.cjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
