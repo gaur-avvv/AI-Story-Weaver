@@ -210,7 +210,9 @@ class VideoExportManager {
               await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'copy', '-c:a', 'aac', 'output.mp4']);
 
               const mp4Data = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
-              const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
+              // mp4Data.buffer is typed ArrayBufferLike (may claim SharedArrayBuffer),
+              // so narrow it before handing it to the Blob constructor.
+              const mp4Blob = new Blob([mp4Data.buffer as ArrayBuffer], { type: 'video/mp4' });
               resolveExport(mp4Blob);
             } catch (err) {
               this.addLog('MP4 remuxing completed with high-compatibility WebM video.');

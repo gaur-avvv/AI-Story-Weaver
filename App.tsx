@@ -99,14 +99,6 @@ const SENSITIVE_SETTINGS_KEYS: (keyof Settings)[] = [
   'extendedApiKeys',
 ];
 
-const sanitizeSettingsForStorage = (settingsToStore: Settings): Settings => {
-  const sanitized = { ...settingsToStore };
-  SENSITIVE_SETTINGS_KEYS.forEach((key) => {
-    delete sanitized[key];
-  });
-  return sanitized;
-};
-
 function saveStoriesSafely(stories: SavedStory[]): boolean {
   return saveStoriesSafelyWithQuotaProtection(stories).success;
 }
@@ -202,6 +194,7 @@ function StoryCreatorContent() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
   const [externalPrompt, setExternalPrompt] = useState<string>('');
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [storybookMode, setStorybookMode] = useState<boolean>(false);
 
   // Auto-update knowledge graph on chapter / segment generation or regeneration
   useStoryGraphAutoUpdate(segments, isGenerating);
@@ -1944,7 +1937,7 @@ function StoryCreatorContent() {
         </header>
       )}
       
-      <main className={`w-full max-w-4xl flex-grow flex flex-col p-4 transition-all duration-500 ${isFocusMode ? 'pt-12 sm:pt-16 pb-16' : 'pt-6'}`}>
+      <main className={`w-full flex-grow flex flex-col p-4 transition-all duration-500 ${storybookMode ? 'max-w-none px-0' : 'max-w-4xl'} ${isFocusMode ? 'pt-12 sm:pt-16 pb-16' : 'pt-6'}`}>
         <AnimatePresence>
           {!isFocusMode && isSettingsOpen && (
              <motion.div
@@ -1997,6 +1990,7 @@ function StoryCreatorContent() {
                 cloudflareAccountId: settings.cloudflareAccountId,
               }}
               imageAspectRatio={settings.imageAspectRatio || '16:9'}
+              onViewModeChange={(mode) => setStorybookMode(mode === 'book')}
             />
             {!isFocusMode && !isGenerating && (!segments[segments.length - 1]?.choices || segments[segments.length - 1]?.choices?.length === 0) && (
               <div className="no-print">
@@ -2086,6 +2080,7 @@ function StoryCreatorContent() {
             onPlayStateChange={setIsAudioPlaying}
             onAudioProgressUpdate={handleAudioProgressUpdate}
             seekAudioRequest={seekAudioRequest}
+            variant={storybookMode ? 'storybook' : 'default'}
           />
         </div>
       )}
