@@ -90,7 +90,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
   };
 
   const handleExtendedKeyChange = (providerId: string, value: string) => {
-    const updated = { ...(tempKeys.extendedApiKeys || {}), [providerId]: value };
+    const updated = { ...tempKeys.extendedApiKeys, [providerId]: value };
     setTempKeys(prev => ({ ...prev, extendedApiKeys: updated }));
     onSave('extendedApiKeys', JSON.stringify(updated));
   };
