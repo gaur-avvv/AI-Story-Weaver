@@ -15,18 +15,18 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.52.0",
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.2",
     "@vitejs/plugin-react": "^5.2.0",
     "framer-motion": "^12.43.0",
     "hic-pageflip": "^1.0.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
-    "lucide-react": "^1.42.0",
+    "lucide-react": "^1.46.0",
     "openai": "^6.49.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.3",
     "typescript": "~5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.3.0"
   }
 }
