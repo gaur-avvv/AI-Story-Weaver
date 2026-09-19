@@ -24,6 +24,8 @@
 </div>
 
 ---
+<img width="1618" height="860" alt="image" src="https://github.com/user-attachments/assets/9d4098e7-527c-49e1-9813-52bd75e0673e" />
+
 
 ## 📌 Project Identity
 
