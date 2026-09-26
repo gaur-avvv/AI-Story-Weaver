@@ -13,11 +13,15 @@ import { VideoModal } from './components/VideoModal';
 import { VideoGenerationIndicator } from './components/VideoGenerationIndicator';
 import { IntegrationsModal } from './components/IntegrationsModal';
 import { ChapterOutlineDrawer } from './components/ChapterOutlineDrawer';
+import { StoryGraphModal } from './components/StoryGraphModal';
+import { StoryTimelineMap } from './components/StoryTimelineMap';
+import { BilingualStoryModal } from './components/BilingualStoryModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { BackgroundManager } from './components/BackgroundManager';
 import { StoryLibrary } from './components/StoryLibrary';
 import { AudioController } from './components/AudioController';
 import { useToast } from './components/ToastContext';
-import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2, Headphones, Music } from 'lucide-react';
+import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2, Headphones, Music, Share2, GitFork, Languages, Keyboard } from 'lucide-react';
 import { extractChapters, setChapterAtSegment, removeChapterAtSegment, getChapterStats } from './utils/chapterUtils';
 import { AuthCallback } from './components/AuthCallback';
 import { VoicePromptModal } from './components/VoicePromptModal';
@@ -192,6 +196,10 @@ function StoryCreatorContent() {
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
   const [isChapterDrawerOpen, setIsChapterDrawerOpen] = useState<boolean>(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState<boolean>(false);
+  const [isTimelineMapOpen, setIsTimelineMapOpen] = useState<boolean>(false);
+  const [isBilingualModalOpen, setIsBilingualModalOpen] = useState<boolean>(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState<boolean>(false);
   const [externalPrompt, setExternalPrompt] = useState<string>('');
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [storybookMode, setStorybookMode] = useState<boolean>(false);
@@ -236,6 +244,7 @@ function StoryCreatorContent() {
 
   const handleResetToHome = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
+    globalStoryGraph.clear();
     setSegments([]);
     setTitle('');
     setInitialPrompt('');
@@ -307,14 +316,30 @@ function StoryCreatorContent() {
         else if (isChapterDrawerOpen) setIsChapterDrawerOpen(false);
         else if (isIntegrationsOpen) setIsIntegrationsOpen(false);
         else if (isVideoModalOpen) setIsVideoModalOpen(false);
+        else if (isGraphModalOpen) setIsGraphModalOpen(false);
+        else if (isTimelineMapOpen) setIsTimelineMapOpen(false);
+        else if (isBilingualModalOpen) setIsBilingualModalOpen(false);
+        else if (isShortcutsModalOpen) setIsShortcutsModalOpen(false);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         setIsVoiceModalOpen(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        setIsGraphModalOpen(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        setIsTimelineMapOpen(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setIsBilingualModalOpen(prev => !prev);
+      } else if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setIsShortcutsModalOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFocusMode, isSettingsOpen, isChapterDrawerOpen, isIntegrationsOpen, isVideoModalOpen, isVoiceModalOpen]);
+  }, [isFocusMode, isSettingsOpen, isChapterDrawerOpen, isIntegrationsOpen, isVideoModalOpen, isVoiceModalOpen, isGraphModalOpen, isTimelineMapOpen, isBilingualModalOpen, isShortcutsModalOpen]);
 
   // Global listener for OAuth callbacks (Google & GitHub)
   useEffect(() => {
@@ -636,6 +661,7 @@ function StoryCreatorContent() {
     setIsGenerating(true);
     setIsSettingsOpen(false);
     setError(null);
+    globalStoryGraph.clear();
     setSegments([]);
     setTitle('');
     setInitialPrompt(prompt);
@@ -1883,6 +1909,57 @@ function StoryCreatorContent() {
                 </button>
               )}
 
+              {/* Lore & Semantic Knowledge Graph Button */}
+              {segments.length > 0 && (
+                <button
+                  onClick={() => setIsGraphModalOpen(true)}
+                  title="Lore & Semantic Knowledge Graph (Ctrl+G)"
+                  className="flex items-center justify-center gap-1.5 px-3 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white hover:border-purple-400/40 rounded-full transition-all duration-200 bg-white/5 border border-white/10 text-xs font-semibold shadow-sm"
+                >
+                  <Share2 className="w-4 h-4 text-purple-300" />
+                  <span className="hidden md:inline">
+                    Lore Graph
+                  </span>
+                </button>
+              )}
+
+              {/* CYOA Branching Timeline & Decision DAG Button */}
+              {segments.length > 0 && (
+                <button
+                  onClick={() => setIsTimelineMapOpen(true)}
+                  title="Branching Decision Tree & Timeline DAG (Ctrl+T)"
+                  className="flex items-center justify-center gap-1.5 px-3 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white hover:border-purple-400/40 rounded-full transition-all duration-200 bg-white/5 border border-white/10 text-xs font-semibold shadow-sm"
+                >
+                  <GitFork className="w-4 h-4 text-purple-300" />
+                  <span className="hidden md:inline">
+                    Timeline Map
+                  </span>
+                </button>
+              )}
+
+              {/* Bilingual Dual-Language Learning Studio Button */}
+              {segments.length > 0 && (
+                <button
+                  onClick={() => setIsBilingualModalOpen(true)}
+                  title="Bilingual & Dual-Language Learning Studio (Ctrl+B)"
+                  className="flex items-center justify-center gap-1.5 px-3 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white hover:border-purple-400/40 rounded-full transition-all duration-200 bg-white/5 border border-white/10 text-xs font-semibold shadow-sm"
+                >
+                  <Languages className="w-4 h-4 text-purple-300" />
+                  <span className="hidden md:inline">
+                    Bilingual
+                  </span>
+                </button>
+              )}
+
+              {/* Keyboard Shortcuts Cheatsheet Button */}
+              <button
+                onClick={() => setIsShortcutsModalOpen(true)}
+                title="Keyboard Shortcuts & Accessibility (?)"
+                className="flex items-center justify-center w-9 h-9 text-purple-200 hover:bg-purple-600/30 hover:text-white rounded-full transition-all duration-200 active:scale-95 bg-white/5 border border-white/10"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+
 
 
               {/* Integrations & Agents Hub Button */}
@@ -2147,6 +2224,34 @@ function StoryCreatorContent() {
         genre={settings.genre}
         onUpdateSegments={setSegments}
         onJumpToSegment={handleJumpToSegment}
+      />
+
+      <StoryGraphModal
+        isOpen={isGraphModalOpen}
+        onClose={() => setIsGraphModalOpen(false)}
+        storyTitle={title || 'Untitled Story'}
+        onJumpToSegment={handleJumpToSegment}
+      />
+
+      <StoryTimelineMap
+        isOpen={isTimelineMapOpen}
+        onClose={() => setIsTimelineMapOpen(false)}
+        segments={segments}
+        storyTitle={title || 'Untitled Story'}
+        onJumpToSegment={handleJumpToSegment}
+      />
+
+      <BilingualStoryModal
+        isOpen={isBilingualModalOpen}
+        onClose={() => setIsBilingualModalOpen(false)}
+        segments={segments}
+        storyTitle={title || 'Untitled Story'}
+        userApiKey={userApiKey}
+      />
+
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
     </motion.div>
   );

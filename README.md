@@ -158,6 +158,10 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - **Relationship Triples**: Maps connections (e.g., `[Elena] --(guards)--> [Sunken Relic]`).
 - **Emotional Timeline**: Visualizes sentiment evolution per character across the story.
 - **Context Injection**: Automatically injects lore summaries into future LLM generation prompts to eliminate character amnesia.
+- **Interactive Knowledge Graph Studio (`StoryGraphModal.tsx`)**: Full-screen modal (`Ctrl+G` / toolbar button) with an interactive SVG node-link graph, draggable nodes, zoom/pan controls, entity search, and type filtering.
+- **Character Emotional Arc Visualizer**: Step timeline tracking character sentiment transitions across scenes to prevent out-of-character behavior.
+- **Automated Continuity Auditor**: Rule-based validation engine checking for item possession conflicts, dead/captive status contradictions, and shifting allegiances.
+- **Academic / Data Export**: Export story knowledge graphs directly as structured JSON.
 
 ### 5. 📚 Automated eBook & PDF Publishing
 - **Standard EPUB 3.0 Compiler**: Pure client-side generation of valid `.epub` files ready for major eBook readers.
@@ -506,6 +510,12 @@ Novellaio solves this through a dedicated, client-persisted **Semantic Lore Know
    - Connections are stored as directed semantic triples: `[Subject] --[Predicate]--> [Object]`, with properties such as `confidence`, `firstMentionedChapter`, and `lastActiveChapter`.
 3. **Dynamic Prompt Lore Injection**:
    - When generating Chapter $N+1$, the engine runs a graph traversal query to extract entities active in the current scene and injects a condensed, structured lore block into the LLM's system instructions. This ensures strict continuity adherence across 30+ chapter arcs.
+4. **Interactive Studio Visualization (`StoryGraphModal`)**:
+   - Readers and authors can open the dedicated Knowledge Graph Studio (`Ctrl+G`) to explore force-positioned entity nodes, inspect relationships, and filter by node types.
+5. **Rule-Based Continuity Auditing**:
+   - Automatically detects item possession anomalies (an artifact held by multiple actors simultaneously), status contradictions (e.g. incapacitated/captured characters acting freely), and shifting allegiances.
+6. **Automated Vitest Test Suite**:
+   - Full test coverage over graph ingestion, heuristic extraction, narrative consistency auditing, and resilient JSON parsing (`npm test`).
 
 ---
 
