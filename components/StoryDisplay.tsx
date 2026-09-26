@@ -12,6 +12,9 @@ import StoryFlipbook from './flipbook/StoryFlipbook';
 import { CssFlipbook } from './flipbook/CssFlipbook';
 import { isHtmlInCanvasSupported } from '../utils/pageflipSupport';
 import { Plus, BookOpen, BookMarked, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { globalStoryGraph } from '../services/storyGraphState';
+
+const DIALOGUE_PROVIDERS = new Set(['gemini', 'openai', 'pollinations']);
 
 interface StoryDisplayProps {
   segments: StorySegment[];
@@ -126,6 +129,14 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
   const chapters = extractChapters(segments);
   const nextChapterNumber = chapters.length + 1;
   const previousParagraphs = segments.map(s => s.paragraph);
+
+  // Real character names + active TTS provider for multi-voice dialogue attribution,
+  // resolved centrally here rather than left to each card to guess independently.
+  const knownCharacters = useMemo(
+    () => globalStoryGraph.getNodes().filter(n => n.type === 'character').map(n => n.name),
+    [segments]
+  );
+  const dialogueProvider = (DIALOGUE_PROVIDERS.has(textProvider) ? textProvider : 'gemini') as 'gemini' | 'openai' | 'pollinations';
 
   const lengthDisplayMap: Record<string, string> = {
     'very_short': '1-2 scenes',
@@ -267,6 +278,8 @@ export const StoryDisplay: React.FC<StoryDisplayProps> = ({
                 audioProgress={activeAudioSegmentIndex === index ? audioProgress : 0}
                 onSeekWord={(ratio) => onSeekAudioRatio?.(index, ratio)}
                 imageAspectRatio={imageAspectRatio}
+                knownCharacters={knownCharacters}
+                dialogueProvider={dialogueProvider}
               />
 
               {/* Optional inline button to start a chapter right after this segment */}

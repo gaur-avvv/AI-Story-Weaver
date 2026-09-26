@@ -3,7 +3,8 @@ import type { StorySegment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVfx } from '../vfx/VfxContext';
 import { WandIcon, SparklesIcon } from './icons';
-import { Volume2, Sparkles, BookOpen, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Volume2, Sparkles, BookOpen, RefreshCw, AlertTriangle, Mic } from 'lucide-react';
+import { parseParagraphDialogue } from '../services/dialogueExtractor';
 
 interface ParagraphCardProps {
   segment: StorySegment;
@@ -15,6 +16,8 @@ interface ParagraphCardProps {
   audioProgress?: number;
   onSeekWord?: (progressRatio: number) => void;
   imageAspectRatio?: string;
+  knownCharacters?: string[];
+  dialogueProvider?: 'gemini' | 'openai' | 'pollinations';
 }
 
 export const ParagraphCard: React.FC<ParagraphCardProps> = ({ 
@@ -27,6 +30,8 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
   audioProgress = 0,
   onSeekWord,
   imageAspectRatio = '16:9',
+  knownCharacters = [],
+  dialogueProvider = 'gemini' as const,
 }) => {
   const { theme, processParagraphForVfx } = useVfx();
 
@@ -100,6 +105,14 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
     }
     return Math.min(totalWords - 1, Math.max(0, Math.floor(audioProgress * totalWords)));
   }, [isAudioActive, totalWords, audioProgress]);
+
+  const dialogueBreakdown = useMemo(() => {
+    return parseParagraphDialogue(segment.paragraph, knownCharacters, dialogueProvider);
+  }, [segment.paragraph, knownCharacters, dialogueProvider]);
+
+  const dialogueSpeakers = useMemo(() => {
+    return Array.from(new Set(dialogueBreakdown.filter(d => d.isDialogue).map(d => d.speaker)));
+  }, [dialogueBreakdown]);
 
   const cardElementId = typeof index === 'number' ? `story-segment-card-${index}` : `story-segment-card-${segment.id}`;
 
@@ -255,6 +268,25 @@ export const ParagraphCard: React.FC<ParagraphCardProps> = ({
               <span>Synthesizing voice narration...</span>
             </>
           )}
+        </div>
+      )}
+
+      {/* Dramatized Dialogue Cast Badges */}
+      {dialogueSpeakers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2 self-start">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 flex items-center gap-1">
+            <Mic className="w-3 h-3 text-purple-400" />
+            Dialogue:
+          </span>
+          {dialogueSpeakers.map((speaker, sIdx) => (
+            <span
+              key={sIdx}
+              className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-200 flex items-center gap-1 shadow-sm"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+              {speaker}
+            </span>
+          ))}
         </div>
       )}
 

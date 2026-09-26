@@ -12,6 +12,22 @@ export interface VoiceStyleConfig {
   intensity?: string;
 }
 
+export interface DialogueLine {
+  id: string;
+  speaker: string;
+  text: string;
+  isDialogue: boolean;
+  voice: string;
+  emotion?: string;
+}
+
+export interface CharacterVoiceCast {
+  characterName: string;
+  voice: string;
+  genderOrPitch?: 'male' | 'female' | 'deep' | 'high' | 'neutral';
+  color?: string;
+}
+
 export interface StorySegment {
   id: string;
   paragraph: string;
@@ -28,6 +44,7 @@ export interface StorySegment {
   tone?: string;
   sentiment?: string;
   voiceStyle?: string;
+  dialogueLines?: DialogueLine[];
 }
 
 export interface StoryChapter {
