@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import { globalStoryGraph } from './storyGraphState';
 import { StorySegment } from '../types';
+import { getRandomStarters } from '../utils/storyStarters';
 
 // Helper to retry external API calls with exponential backoff and jitter
 export async function withRetry<T>(
@@ -2416,6 +2417,5 @@ Respond with ONLY a valid JSON array of objects matching this exact structure:
   } catch {}
 
   // 4. Default fallback to dynamic pool
-  const { getRandomStarters } = await import('../utils/storyStarters');
   return getRandomStarters(count);
 };

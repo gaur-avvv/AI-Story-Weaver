@@ -165,20 +165,39 @@ export class StoryGraphState {
     // 3. Audit relationship flips (e.g., ally vs enemy)
     characterNodes.forEach(c => {
       const cEdges = edges.filter(e => e.source === c.id || e.target === c.id);
-      const isAlly = cEdges.some(e => e.relationship.includes('ALLY') || e.relationship.includes('FRIEND') || e.relationship.includes('PROTECT'));
-      const isEnemy = cEdges.some(e => e.relationship.includes('ENEMY') || e.relationship.includes('ATTACK') || e.relationship.includes('BETRAY') || e.relationship.includes('FIGHT'));
+      const isAlly = cEdges.some(e => 
+        e.relationship.includes('ALLY') || 
+        e.relationship.includes('ALLI') || 
+        e.relationship.includes('FRIEND') || 
+        e.relationship.includes('PROTECT') ||
+        e.relationship.includes('AID') ||
+        e.relationship.includes('HELP')
+      );
+      const isEnemy = cEdges.some(e => 
+        e.relationship.includes('ENEMY') || 
+        e.relationship.includes('ATTACK') || 
+        e.relationship.includes('BETRAY') || 
+        e.relationship.includes('FIGHT') ||
+        e.relationship.includes('FOE') ||
+        e.relationship.includes('HARM')
+      );
       if (isAlly && isEnemy) {
         issues.push(`Character '${c.name}' has shifting allegiance (ally & opponent) in past scenes. Maintain logical character motivations.`);
       }
     });
 
-    // 4. Default continuity check if no specific anomalies flagged
+    // 4. Informational guidance (not a contradiction) when no specific anomalies are flagged.
+    // Kept separate from `issues` so a genuinely clean story still reports as clean in the UI,
+    // while the LLM prompt (which consumes the full string) still gets the guidance.
+    const guidanceNotes: string[] = [];
     if (issues.length === 0 && characterNodes.length > 0) {
       const charNames = characterNodes.slice(0, 4).map(c => c.name).join(', ');
-      issues.push(`Maintain consistent character identities, abilities, and locations for: ${charNames}.`);
+      guidanceNotes.push(`Maintain consistent character identities, abilities, and locations for: ${charNames}.`);
     }
 
-    return issues.length > 0 ? issues.map(i => `- ${i}`).join('\n') : '';
+    const contradictionText = issues.length > 0 ? issues.map(i => `- ${i}`).join('\n') : '';
+    const guidanceText = guidanceNotes.length > 0 ? guidanceNotes.map(n => `* ${n}`).join('\n') : '';
+    return [contradictionText, guidanceText].filter(Boolean).join('\n');
   }
 
   public recordCharacterSentiment(characterName: string, sentiment: string, segmentIndex: number) {
