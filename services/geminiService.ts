@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import { globalStoryGraph } from './storyGraphState';
+import { globalCharacterConsistency } from './characterConsistencyService';
 import { StorySegment } from '../types';
+import { getRandomStarters } from '../utils/storyStarters';
 
 // Helper to retry external API calls with exponential backoff and jitter
 export async function withRetry<T>(
@@ -518,7 +520,7 @@ export function buildSceneImagePrompt(
   const genreVisuals = getGenreThemeVisuals(genre);
   const audienceVisuals = getAudienceVisuals(targetAudience);
 
-  return `Masterpiece digital storybook illustration with ultra-sharp focus and crystal clear fine details.
+  const basePrompt = `Masterpiece digital storybook illustration with ultra-sharp focus and crystal clear fine details.
 SCENE CONTEXT & STORY ACTION: "${cleanedScene.slice(0, 420)}"
 VISUAL SUBJECTS & NARRATIVE FOCUS: Faithfully depict the exact characters, specific actions, creatures, emotional expressions, garments, and environmental surroundings described directly in the paragraph above.
 ART STYLE: ${styleVisuals}. Strictly preserve this chosen artistic medium and visual grammar across all elements.
@@ -527,6 +529,11 @@ TARGET AUDIENCE: ${audienceVisuals}.
 COMPOSITION & FRAMING: Framed in ${aspectRatio} aspect ratio composition, top-aligned subject framing with comfortable headroom (character faces and upper bodies clearly visible and never cropped), dynamic foreground, atmospheric midground, and richly detailed background depth.
 QUALITY & FIDELITY: 8k resolution, razor-sharp outlines, pristine micro-textures, raytraced volumetric lighting, vibrant harmonious colors, professional studio concept art standard.
 NEGATIVE PROMPT / CONSTRAINTS: blurry, out of focus, low resolution, noisy, muddy colors, deformed anatomy, extra limbs, cropped heads, distorted faces, text, words, letters, subtitles, watermarks, signatures, logos, frames, split screens.`;
+
+  const charNodes = globalStoryGraph.getNodes().filter(n => n.type === 'character');
+  const knownCharacters = charNodes.map(c => c.name);
+
+  return globalCharacterConsistency.injectAnchorsIntoScenePrompt(basePrompt, paragraph, knownCharacters, genre);
 }
 
 
@@ -2416,6 +2423,5 @@ Respond with ONLY a valid JSON array of objects matching this exact structure:
   } catch {}
 
   // 4. Default fallback to dynamic pool
-  const { getRandomStarters } = await import('../utils/storyStarters');
   return getRandomStarters(count);
 };
