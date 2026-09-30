@@ -463,7 +463,7 @@ export const SettingsPanel: React.FC<{
         else {
           // Store in extendedApiKeys
           setLocalSettings(prev => {
-            const ext = { ...(prev.extendedApiKeys || {}), [fieldOrProvider]: value };
+            const ext = { ...prev.extendedApiKeys, [fieldOrProvider]: value };
             const next = { ...prev, extendedApiKeys: ext };
             triggerAutoSave(localApiKey, next);
             return next;
@@ -1095,7 +1095,7 @@ export const SettingsPanel: React.FC<{
                     localEndpoint: localSettings.localEndpoint || '',
                     customBaseUrl: localSettings.customBaseUrl || '',
                     others: localSettings.othersApiKey || '',
-                    ...(localSettings.extendedApiKeys || {})
+                    ...localSettings.extendedApiKeys
                   }}
                   onSave={handleApiKeySave}
                 />
