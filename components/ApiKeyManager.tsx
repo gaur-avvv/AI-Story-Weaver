@@ -39,9 +39,13 @@ export interface ApiKeysPayload {
   fireworks?: string;
   cloudflare?: string;
   cloudflareAccountId?: string;
+  cloudflareWorkerUrl?: string;
   siliconflow?: string;
   requesty?: string;
   pollinations?: string;
+  pixazo?: string;
+  fluxnote?: string;
+  leonardo?: string;
   fal_ai?: string;
   deepinfra?: string;
   recraft?: string;
@@ -124,12 +128,17 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
       case 'huggingface_img': return tempKeys.huggingface || '';
       case 'fireworks': return tempKeys.fireworks || '';
       case 'cloudflare':
-      case 'cloudflare_img': return tempKeys.cloudflare || '';
+      case 'cloudflare_img':
+      case 'cloudflare_workers_img': return tempKeys.cloudflare || '';
       case 'siliconflow':
       case 'siliconflow_img': return tempKeys.siliconflow || '';
       case 'requesty': return tempKeys.requesty || '';
       case 'pollinations':
       case 'pollinations_img': return tempKeys.pollinations || '';
+      case 'pixazo': return tempKeys.pixazo || '';
+      case 'fluxnote': return tempKeys.fluxnote || '';
+      case 'leonardo': return tempKeys.leonardo || '';
+      case 'replicate': return tempKeys.replicate || '';
       case 'fal_ai': return tempKeys.fal_ai || (tempKeys.extendedApiKeys && tempKeys.extendedApiKeys['fal_ai']) || '';
       case 'deepinfra':
       case 'deepinfra_img': return tempKeys.deepinfra || (tempKeys.extendedApiKeys && tempKeys.extendedApiKeys['deepinfra']) || '';
@@ -185,12 +194,17 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ apiKeys, onSave })
       case 'huggingface_img': return 'huggingfaceApiKey';
       case 'fireworks': return 'fireworksApiKey';
       case 'cloudflare':
-      case 'cloudflare_img': return 'cloudflareApiKey';
+      case 'cloudflare_img':
+      case 'cloudflare_workers_img': return 'cloudflareApiKey';
       case 'siliconflow':
       case 'siliconflow_img': return 'siliconFlowApiKey';
       case 'requesty': return 'requestyApiKey';
       case 'pollinations':
       case 'pollinations_img': return 'pollinationsApiKey';
+      case 'pixazo': return 'pixazoApiKey';
+      case 'fluxnote': return 'fluxnoteApiKey';
+      case 'leonardo': return 'leonardoApiKey';
+      case 'replicate': return 'replicateApiKey';
       case 'fal_ai': return 'fal_ai';
       case 'deepinfra':
       case 'deepinfra_img': return 'deepinfra';

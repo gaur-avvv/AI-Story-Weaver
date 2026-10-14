@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookText, Paintbrush, Theater, AudioWaveform, ChevronDownIcon } from './icons';
 import { 
   Sparkles, Wand2, Sliders, Volume2, CloudRain, Zap, HardDrive, Database, Trash2, Download, AlertCircle, Type, AlignJustify,
-  Ghost, Rocket, Heart, Search, Smile, Scroll, Compass, Shield, Check, Activity, SlidersHorizontal, Film, Image as ImageIcon
+  Ghost, Rocket, Heart, Search, Smile, Scroll, Compass, Shield, Check, Activity, SlidersHorizontal, Film, Image as ImageIcon,
+  Server, Cpu
 } from 'lucide-react';
 import type { Settings } from '../types';
 import { ApiKeyManager } from './ApiKeyManager';
+import { CustomModelModal } from './CustomModelModal';
+import { ModelRegistryService } from '../services/modelRegistry';
 import { useVfx } from '../vfx/VfxContext';
 import { VfxGenre, VfxTension, VfxWeather } from '../vfx/types';
 import { getStorageHealth, isCloudSyncEnabled, setCloudSyncEnabled, clearAllCache, downloadStoriesJSON, loadStories, type StorageHealth } from '../services/storageService';
@@ -253,6 +256,8 @@ export const SettingsPanel: React.FC<{
   const [isClearing, setIsClearing] = useState(false);
   const [puterUser, setPuterUser] = useState<any>(null);
   const [isPuterAuthChecking, setIsPuterAuthChecking] = useState(false);
+  const [isCustomModelModalOpen, setIsCustomModelModalOpen] = useState(false);
+  const [customEndpointsCount, setCustomEndpointsCount] = useState(() => ModelRegistryService.getCustomEndpoints().length);
 
   const checkPuterAuth = async () => {
     if (typeof window !== 'undefined' && (window as any).puter?.auth) {
@@ -1092,6 +1097,11 @@ export const SettingsPanel: React.FC<{
                     siliconflow: localSettings.siliconFlowApiKey || '',
                     requesty: localSettings.requestyApiKey || '',
                     pollinations: localSettings.pollinationsApiKey || '',
+                    pixazo: localSettings.pixazoApiKey || '',
+                    fluxnote: localSettings.fluxnoteApiKey || '',
+                    leonardo: localSettings.leonardoApiKey || '',
+                    replicate: localSettings.replicateApiKey || '',
+                    cloudflareWorkerUrl: localSettings.cloudflareWorkerUrl || '',
                     localEndpoint: localSettings.localEndpoint || '',
                     customBaseUrl: localSettings.customBaseUrl || '',
                     others: localSettings.othersApiKey || '',
@@ -1099,6 +1109,35 @@ export const SettingsPanel: React.FC<{
                   }}
                   onSave={handleApiKeySave}
                 />
+              </div>
+
+              {/* Custom Model & BYOM Registry Action Banner */}
+              <div className="p-4 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-slate-900/40 border border-purple-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
+                    <Server className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white">Custom Model Registry (BYOM)</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {customEndpointsCount} Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-200/60 mt-0.5">
+                      Configure custom OpenAI, Anthropic, Google, DeepSeek, or generic OpenAI-compatible endpoints with test ping
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCustomModelModalOpen(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 transition-all active:scale-95 shrink-0"
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>Configure Custom Models</span>
+                </button>
               </div>
 
               {/* Model Selectors */}
@@ -1345,6 +1384,18 @@ export const SettingsPanel: React.FC<{
           )}
         </AnimatePresence>
       </div>
+
+      {/* Custom Model BYOM Configuration Modal */}
+      <CustomModelModal
+        isOpen={isCustomModelModalOpen}
+        onClose={() => {
+          setIsCustomModelModalOpen(false);
+          setCustomEndpointsCount(ModelRegistryService.getCustomEndpoints().length);
+        }}
+        onEndpointSaved={() => {
+          setCustomEndpointsCount(ModelRegistryService.getCustomEndpoints().length);
+        }}
+      />
     </div>
   );
 };

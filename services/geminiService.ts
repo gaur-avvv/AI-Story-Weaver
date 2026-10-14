@@ -1414,6 +1414,189 @@ export const generateImage = async (
     return null;
   };
 
+  const tryPixazo = async (mdl: string, key?: string): Promise<string | null> => {
+    if (!key) return null;
+    try {
+      const endpoint = options?.customBaseUrl || 'https://api.pixazo.ai/v1/images/generations';
+      const cleanKey = key.replace(/^Bearer\s+/i, '').trim();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cleanKey}`,
+        },
+        body: JSON.stringify({
+          model: mdl || 'flux-schnell',
+          prompt: fullPrompt,
+          n: 1,
+          size: targetRatio === '1:1' ? '1024x1024' : '1024x768',
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data.data?.[0]?.url || (data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : '');
+        if (url) return url;
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] Pixazo generation failed:', e);
+    }
+    return null;
+  };
+
+  const tryFluxNote = async (mdl: string, key?: string): Promise<string | null> => {
+    if (!key) return null;
+    try {
+      const endpoint = options?.customBaseUrl || 'https://api.fluxnote.ai/v1/images/generations';
+      const cleanKey = key.replace(/^Bearer\s+/i, '').trim();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cleanKey}`,
+        },
+        body: JSON.stringify({
+          model: mdl || 'fluxnote-ultra',
+          prompt: fullPrompt,
+          n: 1,
+          size: targetRatio === '1:1' ? '1024x1024' : '1024x768',
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data.data?.[0]?.url || (data.data?.[0]?.b64_json ? `data:image/png;base64,${data.data[0].b64_json}` : '');
+        if (url) return url;
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] FluxNote generation failed:', e);
+    }
+    return null;
+  };
+
+  const tryHuggingFace = async (mdl: string, key?: string): Promise<string | null> => {
+    if (!key) return null;
+    try {
+      const cleanKey = key.replace(/^Bearer\s+/i, '').trim();
+      const modelEndpoint = `https://api-inference.huggingface.co/models/${mdl || 'black-forest-labs/FLUX.1-schnell'}`;
+      const res = await fetch(modelEndpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inputs: fullPrompt })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] Hugging Face inference failed:', e);
+    }
+    return null;
+  };
+
+  const tryLeonardo = async (mdl: string, key?: string): Promise<string | null> => {
+    if (!key) return null;
+    try {
+      const cleanKey = key.replace(/^Bearer\s+/i, '').trim();
+      const res = await fetch('https://cloud.leonardo.ai/api/rest/v1/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: fullPrompt,
+          modelId: mdl || 'leonardo-phoenix',
+          width: targetRatio === '1:1' ? 1024 : 1024,
+          height: targetRatio === '1:1' ? 1024 : 768,
+          num_images: 1,
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const generationId = data.sdGenerationJob?.generationId;
+        if (generationId) {
+          await new Promise((r) => setTimeout(r, 1800));
+          const checkRes = await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`, {
+            headers: { 'Authorization': `Bearer ${cleanKey}`, 'Accept': 'application/json' }
+          });
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const url = checkData.generations_by_pk?.generated_images?.[0]?.url;
+            if (url) return url;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] Leonardo generation failed:', e);
+    }
+    return null;
+  };
+
+  const tryReplicate = async (mdl: string, key?: string): Promise<string | null> => {
+    if (!key) return null;
+    try {
+      const cleanKey = key.replace(/^Token\s+/i, '').replace(/^Bearer\s+/i, '').trim();
+      const res = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'wait=5'
+        },
+        body: JSON.stringify({
+          version: mdl || 'black-forest-labs/flux-schnell',
+          input: { prompt: fullPrompt }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const output = data.output;
+        if (typeof output === 'string') return output;
+        if (Array.isArray(output) && output[0]) return output[0];
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] Replicate prediction failed:', e);
+    }
+    return null;
+  };
+
+  const tryCloudflareWorker = async (mdl: string, key?: string): Promise<string | null> => {
+    try {
+      const customWorkerUrl = options?.customBaseUrl || '';
+      if (customWorkerUrl && customWorkerUrl.startsWith('http')) {
+        const res = await fetch(customWorkerUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: fullPrompt, model: mdl })
+        });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('image')) {
+            const blob = await res.blob();
+            return new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+          }
+          const data = await res.json().catch(() => ({}));
+          if (data.image) return data.image.startsWith('data:') ? data.image : `data:image/png;base64,${data.image}`;
+          if (data.url) return data.url;
+        }
+      }
+    } catch (e) {
+      console.warn('[Auto-Retry Image] Cloudflare worker failed:', e);
+    }
+    return null;
+  };
+
   const tryOpenAiCompatible = async (prov: string, mdl: string, key?: string): Promise<string | null> => {
     if (!key && prov !== 'cloudflare') return null;
     try {
@@ -1449,7 +1632,6 @@ export const generateImage = async (
   if (provider === 'gemini') {
     const res = await tryGemini(model);
     if (res) return res;
-    // Auto-retry with secondary Gemini model if first one was Imagen or Flash
     if (model.startsWith('imagen')) {
       const resFallback = await tryGemini('gemini-2.5-flash-image');
       if (resFallback) return resFallback;
@@ -1457,7 +1639,27 @@ export const generateImage = async (
   } else if (provider === 'puter') {
     const res = await tryPuter(model && model !== 'puter-txt2img' ? model : 'nanobanana-2-lite');
     if (res) return res;
-  } else if (['zai', 'openai', 'siliconflow', 'huggingface', 'cloudflare'].includes(provider)) {
+  } else if (provider === 'pixazo') {
+    const res = await tryPixazo(model, otherApiKey);
+    if (res) return res;
+  } else if (provider === 'fluxnote') {
+    const res = await tryFluxNote(model, otherApiKey);
+    if (res) return res;
+  } else if (provider === 'huggingface' || provider === 'huggingface_img') {
+    const res = await tryHuggingFace(model, otherApiKey);
+    if (res) return res;
+  } else if (provider === 'leonardo') {
+    const res = await tryLeonardo(model, otherApiKey);
+    if (res) return res;
+  } else if (provider === 'replicate') {
+    const res = await tryReplicate(model, otherApiKey);
+    if (res) return res;
+  } else if (provider === 'cloudflare' || provider === 'cloudflare_workers_img') {
+    const workerRes = await tryCloudflareWorker(model, otherApiKey);
+    if (workerRes) return workerRes;
+    const res = await tryOpenAiCompatible('cloudflare', model, otherApiKey);
+    if (res) return res;
+  } else if (['zai', 'openai', 'siliconflow'].includes(provider)) {
     const res = await tryOpenAiCompatible(provider, model, otherApiKey);
     if (res) return res;
   }

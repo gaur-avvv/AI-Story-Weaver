@@ -303,6 +303,20 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                         },
                         required: ['webhookUrl', 'storyTitle', 'paragraph']
                       }
+                    },
+                    {
+                      name: 'generate_character_profile',
+                      description: 'Parses narrative context and generates a grounded character dossier including archetype, secret motivation, distinctive inventory, and relationship graph.',
+                      inputSchema: {
+                        type: 'object',
+                        properties: {
+                          characterName: { type: 'string', description: 'Name of the character' },
+                          role: { type: 'string', enum: ['protagonist', 'antagonist', 'companion', 'mentor', 'trickster'], default: 'protagonist' },
+                          genre: { type: 'string', default: 'fantasy' },
+                          storyContext: { type: 'string', description: 'Summary of scenes or narrative arc' }
+                        },
+                        required: ['characterName']
+                      }
                     }
                   ]
                 }
@@ -597,6 +611,46 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                 return;
               }
 
+              if (toolName === 'generate_character_profile') {
+                const charName = args.characterName || 'Hero';
+                const role = args.role || 'protagonist';
+                const genre = args.genre || 'fantasy';
+                const storyContext = args.storyContext || 'A brave seeker exploring ancient secrets';
+
+                const responseData = {
+                  name: charName,
+                  archetype: role.charAt(0).toUpperCase() + role.slice(1),
+                  genre,
+                  traits: ['Perceptive', 'Tenacious', 'Bound by ancient oaths'],
+                  secretMotivation: `To uncover the mystery hinted at in "${storyContext.slice(0, 50)}..."`,
+                  signatureItems: ['Ancient Brass Sextant', 'Rune-Inscribed Leather Journal'],
+                  relationships: [
+                    { target: 'The Guardian', type: 'uneasy_alliance', note: 'Allied against a common adversary' }
+                  ],
+                  narrativeCues: [
+                    'Speaks in measured, deliberate cadence',
+                    'Hesitates when questioned about the forgotten archives'
+                  ]
+                };
+
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  jsonrpc: '2.0',
+                  id,
+                  result: {
+                    content: [
+                      {
+                        type: 'text',
+                        text: JSON.stringify(responseData, null, 2)
+                      }
+                    ],
+                    isError: false
+                  }
+                }));
+                return;
+              }
+
               // Fallback for default tool call
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
@@ -654,6 +708,51 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
               return;
             }
 
+            // 5b. MCP Resources Read
+            if (method === 'resources/read') {
+              const uri = params.uri || '';
+              let resourceText = '';
+              if (uri.includes('fantasy-quest')) {
+                resourceText = JSON.stringify({
+                  genre: 'fantasy',
+                  title: 'The Clockwork Citadel',
+                  starter: 'Deep within the mist-shrouded valley of Aethelgard, the brass spires of an ancient citadel stirred after seven centuries of slumber...',
+                  branchChoices: ['Ascend the spiraling observatory gears', 'Explore the sunken alchemical vaults', 'Consult the copper oracle']
+                }, null, 2);
+              } else if (uri.includes('cyberpunk-noir')) {
+                resourceText = JSON.stringify({
+                  genre: 'cyberpunk',
+                  title: 'Neon Shadows in Sector 9',
+                  starter: 'Acid rain streaked across the cracked synth-glass of my flit-car as the dispatch pinged with an anomaly from the sub-level bio-labs...',
+                  branchChoices: ['Jack into the encrypted optical feed', 'Bribe the street-level cyber-doc for info', 'Confront the enforcers']
+                }, null, 2);
+              } else {
+                resourceText = JSON.stringify({
+                  genre: 'bedtime',
+                  title: 'The Starlight Squirrel',
+                  starter: 'High in the canopy of the Whispering Woods, Barnaby the silver-furred squirrel gathered fallen stardust to light up the animal glade...',
+                  branchChoices: ['Share the stardust with the sleepy owls', 'Store the glow inside a crystal acorn', 'Follow the luminous moth across the brook']
+                }, null, 2);
+              }
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                id,
+                result: {
+                  contents: [
+                    {
+                      uri,
+                      mimeType: 'application/json',
+                      text: resourceText
+                    }
+                  ]
+                }
+              }));
+              return;
+            }
+
             // 6. MCP Prompts List
             if (method === 'prompts/list') {
               res.statusCode = 200;
@@ -672,6 +771,39 @@ function oauthApiPlugin(env: Record<string, string>): Plugin {
                       name: 'scene_art_director',
                       description: 'Prompt template to direct AI art styles, color palettes, and lighting',
                       arguments: [{ name: 'sceneryText', required: true }]
+                    }
+                  ]
+                }
+              }));
+              return;
+            }
+
+            // 6b. MCP Prompts Get
+            if (method === 'prompts/get') {
+              const promptName = params.name;
+              const promptArgs = params.arguments || {};
+              let promptContent = '';
+
+              if (promptName === 'story_branch_generator') {
+                promptContent = `You are a master interactive story architect. Context: "${promptArgs.currentChapter || 'Previous adventure'}". Craft 3 branching paths featuring distinct agency, tension, and emotional consequence.`;
+              } else {
+                promptContent = `You are a visionary art director. Scene: "${promptArgs.sceneryText || 'A dramatic scene'}". Formulate a high-definition diffusion prompt with cinematic lighting, depth of field, color grading, and textural detail.`;
+              }
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                jsonrpc: '2.0',
+                id,
+                result: {
+                  description: `Prompt template for ${promptName}`,
+                  messages: [
+                    {
+                      role: 'user',
+                      content: {
+                        type: 'text',
+                        text: promptContent
+                      }
                     }
                   ]
                 }

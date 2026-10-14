@@ -228,6 +228,11 @@ export interface Settings {
   siliconFlowApiKey?: string;
   requestyApiKey?: string;
   pollinationsApiKey?: string;
+  pixazoApiKey?: string;
+  fluxnoteApiKey?: string;
+  leonardoApiKey?: string;
+  replicateApiKey?: string;
+  cloudflareWorkerUrl?: string;
   localEndpoint?: string;
   othersApiKey?: string;
   customBaseUrl?: string;
