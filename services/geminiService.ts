@@ -530,6 +530,25 @@ NEGATIVE PROMPT / CONSTRAINTS: blurry, out of focus, low resolution, noisy, mudd
 }
 
 
+export const GLOBAL_STORYTELLING_SYSTEM_PROMPT = `# ROLE & OBJECTIVE
+You are a master, award-winning fiction author and cinematic storyteller. Your objective is to craft deeply immersive, emotionally resonant stories optimized for both readers and audio listeners. 
+
+# NARRATIVE POINT OF VIEW (CRITICAL CONSTRAINT)
+- You must write exclusively in the THIRD-PERSON LIMITED or THIRD-PERSON OMNISCIENT perspective (using "he", "she", "they", and character names).
+- NEVER use first-person ("I", "we", "me") or second-person ("you") in the narrative text unless it is inside direct, spoken character dialogue.
+- Do not introduce the story with conversational preambles like "Here is a story for you..." or "Once upon a time..." immediately begin the narrative text.
+
+# STORYTELLING AND AUDIO-LISTENER TECHNIQUES
+1. Show, Don't Tell: Do not summarize emotions (e.g., instead of writing "He was terrified," describe his shallow breathing, the cold sweat on his palms, or the sudden stiffness in his spine).
+2. Auditory Pacing: Write with variation in sentence length. Use short, punchy sentences during high-action or tense moments to speed up the reader/listener's heartbeat. Use flowing, rhythmic sentences for calm, descriptive scenes.
+3. Sensory Layering: Ground every scene in at least two physical senses—focusing heavily on sound, tactile texture, temperature, and environmental atmosphere to enrich the experience for listeners.
+4. Causal Tension ("But / Therefore"): Avoid linear "and then this happened" structures. Build plots where actions have logical consequences. Move scenes forward using "X happened, BUT Y occurred, THEREFORE Z had to be done."
+
+# NEGATIVE CONSTRAINTS (WHAT NOT TO DO)
+- Avoid predictable tropes or instant resolutions. Characters must earn their victories through struggle and compromise.
+- Absolutely NO cheesy, artificial, or hyper-dramatic "AI clichés" (e.g., do not use words like: tapestry, testament, beacon, delve, revolutionize, ultimate, or untamed).
+- Do not conclude the story with a tidy moral summary or explicit philosophical wrap-up. Let the final action or image linger naturally.`;
+
 export const generateStory = async (
   prompt: string,
   language: string,
@@ -548,7 +567,8 @@ export const generateStory = async (
   const audienceDirective = getTargetAudienceDirective(targetAudience);
   const toneDirective = getToneVocabularyDirective(options?.tone, genre, prompt);
 
-  const systemInstruction = `You are a master literary storyteller. Write a captivating, immersive story strictly aligned with the specified genre aesthetics, tone vocabulary, and target audience sensibilities.
+  const systemInstruction = `${GLOBAL_STORYTELLING_SYSTEM_PROMPT}
+
 Language: ${language}
 
 ${genreDirective}
@@ -561,6 +581,7 @@ Story Structure & Depth:
 - Formulate a creative, memorable story title.
 - Deliver exactly ${lengthDescription} distinct, connected narrative paragraphs that build a complete, satisfying story arc.
 - Infuse the prose with dynamic sensory details, authentic character expressions, and situational pacing tailored to the vocabulary guidelines.
+- Focus on character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
 
 Output Format:
 Return ONLY a valid JSON object matching this schema:
@@ -721,7 +742,8 @@ export const generateStorySegment = async (
     ? `\nPotential Plot Inconsistencies & Continuity Audit (Query from Global Story Graph - DO NOT contradict these established facts):\n${inconsistencyAudit}\n`
     : '';
 
-  const systemInstruction = `You are a master interactive storyteller writing a dynamic, emotionally resonant story.
+  const systemInstruction = `${GLOBAL_STORYTELLING_SYSTEM_PROMPT}
+
 Language: ${language}
 
 ${genreDirective}
@@ -737,6 +759,7 @@ ${isFirstSegment ? 'This is the start of the story. You must provide an evocativ
 - Write exactly ONE new, high-immersion narrative paragraph that dramatically advances the scene based on the user\'s prompt or choice.
 - Strictly adapt your vocabulary, phrasing, and syntax according to the Tonal & Vocabulary Directive above (e.g., formal/archaic for fantasy/lore, clinical/sharp for cyberpunk/sci-fi, gritty/noir for mystery, visceral/gothic for horror).
 - Infuse the scene with vivid sensory atmosphere, authentic dialogue/reactions, and character emotional stakes.
+- Ground the prose in character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
 ${isLastSegment ? '- This is the final paragraph. Bring the story to a satisfying, emotionally resonant conclusion. Do NOT provide choices.' : '- Provide exactly THREE distinct, proactive narrative choices for what happens next in the "choices" array. Each choice MUST represent a distinct strategic mindset (e.g. one bold/risky action, one clever/observant move, one empathetic/diplomatic choice).'}
 
 Output Format:
@@ -907,7 +930,9 @@ export const generateNextChapter = async (
     ? `\nPotential Plot Inconsistencies & Continuity Audit (Query from Global Story Graph - DO NOT contradict these facts):\n${inconsistencyAudit}\n`
     : '';
 
-  const systemInstruction = `You are a master storyteller writing the next chapter of an epic story titled "${storyTitle}".
+  const systemInstruction = `${GLOBAL_STORYTELLING_SYSTEM_PROMPT}
+
+You are writing Chapter ${chapterNumber} of an epic story titled "${storyTitle}".
 Language: ${language}
 
 ${genreDirective}
@@ -922,6 +947,7 @@ Instructions:
 - Write Chapter ${chapterNumber} of the story.
 - Generate an imaginative, evocative chapter title (e.g. "Chapter ${chapterNumber}: <Compelling Subtitle>").
 - Provide exactly ${lengthDescription} connected, vivid narrative paragraphs that continue the plot seamlessly from previous events with rich sensory atmosphere and emotional depth.
+- Focus on character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
 - Provide exactly THREE proactive, strategic narrative choices for future branches in the "choices" field (e.g., one bold confrontation, one tactical/stealth maneuver, one diplomatic/investigative action).
 
 Output Format:
@@ -2135,9 +2161,14 @@ export const enhancePrompt = async (
   model: string = 'gemini-2.5-flash',
   options?: { customBaseUrl?: string; cloudflareAccountId?: string }
 ): Promise<string> => {
-  const systemInstruction = `You are a creative writing assistant. Your task is to take a simple story idea and expand it into a rich, detailed, and engaging prompt for a story generator. 
-  Keep the enhanced prompt under 3 sentences but make it evocative and specific. 
-  Do not add "Here is an enhanced prompt:" or similar prefixes. Just return the prompt itself.`;
+  const systemInstruction = `You are a master fiction author and cinematic story strategist.
+Your task is to take a story idea and expand it into an immersive, atmospheric prompt.
+Guidelines:
+- Frame strictly in the third person.
+- Highlight a distinct protagonist, immediate conflict, and sensory-rich setting.
+- Absolutely avoid AI clichés (no words like: tapestry, testament, beacon, delve, revolutionize, ultimate, untamed).
+- Keep the enhanced prompt evocative, focused, and under 3 sentences.
+- Do not add conversational preambles or prefixes. Return ONLY the enhanced prompt.`;
 
   if (provider === 'gemini') {
     try {

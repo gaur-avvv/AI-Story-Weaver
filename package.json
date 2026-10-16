@@ -25,6 +25,7 @@
     "openai": "^6.49.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-pageflip": "^2.0.3",
     "react-router-dom": "^7.18.3",
     "typescript": "~5.9.3",
     "vite": "^8.3.0"
