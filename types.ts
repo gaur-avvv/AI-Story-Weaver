@@ -118,6 +118,15 @@ export type StoryAudience =
 
 export type StoryTone = 
   | 'balanced' 
+  | 'hopeful'
+  | 'dark'
+  | 'humorous'
+  | 'melancholic'
+  | 'whimsical'
+  | 'suspenseful'
+  | 'romantic'
+  | 'epic'
+  | 'philosophical'
   | 'archaic_lyrical' 
   | 'clinical_cyber' 
   | 'gritty_noir' 
@@ -127,12 +136,14 @@ export type StoryTone =
   | 'tender_romantic' 
   | 'philosophical_cerebral' 
   | 'humorous_witty' 
-  | 'soothing_gentle';
+  | 'soothing_gentle'
+  | (string & {});
 
 export interface Settings {
   storyLength: 'very_short' | 'short' | 'medium' | 'long' | 'very_long';
   genre: StoryGenre;
   imageStyle: StoryImageStyle;
+  tone?: string;
   storyTone?: StoryTone;
   generateAudio: boolean;
   pdfMargin: number;

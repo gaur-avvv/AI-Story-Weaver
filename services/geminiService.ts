@@ -450,38 +450,83 @@ export const getTargetAudienceDirective = (audience?: string): string => {
   }
 };
 
-export const getToneVocabularyDirective = (tone?: string, genre?: string, sceneContext?: string): string => {
-  const normalizedTone = (tone || '').toLowerCase();
-  const normalizedGenre = (genre || '').toLowerCase();
+export function getToneVisuals(tone?: string): string {
+  if (!tone || tone === 'balanced') {
+    return 'Balanced natural cinematic illumination, harmonious lighting, expressive contrast tailored to scene events';
+  }
+  const t = tone.toLowerCase().trim();
+  if (t.includes('hopeful') || t.includes('optimis') || t.includes('uplift')) {
+    return 'Luminous golden hour illumination, radiant warm amber highlights, gentle sunbeams cutting through atmosphere, uplifting clear skies, serene optimism';
+  }
+  if (t.includes('dark') || t.includes('gothic') || t.includes('dread') || t.includes('grim')) {
+    return 'Dramatic chiaroscuro shadowplay, deep tenebrous contrast, cold misty slate blues, desaturated moody undertones, ominous atmospheric depth';
+  }
+  if (t.includes('humor') || t.includes('witty') || t.includes('playful') || t.includes('comedy') || t.includes('funny')) {
+    return 'Vibrant spirited color saturation, cheerful expressive lighting, dynamic character silhouettes with energetic bounce, warm inviting palette';
+  }
+  if (t.includes('melanchol') || t.includes('poetic') || t.includes('sad') || t.includes('nostalg') || t.includes('wistful')) {
+    return 'Contemplative muted palette, cool rain-kissed twilight tones, soft diffused misty glow, gentle reflections, wistful quiet solitude';
+  }
+  if (t.includes('whimsical') || t.includes('wonder')) {
+    return 'Fairytale pastel dreaminess, sparkling bioluminescent particles, soft whimsical glow, magical vibrant hues';
+  }
+  if (t.includes('suspense') || t.includes('urgent') || t.includes('thrill')) {
+    return 'High-tension dynamic camera angles, stark directional lighting with piercing focal beams, sharp atmospheric shadows, cinematic urgency';
+  }
+  if (t.includes('romantic') || t.includes('tender') || t.includes('heartfelt')) {
+    return 'Warm rose-gold and amber ambient glow, soft romantic haze, intimate framing, gentle emotive highlights';
+  }
+  if (t.includes('epic') || t.includes('heroic') || t.includes('mythic')) {
+    return 'Monumental scale, volumetric God rays, sweeping horizon lines, vivid legendary color contrast, awe-inspiring cinematic grandeur';
+  }
+  if (t.includes('philosophical') || t.includes('cerebral')) {
+    return 'Surreal contemplative framing, subtle ethereal lighting, thought-provoking symbolism, deep harmonious hues';
+  }
+  return `Artistic atmosphere, color temperature, and emotional lighting explicitly styled to convey a "${tone}" mood and aesthetic feel`;
+}
 
-  let activeTone = normalizedTone;
-  if (!activeTone || activeTone === 'balanced') {
-    if (normalizedGenre.includes('cyberpunk') || normalizedGenre.includes('sci-fi') || normalizedGenre.includes('space')) {
-      activeTone = 'sci_fi_clean';
-    } else if (normalizedGenre.includes('fantasy') || normalizedGenre.includes('historical') || normalizedGenre.includes('mytholog') || normalizedGenre.includes('steampunk')) {
-      activeTone = 'fantasy_accessible';
-    } else if (normalizedGenre.includes('mystery') || normalizedGenre.includes('crime') || normalizedGenre.includes('western')) {
-      activeTone = 'mystery_detective';
-    } else if (normalizedGenre.includes('horror') || normalizedGenre.includes('dark_fantasy') || normalizedGenre.includes('cosmic')) {
-      activeTone = 'spooky_suspense';
-    } else if (normalizedGenre.includes('fairy') || normalizedGenre.includes('fable') || normalizedGenre.includes('funny') || normalizedGenre.includes('comedy')) {
-      activeTone = 'playful_fun';
-    } else if (normalizedGenre.includes('thriller') || normalizedGenre.includes('adventure') || normalizedGenre.includes('superhero') || normalizedGenre.includes('time_travel') || normalizedGenre.includes('post_apocalyptic')) {
-      activeTone = 'exciting_action';
-    } else if (normalizedGenre.includes('romance') || normalizedGenre.includes('drama')) {
-      activeTone = 'warm_heartfelt';
-    } else if (normalizedGenre.includes('bedtime') || normalizedGenre.includes('early_reader')) {
-      activeTone = 'cozy_gentle';
-    } else {
-      activeTone = 'balanced';
-    }
+export const getToneVocabularyDirective = (tone?: string, genre?: string, sceneContext?: string): string => {
+  const normalizedTone = (tone || '').toLowerCase().trim();
+  
+  let toneGuidance = '';
+  if (normalizedTone.includes('hopeful') || normalizedTone.includes('optimis') || normalizedTone.includes('uplift')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: HOPEFUL & INSPIRING
+- Narrative Focus: Infuse scenes with optimism, resilience, and uplifting undertones. Highlight character courage, moments of warmth, compassion, and luminous breakthroughs even in the face of steep adversity.`;
+  } else if (normalizedTone.includes('dark') || normalizedTone.includes('gothic') || normalizedTone.includes('dread') || normalizedTone.includes('grim')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: DARK & VISCERAL
+- Narrative Focus: Immerse the reader in heavy psychological tension, ominous atmospheres, visceral stakes, shadows, and chilling consequences. Emphasize dread, danger, and gritty realism.`;
+  } else if (normalizedTone.includes('humor') || normalizedTone.includes('witty') || normalizedTone.includes('playful') || normalizedTone.includes('comedy') || normalizedTone.includes('funny')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: HUMOROUS & WITTY
+- Narrative Focus: Infuse sharp wit, delightful character quirks, lively banter, lighthearted situational comedy, and comedic timing while keeping the plot engaging and heartwarming.`;
+  } else if (normalizedTone.includes('melanchol') || normalizedTone.includes('wistful') || normalizedTone.includes('poetic') || normalizedTone.includes('sad') || normalizedTone.includes('nostalg')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: MELANCHOLIC & REFLECTIVE
+- Narrative Focus: Weave poignant yearning, wistful memories, gentle sorrow, reflective beauty, and quiet, lingering emotional depth into character thoughts and the environment.`;
+  } else if (normalizedTone.includes('whimsical') || normalizedTone.includes('wonder')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: WHIMSICAL & ENCHANTING
+- Narrative Focus: Highlight sense of wonder, fairytale innocence, magical curiosity, and whimsical charm in descriptions and character encounters.`;
+  } else if (normalizedTone.includes('suspense') || normalizedTone.includes('urgent') || normalizedTone.includes('thrill')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: SUSPENSEFUL & HIGH-TENSION
+- Narrative Focus: Fast-paced heartbeat, ticking-clock urgency, sharp tactical choices, sensory alertness, and escalating dangers at every turn.`;
+  } else if (normalizedTone.includes('romantic') || normalizedTone.includes('tender') || normalizedTone.includes('heartfelt')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: ROMANTIC & TENDER
+- Narrative Focus: Tender emotional intimacy, unspoken longing, subtle gestures, emotional vulnerability, and deep human connection.`;
+  } else if (normalizedTone.includes('epic') || normalizedTone.includes('heroic') || normalizedTone.includes('mythic')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: EPIC & HEROIC
+- Narrative Focus: Monumental stakes, legendary conflicts, sweeping destinies, awe-inspiring trials of will, and mythological resonance.`;
+  } else if (normalizedTone.includes('philosophical') || normalizedTone.includes('cerebral')) {
+    toneGuidance = `EMOTIONAL TONE & MOOD: PHILOSOPHICAL & CEREBRAL
+- Narrative Focus: Contemplative themes of identity, memory, time, purpose, and reality, interwoven seamlessly with active narrative events.`;
+  } else if (normalizedTone && normalizedTone !== 'balanced') {
+    toneGuidance = `EMOTIONAL TONE & MOOD: ${tone?.toUpperCase()}
+- Narrative Focus: Strictly maintain a distinct "${tone}" atmosphere and emotional resonance throughout the narrative prose, character reactions, and scene progression.`;
   }
 
   return `LANGUAGE & VOCABULARY MANDATE (SIMPLE & ACCESSIBLE):
 - Everyday Words: Use clear, simple, and natural words that people use in everyday life so that anyone can easily read and understand the story.
 - Strictly Ban Hard Jargon: Do NOT use difficult, obscure, high-level, pretentious, or archaic vocabulary (e.g. do NOT use words like "phosphorescent", "encroaching", "concussive", "precipice", "ineffable", "eldritch", "non-Euclidean", "tapestry of consciousness").
 - Natural Sentence Flow: Keep sentences smooth, lively, and easy to read aloud.
-- Emotional Punch with Simple Words: Express excitement, danger, wonder, humor, and heart through clear actions, expressive dialogue, and relatable sensory details.`;
+- Emotional Punch with Simple Words: Express excitement, danger, wonder, humor, and heart through clear actions, expressive dialogue, and relatable sensory details.
+${toneGuidance ? `\n${toneGuidance}` : ''}`;
 };
 
 const getLengthDescription = (length: 'very_short' | 'short' | 'medium' | 'long' | 'very_long'): string => {
@@ -506,7 +551,8 @@ export function buildSceneImagePrompt(
   imageStyle: string = 'whimsical',
   genre?: string,
   targetAudience?: string,
-  aspectRatio: string = '16:9'
+  aspectRatio: string = '16:9',
+  tone?: string
 ): string {
   // Clean quotes, dialogues, and formatting to distill the core visual scene
   const cleanedScene = paragraph
@@ -517,12 +563,14 @@ export function buildSceneImagePrompt(
   const styleVisuals = getImageStylePrompt(imageStyle);
   const genreVisuals = getGenreThemeVisuals(genre);
   const audienceVisuals = getAudienceVisuals(targetAudience);
+  const toneVisuals = getToneVisuals(tone);
 
   return `Masterpiece digital storybook illustration with ultra-sharp focus and crystal clear fine details.
 SCENE CONTEXT & STORY ACTION: "${cleanedScene.slice(0, 420)}"
 VISUAL SUBJECTS & NARRATIVE FOCUS: Faithfully depict the exact characters, specific actions, creatures, emotional expressions, garments, and environmental surroundings described directly in the paragraph above.
 ART STYLE: ${styleVisuals}. Strictly preserve this chosen artistic medium and visual grammar across all elements.
 GENRE & MOOD: ${genreVisuals} (${(genre || 'fantasy').toUpperCase()}).
+EMOTIONAL TONE & LIGHTING: ${toneVisuals}.
 TARGET AUDIENCE: ${audienceVisuals}.
 COMPOSITION & FRAMING: Framed in ${aspectRatio} aspect ratio composition, top-aligned subject framing with comfortable headroom (character faces and upper bodies clearly visible and never cropped), dynamic foreground, atmospheric midground, and richly detailed background depth.
 QUALITY & FIDELITY: 8k resolution, razor-sharp outlines, pristine micro-textures, raytraced volumetric lighting, vibrant harmonious colors, professional studio concept art standard.
@@ -1338,6 +1386,7 @@ export const generateImage = async (
     targetAudience?: string; 
     storyTitle?: string;
     aspectRatio?: string;
+    tone?: string;
   }
 ): Promise<string> => {
   const targetRatio = options?.aspectRatio || '16:9';
@@ -1347,7 +1396,8 @@ export const generateImage = async (
     imageStyle,
     options?.genre,
     options?.targetAudience,
-    targetRatio
+    targetRatio,
+    options?.tone
   );
 
   // Gemini & Imagen aspect ratio mapping: "1:1" | "3:4" | "4:3" | "9:16" | "16:9"

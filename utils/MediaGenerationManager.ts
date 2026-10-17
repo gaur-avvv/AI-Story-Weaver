@@ -217,6 +217,7 @@ class MediaGenerationManagerClass {
             genre: settings.genre,
             targetAudience: settings.targetAudience,
             aspectRatio: settings.imageAspectRatio || '16:9',
+            tone: settings.tone || settings.storyTone,
           }
         );
 
@@ -232,7 +233,8 @@ class MediaGenerationManagerClass {
             settings.imageStyle,
             settings.genre,
             settings.targetAudience,
-            targetRatio
+            targetRatio,
+            settings.tone || settings.storyTone
           );
           const pollinationsDimensions: Record<string, { width: number; height: number }> = {
             '16:9': { width: 1280, height: 720 },

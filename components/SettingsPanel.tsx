@@ -639,6 +639,70 @@ export const SettingsPanel: React.FC<{
                   </CustomSelect>
                 </SettingRow>
 
+                <SettingRow 
+                  icon={<Compass className="w-4 h-4 text-purple-400" />} 
+                  label="Story Tone & Mood" 
+                  description="Emotional atmosphere steering Gemini text narration & AI scene artwork"
+                >
+                  <div className="flex flex-col items-end gap-1.5">
+                    <CustomSelect 
+                      value={
+                        ['balanced', 'hopeful', 'dark', 'humorous', 'melancholic', 'whimsical', 'suspenseful', 'romantic', 'epic', 'philosophical'].includes(localSettings.tone || '')
+                          ? (localSettings.tone || 'balanced')
+                          : 'custom'
+                      } 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'custom') {
+                          const customVal = localSettings.tone && !['balanced', 'hopeful', 'dark', 'humorous', 'melancholic', 'whimsical', 'suspenseful', 'romantic', 'epic', 'philosophical'].includes(localSettings.tone)
+                            ? localSettings.tone
+                            : 'Atmospheric';
+                          setLocalSettings(prev => {
+                            const next = { ...prev, tone: customVal, storyTone: customVal };
+                            triggerAutoSave(localApiKey, next);
+                            return next;
+                          });
+                        } else {
+                          setLocalSettings(prev => {
+                            const next = { ...prev, tone: val, storyTone: val };
+                            triggerAutoSave(localApiKey, next);
+                            return next;
+                          });
+                        }
+                      }}
+                    >
+                      <option value="balanced">Balanced (Natural Harmony)</option>
+                      <option value="hopeful">Hopeful (Inspiring & Warm)</option>
+                      <option value="dark">Dark (Gothic Dread & Shadows)</option>
+                      <option value="humorous">Humorous (Witty & Playful)</option>
+                      <option value="melancholic">Melancholic (Poetic & Nostalgic)</option>
+                      <option value="whimsical">Whimsical (Fairytale Wonder)</option>
+                      <option value="suspenseful">Suspenseful (Urgent & Tense)</option>
+                      <option value="romantic">Romantic (Tender & Heartfelt)</option>
+                      <option value="epic">Epic (Heroic & Grand)</option>
+                      <option value="philosophical">Philosophical (Cerebral Depth)</option>
+                      <option value="custom">Custom Tone & Mood...</option>
+                    </CustomSelect>
+
+                    {!['balanced', 'hopeful', 'dark', 'humorous', 'melancholic', 'whimsical', 'suspenseful', 'romantic', 'epic', 'philosophical'].includes(localSettings.tone || '') && (
+                      <input
+                        type="text"
+                        value={localSettings.tone === 'custom' ? '' : (localSettings.tone || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setLocalSettings(prev => {
+                            const next = { ...prev, tone: val, storyTone: val };
+                            triggerAutoSave(localApiKey, next);
+                            return next;
+                          });
+                        }}
+                        placeholder="Type custom tone (e.g. Cyberpunk Satire)"
+                        className="w-44 sm:w-48 px-3 py-1.5 text-xs text-white bg-slate-950/80 border border-purple-500/40 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-400 placeholder:text-slate-500 shadow-inner"
+                      />
+                    )}
+                  </div>
+                </SettingRow>
+
                 <SettingRow icon={<Type className="w-4 h-4 text-purple-400" />} label="Reading Font" description="Typography style for reading paragraphs & PDF">
                   <CustomSelect 
                     value={localSettings.fontFamilyPreference || 'serif'} 

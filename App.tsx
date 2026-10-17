@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { StoryInput } from './components/StoryInput';
@@ -49,6 +49,8 @@ const defaultSettings: Settings = {
   storyLength: 'medium',
   genre: 'fantasy',
   imageStyle: 'whimsical',
+  tone: 'balanced',
+  storyTone: 'balanced',
   generateAudio: true,
   pdfMargin: 50,
   targetAudience: 'children',
@@ -199,6 +201,47 @@ function StoryCreatorContent() {
   // Auto-update knowledge graph on chapter / segment generation or regeneration
   useStoryGraphAutoUpdate(segments, isGenerating);
 
+  // Undo / Redo history for story segments
+  const [storyHistory, setStoryHistory] = useState<StorySegment[][]>([]);
+  const [storyHistoryIndex, setStoryHistoryIndex] = useState<number>(-1);
+  const isNavigatingStoryHistory = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (isNavigatingStoryHistory.current) return;
+    if (segments.length === 0 && storyHistoryIndex === -1) return;
+    setStoryHistory(prev => {
+      const truncated = prev.slice(0, storyHistoryIndex + 1);
+      return [...truncated, segments];
+    });
+    setStoryHistoryIndex(prev => prev + 1);
+  }, [segments]);
+
+  const handleUndoStory = useCallback(() => {
+    if (storyHistoryIndex > 0) {
+      isNavigatingStoryHistory.current = true;
+      const targetIdx = storyHistoryIndex - 1;
+      setStoryHistoryIndex(targetIdx);
+      setSegments(storyHistory[targetIdx]);
+      showSuccessToast('Undid story step (Ctrl+Z)');
+      setTimeout(() => {
+        isNavigatingStoryHistory.current = false;
+      }, 50);
+    }
+  }, [storyHistoryIndex, storyHistory, showSuccessToast]);
+
+  const handleRedoStory = useCallback(() => {
+    if (storyHistoryIndex < storyHistory.length - 1) {
+      isNavigatingStoryHistory.current = true;
+      const targetIdx = storyHistoryIndex + 1;
+      setStoryHistoryIndex(targetIdx);
+      setSegments(storyHistory[targetIdx]);
+      showSuccessToast('Redid story step (Ctrl+Y)');
+      setTimeout(() => {
+        isNavigatingStoryHistory.current = false;
+      }, 50);
+    }
+  }, [storyHistoryIndex, storyHistory, showSuccessToast]);
+
   const ingestParagraphIntoGraph = (paragraphText: string, segmentIndex: number) => {
     try {
       const triples = extractTriplesHeuristic(paragraphText);
@@ -297,9 +340,16 @@ function StoryCreatorContent() {
     }
   }, [currentParagraph, processParagraphForVfx, triggerMoodSoundscape]);
 
-  // Global key listener to cleanly close modals or trigger voice input
+  // Global key listener to cleanly close modals, trigger voice input, or undo/redo story steps
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputActive = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        (activeEl as HTMLElement).isContentEditable
+      );
+
       if (e.key === 'Escape') {
         if (isVoiceModalOpen) setIsVoiceModalOpen(false);
         else if (isFocusMode) setIsFocusMode(false);
@@ -310,11 +360,37 @@ function StoryCreatorContent() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         setIsVoiceModalOpen(prev => !prev);
+      } else if (!isInputActive && (e.ctrlKey || e.metaKey)) {
+        // Ctrl + Z -> Undo Story Step
+        if (!e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+          if (storyHistoryIndex > 0) {
+            e.preventDefault();
+            handleUndoStory();
+          }
+        }
+        // Ctrl + Y or Ctrl + Shift + Z -> Redo Story Step
+        else if ((e.key === 'y' || e.key === 'Y') || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
+          if (storyHistoryIndex < storyHistory.length - 1) {
+            e.preventDefault();
+            handleRedoStory();
+          }
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFocusMode, isSettingsOpen, isChapterDrawerOpen, isIntegrationsOpen, isVideoModalOpen, isVoiceModalOpen]);
+  }, [
+    isFocusMode, 
+    isSettingsOpen, 
+    isChapterDrawerOpen, 
+    isIntegrationsOpen, 
+    isVideoModalOpen, 
+    isVoiceModalOpen,
+    storyHistoryIndex,
+    storyHistory.length,
+    handleUndoStory,
+    handleRedoStory
+  ]);
 
   // Global listener for OAuth callbacks (Google & GitHub)
   useEffect(() => {
@@ -552,6 +628,7 @@ function StoryCreatorContent() {
         ...settings,
         imageApiKey: imageApiKey || undefined,
         pollinationsApiKey: settings.pollinationsApiKey || undefined,
+        tone: settings.tone || settings.storyTone,
       },
       onProgress: (status, attempt) => {
         setSegments(prev => prev.map(s => s.id === segmentId ? {
@@ -575,7 +652,9 @@ function StoryCreatorContent() {
           paragraph,
           settings.imageStyle,
           settings.genre,
-          settings.targetAudience
+          settings.targetAudience,
+          '16:9',
+          settings.tone || settings.storyTone
         );
         const seed = Math.floor(Math.random() * 1000000);
         const rawKey = settings.pollinationsApiKey ? settings.pollinationsApiKey.replace(/^Bearer\s+/i, '').trim() : '';
@@ -674,6 +753,7 @@ function StoryCreatorContent() {
         {
           customBaseUrl: activeSettings.customBaseUrl,
           cloudflareAccountId: activeSettings.cloudflareAccountId,
+          tone: activeSettings.tone || activeSettings.storyTone,
         }
       );
       
@@ -763,6 +843,7 @@ function StoryCreatorContent() {
         {
           customBaseUrl: settings.customBaseUrl,
           cloudflareAccountId: settings.cloudflareAccountId,
+          tone: settings.tone || settings.storyTone,
         }
       );
 
@@ -817,6 +898,7 @@ function StoryCreatorContent() {
         {
           customBaseUrl: settings.customBaseUrl,
           cloudflareAccountId: settings.cloudflareAccountId,
+          tone: settings.tone || settings.storyTone,
         }
       );
 

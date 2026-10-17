@@ -87,11 +87,15 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 ```
 
 ### Step 1: Prompt & World Calibration
-- Enter a story seed or click the **Microphone** icon for hands-free voice dictation.
-- Select from **16 story genres** (*Fantasy, Sci-Fi, Mystery, Adventure, Superhero, Romance, Horror, Historical, Bedtime, etc.*).
-- Calibrate the **Target Audience** (*Children, Teen, Adult*) to automatically tailor vocabulary, moral depth, and narrative pacing.
-- Pick a target **Story Length** (*Very Short: 3–5 segments, Short: 6–8, Medium: 10–14, Long: 18–24, Very Long: 30+*).
-- Choose from **15 distinct visual art styles** (*Whimsical, Anime/Manga, 3D CGI, Classical Oil, Pixel Art, Watercolor, etc.*).
+- Enter a story seed, click the **Microphone** icon for hands-free voice dictation, or launch the **Structured Dynamic Prompt Builder (Cinematic)**.
+  - **In-Field Suggestions Beneath Input Boxes**: Dynamic suggestion chips populated directly below *Protagonist & Central Conflict*, *Setting & Atmosphere*, and *Tone & Style* (including `balanced`, `hopeful`, `dark`, `humorous`, `melancholic`, etc.) with instant one-click insertion and shuffle options.
+  - **Full Undo / Redo Shortcuts**: Support for `Ctrl+Z` (Undo) and `Ctrl+Y` / `Ctrl+Shift+Z` (Redo) history across prompt builder fields, suggestion applications, and story narrative states.
+  - **Structured Architecture Mode**: Deeply sculpt your story with dedicated fields for *Genre*, *Protagonist & Central Conflict*, *Setting & Atmosphere*, and *Tone & Style*.
+- **Narrative & Visual Tone Calibration**: Select from expressive tone presets (*Balanced, Hopeful, Dark & Gothic Dread, Humorous & Witty, Melancholic & Reflective, Whimsical, Suspenseful, Romantic, Epic*) or enter a **Custom Tone**. This tone actively steers both **Gemini text narrative prose** and **AI scene illumination & color palette**.
+- Select from **27+ story genres** (*High Fantasy, Cyberpunk, Noir Mystery, Cosmic Horror, Steampunk, Fairy Tale, Space Opera, Romance, etc.*).
+- Calibrate the **Target Audience** (*Early Reader, Children, Middle Grade, Teen / YA, Adult, Mature Dark*) to automatically tailor vocabulary, moral depth, and narrative pacing.
+- Pick a target **Story Length** (*Very Short: 1–2 pages, Short: 3–4 pages, Medium: 5–6 pages, Long: 7–9 pages, Epic: 10+ pages*).
+- Choose from **20+ distinct visual art styles** (*Whimsical Storybook, Anime Cel-Shaded, Studio Ghibli, 3D Pixar CGI, Classical Oil, Vintage 1930s, Cyberpunk Neon, 35mm Film Still, etc.*).
 
 ### Step 2: Multi-Modal Chapter & Scene Synthesis
 - The selected AI engine (Google Gemini 2.5 Flash, Puter.js, Groq, OpenAI, etc.) generates the narrative paragraph with rich sensory details.
@@ -657,12 +661,21 @@ npm run start
 
 ## 🗺️ Roadmap & Future Enhancements
 
-- [ ] **Multiplayer Story Co-Op (WebSockets)**: Live classroom and party voting mode for real-time group storytelling.
-- [ ] **Multi-Voice Character Casting**: Automatic dialogue parsing to assign distinct AI voice actors to individual characters.
-- [x] **Storybook Flip-Book Reading Mode**: Shipped — HTML-in-Canvas page-curl storybook (2D/3D engines) with hold-&-flip corners, parchment theming, narration-synced pages, and a CSS-3D fallback. *(WebXR depth-parallax variant still open.)*
-- [ ] **3D WebXR Flip-Book**: Three.js realistic page-turn physics with depth parallax on illustrations.
-- [ ] **LoRA Character Consistency**: Facial reference anchors to maintain character likeness across 50+ chapters.
-- [ ] **Community Story Marketplace**: Share and fork branching story paths created by other storytellers.
+- [x] **Story Tone & Mood Calibration**: Shipped — Full-spectrum emotional tone control (*Balanced, Hopeful, Dark & Gothic, Humorous, Melancholic, Cinematic Noir, Whimsical, Suspenseful, Epic, Custom*) driving both Gemini narrative text and AI scene illumination/color palette.
+- [x] **Structured Dynamic Prompt Builder (Cinematic)**: Shipped — In-field suggestion chips directly below *Protagonist*, *Setting*, and *Tone* input boxes with genre-reactive seeds and quick shuffles.
+- [x] **Global & In-Field Undo / Redo**: Shipped — Full `Ctrl+Z` and `Ctrl+Y` keyboard shortcuts and visual toolbar actions for rapid authoring and story state rewinds.
+- [x] **Storybook Flip-Book Reading Mode**: Shipped — Realistic HTML-in-Canvas page-curl storybook with hold-&-flip corners, parchment theming, narration-synced pages, and high-contrast tactile modes.
+- [ ] **Collaborative Live Multiplayer Story Co-Op (WebSockets / CRDTs)**: Real-time multiplayer classroom and party voting mode for live decision branching and shared reading.
+- [ ] **Multi-Voice Character Casting & Dialogue Parsing**: Automatic NLP parsing of spoken dialogue to cast distinct AI voice actors with dynamic stereo panning and audio ducking.
+- [ ] **Interactive Branching Tree Visualizer (Canvas Graph)**: Visual node-graph explorer displaying all explored and alternate story paths with time-travel jump-to-node functionality.
+- [ ] **Character Consistency via LoRA & IP-Adapter**: Facial and costume reference embeddings to guarantee identical character likeness across 50+ illustrated chapters.
+- [ ] **3D WebXR / VisionOS Spatial Storybook**: Three.js realistic page-turn physics with stereoscopic depth parallax on illustrations and spatial audio soundscapes.
+- [ ] **AI Director Emotion & Cadence Controls**: Fine-grained phonetic direction tags (whisper, excitement, trembling, laughter, deliberate pauses) for TTS narrations.
+- [ ] **Dynamic Ambient Music Composition**: Real-time generative Web Audio synthesizer composing procedural orchestral leitmotifs per character and scene sentiment.
+- [ ] **Automated Manga & Comic Strip Layout Generator**: Multi-panel auto-tiling export with speech balloons, dramatic gutters, and action sound-effect graphics.
+- [ ] **Community Story Marketplace & Forking**: Public storybook showcase with cloud syncing, forkable story branches, and community ratings.
+- [ ] **Autonomous Story Agent Orchestrator (MCP Multi-Agent Teams)**: Parallel subagents acting as Author, Illustrator, Editor, and Continuity Director refining chapters simultaneously.
+- [ ] **Dynamic Sound Effect Foley Synthesis**: Procedural Web Audio foley effects (footsteps on gravel, thunderclaps, creaking doors, unsheathing swords) triggered by story action verbs.
 
 ---
 
