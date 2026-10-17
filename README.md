@@ -180,13 +180,13 @@ Whether creating whimsical bedtime fables for children, interactive mystery thri
 - **Ken Burns Cinematic Motion**: Dynamic zoom-and-pan cameras across scene illustrations.
 - **Dual-Stem Audio Recorder**: Combines speech voiceovers and procedural ambient background music into a single recorded canvas stream.
 
-### 8. 📖 Ancient Storybook Flipbook Reading Mode
-- **Real Page-Curl Flipbook**: Stories render as a full-bleed, edge-to-edge ancient storybook powered by the [`hic-pageflip`](https://github.com/bramus/hic-pageflip) custom element — real, accessible DOM pages (selectable text, live images) deformed through a 2D Canvas or 3D WebGL page-curl pipeline (Chrome HTML-in-Canvas), with an automatic CSS-3D parchment flipbook fallback for every other browser.
-- **Classic Picture-Book Spreads**: Leather-bound gold-foil cover, parchment pages with fiber texture and gutter shadows, illustration on the left page and prose on the right, illuminated drop caps, chapter plaques, ornamental `❦` dividers, and "The End" back cover.
-- **Hold & Flip Corners**: Hovering near a page corner bends the sheet a little and shows a curved "Hold & flip" affordance — grab the corner and drag to turn the page exactly like a real book. Keyboard arrows, floating edge arrows, a seekable gold progress bar, and a page-jump input are always available.
-- **Narration-Synced Pages**: When TTS narration plays, the book turns itself to the passage being read and auto-advances spread by spread — with a synthesized paper-rustle page-turn sound (Web Audio, mutable) on every turn.
-- **Smart Prose Pagination**: Long paragraphs are split across spreads at sentence boundaries with "— continued —" markers, so no text ever clips and the illustration | text pairing never breaks.
-- **2D/3D Engine Toggle**: The crisp 2D canvas engine is the default; the 3D WebGL ribbon-curl engine is one click away — with automatic fallback if a pipeline cannot initialize.
+### 8. 📖 High-Fidelity 3D Book Flip Animation Engine (FlipBookReader)
+- **Hardware-Accelerated 3D Page Curl Physics (`react-pageflip`)**: Completely replaces experimental canvas deformation with smooth, hardware-accelerated 3D paper curl kinematics, supporting realistic paper curvature, multi-angle flips, and seamless page transitions across all modern browsers.
+- **Hybrid Three.js Hardcover + Vector-Crisp React Spreads**: Interactive WebGL 3D leather-bound hardcover with procedural PBR textures, embossed gold-foil typography, and dynamic opening hinge kinematics, transitioning smoothly into high-resolution, distraction-free dual-page spreads with 100% readable, selectable typography.
+- **Component-Based Rendering Pipeline (`FlipPage`)**: Uses `React.forwardRef` component architecture embedding rich typography, drop caps, scene illustrations, audio narration playback overlays, chapter headings, and interactive branching choices.
+- **Bidirectional Narration Track Sync**: Connected bidirectionally with the audio controller. Page flips automatically cue the active audio segment, and playing narration automatically turns the book spread to match the active scene.
+- **4 Customizable Tactile Themes & High-Contrast Mode**: Antique Parchment (`#F4ECD8`), Ivory Silk (`#FAF8F3`), Midnight Scholar (`#13182B`), and Obsidian Luxe (`#0B0E14`), plus one-click high-contrast accessibility.
+- **Procedural Web Audio Foley & Gestures**: Multi-band synthesized paper rustle sound effects generated in real-time on page turns, with corner drag handles, keyboard navigation (←/→, Space, Home/End, Esc), and fullscreen distraction-free reading mode.
 
 ### 7. 🌐 Cloud Storage & Community Integrations
 - **Google Workspace & Drive**: Export chapters as formatted Google Docs and manage Google Drive cloud backups.
@@ -664,7 +664,7 @@ npm run start
 - [x] **Story Tone & Mood Calibration**: Shipped — Full-spectrum emotional tone control (*Balanced, Hopeful, Dark & Gothic, Humorous, Melancholic, Cinematic Noir, Whimsical, Suspenseful, Epic, Custom*) driving both Gemini narrative text and AI scene illumination/color palette.
 - [x] **Structured Dynamic Prompt Builder (Cinematic)**: Shipped — In-field suggestion chips directly below *Protagonist*, *Setting*, and *Tone* input boxes with genre-reactive seeds and quick shuffles.
 - [x] **Global & In-Field Undo / Redo**: Shipped — Full `Ctrl+Z` and `Ctrl+Y` keyboard shortcuts and visual toolbar actions for rapid authoring and story state rewinds.
-- [x] **Storybook Flip-Book Reading Mode**: Shipped — Realistic HTML-in-Canvas page-curl storybook with hold-&-flip corners, parchment theming, narration-synced pages, and high-contrast tactile modes.
+- [x] **Advanced Hybrid 3D Storybook (Three.js Hardcover + Tactile React Spreads)**: Shipped — Realistic Three.js WebGL 3D PBR leather hardcover with gold-foil embossing and animated opening kinematics, transitioning into distraction-free dual-page spreads with 700ms paper curl physics, procedural Web Audio page-turn rustle foley, and 4 tactile reading themes.
 - [ ] **Collaborative Live Multiplayer Story Co-Op (WebSockets / CRDTs)**: Real-time multiplayer classroom and party voting mode for live decision branching and shared reading.
 - [ ] **Multi-Voice Character Casting & Dialogue Parsing**: Automatic NLP parsing of spoken dialogue to cast distinct AI voice actors with dynamic stereo panning and audio ducking.
 - [ ] **Interactive Branching Tree Visualizer (Canvas Graph)**: Visual node-graph explorer displaying all explored and alternate story paths with time-travel jump-to-node functionality.

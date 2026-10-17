@@ -17,7 +17,7 @@ import { BackgroundManager } from './components/BackgroundManager';
 import { StoryLibrary } from './components/StoryLibrary';
 import { AudioController } from './components/AudioController';
 import { useToast } from './components/ToastContext';
-import { Workflow, Bot, Printer, BookOpen, Sparkles, Mic, CheckCircle2, Headphones, Music } from 'lucide-react';
+import { Workflow, Bot, Printer, BookOpen, BookMarked, Sparkles, Mic, CheckCircle2, Headphones, Music } from 'lucide-react';
 import { extractChapters, setChapterAtSegment, removeChapterAtSegment, getChapterStats } from './utils/chapterUtils';
 import { AuthCallback } from './components/AuthCallback';
 import { VoicePromptModal } from './components/VoicePromptModal';
@@ -1977,6 +1977,22 @@ function StoryCreatorContent() {
                 <span className="hidden md:inline">Agents & MCP</span>
               </button>
 
+              {/* 3D Storybook Header Toggle */}
+              {segments.length > 0 && (
+                <button
+                  onClick={() => setStorybookMode(!storybookMode)}
+                  title={storybookMode ? "Switch to Scroll Feed" : "Open 3D FlipBook Storybook"}
+                  className={`flex items-center gap-1.5 px-3 h-9 rounded-full transition-all duration-200 active:scale-95 border text-xs font-semibold ${
+                    storybookMode 
+                      ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.5)]' 
+                      : 'text-purple-200 hover:bg-white/15 hover:text-white bg-white/5 border-white/10'
+                  }`}
+                >
+                  <BookMarked className="w-4 h-4" />
+                  <span className="hidden sm:inline">{storybookMode ? "Scroll Mode" : "3D Storybook"}</span>
+                </button>
+              )}
+
               {/* Focus Mode Header Toggle */}
               <button
                 onClick={() => setIsFocusMode(!isFocusMode)}
@@ -2072,6 +2088,9 @@ function StoryCreatorContent() {
                 cloudflareAccountId: settings.cloudflareAccountId,
               }}
               imageAspectRatio={settings.imageAspectRatio || '16:9'}
+              onActiveAudioSegmentChange={setActiveAudioSegmentIndex}
+              onToggleAudioPlay={() => setIsAudioPlaying(prev => !prev)}
+              viewMode={storybookMode ? 'book' : 'scroll'}
               onViewModeChange={(mode) => setStorybookMode(mode === 'book')}
             />
             {!isFocusMode && !isGenerating && (!segments[segments.length - 1]?.choices || segments[segments.length - 1]?.choices?.length === 0) && (

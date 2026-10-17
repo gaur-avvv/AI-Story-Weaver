@@ -10,6 +10,7 @@ import {
   Play, 
   Pause, 
   Volume2, 
+  VolumeX,
   RotateCcw, 
   Sparkles, 
   X, 
@@ -23,6 +24,8 @@ import {
 } from 'lucide-react';
 import { StorySegment } from '../types';
 import { extractChapters } from '../utils/chapterUtils';
+import { playPageTurnSound, isPageTurnSoundEnabled, setPageTurnSoundEnabled } from '../utils/pageTurnSound';
+import { ThreeBookCover } from './ThreeBookCover';
 
 export interface FlipBookReaderProps {
   segments: StorySegment[];
@@ -151,10 +154,12 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
   const flipBookRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'cover' | 'spread'>('spread');
   const [paperTheme, setPaperTheme] = useState<TactileTheme>('antique');
   const [highContrast, setHighContrast] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isSyncAudioActive, setIsSyncAudioActive] = useState<boolean>(true);
+  const [isSoundFxActive, setIsSoundFxActive] = useState<boolean>(() => isPageTurnSoundEnabled());
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
 
   // Synchronized Layouts: Single vs Double page orientation calculation
@@ -257,6 +262,7 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
   const handleFlip = useCallback((e: any) => {
     const newPageIndex = e.data;
     setCurrentPage(newPageIndex);
+    playPageTurnSound();
 
     const sceneIndex = pageNumberToScene(newPageIndex);
     if (onActiveAudioSegmentChange && isSyncAudioActive) {
@@ -313,6 +319,20 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
 
         {/* Center / Right Control Actions */}
         <div className="flex items-center gap-2">
+          {/* 3D Cover vs Reading Spread Toggle */}
+          <button
+            onClick={() => setViewMode(prev => prev === 'cover' ? 'spread' : 'cover')}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              viewMode === 'cover'
+                ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm'
+                : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+            }`}
+            title={viewMode === 'cover' ? 'Switch to Reading Spread' : 'View 3D WebGL Hardcover'}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{viewMode === 'cover' ? 'Open Spread' : '3D Cover'}</span>
+          </button>
+
           {/* Audio Sync Toggle */}
           <button
             onClick={() => setIsSyncAudioActive(!isSyncAudioActive)}
@@ -326,6 +346,24 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
             <Volume2 className="w-3.5 h-3.5" />
             <span>Audio Sync</span>
             {isSyncAudioActive && <CheckCircle className="w-3 h-3 text-emerald-400" />}
+          </button>
+
+          {/* Page-Turn Audio Foley Toggle */}
+          <button
+            onClick={() => {
+              const next = !isSoundFxActive;
+              setIsSoundFxActive(next);
+              setPageTurnSoundEnabled(next);
+              if (next) playPageTurnSound();
+            }}
+            className={`p-2 rounded-xl border transition-all ${
+              isSoundFxActive
+                ? 'bg-purple-600/20 border-purple-400 text-purple-200 shadow-sm'
+                : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
+            }`}
+            title={isSoundFxActive ? 'Page-Turn Audio Foley: Enabled (Click to mute)' : 'Page-Turn Audio Foley: Muted (Click to enable)'}
+          >
+            {isSoundFxActive ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
           {/* High-Contrast Mode Toggle */}
@@ -411,14 +449,30 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
 
       {/* Book Stage Area with Realistic 3D Surrounding Drop Shadows */}
       <div className="relative flex-grow flex items-center justify-center w-full max-w-[1360px] mx-auto perspective-1000 py-6 px-4">
-        {/* Navigation Arrow Left */}
-        <button
-          onClick={() => flipBookRef.current?.pageFlip()?.flipPrev()}
-          className="absolute left-2 sm:left-6 z-30 w-12 h-12 rounded-full bg-slate-950/80 hover:bg-purple-600 border border-white/20 text-white flex items-center justify-center shadow-2xl backdrop-blur-md transition-all active:scale-95 disabled:opacity-30 group"
-          title="Previous Page (Left Arrow)"
-        >
-          <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
-        </button>
+        {viewMode === 'cover' ? (
+          <ThreeBookCover
+            storyTitle={storyTitle}
+            genre={genre}
+            targetAudience={targetAudience}
+            coverImageUrl={segments[0]?.imageUrl}
+            theme={paperTheme}
+            onOpenBook={() => {
+              setViewMode('spread');
+              setTimeout(() => {
+                flipBookRef.current?.pageFlip()?.flip(1);
+              }, 120);
+            }}
+          />
+        ) : (
+          <>
+            {/* Navigation Arrow Left */}
+            <button
+              onClick={() => flipBookRef.current?.pageFlip()?.flipPrev()}
+              className="absolute left-2 sm:left-6 z-30 w-12 h-12 rounded-full bg-slate-950/80 hover:bg-purple-600 border border-white/20 text-white flex items-center justify-center shadow-2xl backdrop-blur-md transition-all active:scale-95 disabled:opacity-30 group"
+              title="Previous Page (Left Arrow)"
+            >
+              <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
+            </button>
 
         {/* HTMLFlipBook Component with Dynamic Re-calculation */}
         <div className="book-wrapper shadow-[0_30px_70px_-15px_rgba(0,0,0,0.9),0_15px_30px_-5px_rgba(0,0,0,0.7)] rounded-xl relative">
@@ -493,13 +547,24 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
                   )}
                 </div>
 
-                <div className="pb-4 space-y-1">
+                <div className="pb-4 space-y-2">
                   <p className="text-[11px] font-mono tracking-widest text-slate-300 uppercase">
                     AI STORYTELLER STUDIO
                   </p>
                   <p className="text-xs text-amber-400 font-serif italic">
                     Drag corner or use arrow keys to open
                   </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMode('cover');
+                    }}
+                    className="mt-1 px-3 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-serif inline-flex items-center gap-1.5 transition-colors shadow-sm"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View 3D WebGL Hardcover</span>
+                  </button>
                 </div>
               </div>
             </FlipPage>
@@ -544,7 +609,7 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
             </FlipPage>
 
             {/* SCENE PAGES: Left (Illustration + Audio controls) & Right (Text + Choices) */}
-            {segments.map((seg, idx) => {
+            {segments.flatMap((seg, idx) => {
               const leftPageNum = sceneToPageNumber(idx);
               const rightPageNum = leftPageNum + 1;
               const isCurrentlyPlayingScene = isAudioPlaying && activeAudioSegmentIndex === idx;
@@ -746,6 +811,8 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
         >
           <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
         </button>
+          </>
+        )}
       </div>
 
       {/* Footer Navigation Bar */}
@@ -758,13 +825,29 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => flipBookRef.current?.pageFlip()?.flip(0)}
-            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+            onClick={() => setViewMode('cover')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              viewMode === 'cover'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-white/5 hover:bg-white/10 text-amber-300 hover:text-white'
+            }`}
           >
-            Cover
+            3D Cover
           </button>
           <button
-            onClick={() => flipBookRef.current?.pageFlip()?.flip(1)}
+            onClick={() => {
+              setViewMode('spread');
+              flipBookRef.current?.pageFlip()?.flip(0);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+          >
+            Page 1
+          </button>
+          <button
+            onClick={() => {
+              setViewMode('spread');
+              flipBookRef.current?.pageFlip()?.flip(1);
+            }}
             className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
           >
             Contents

@@ -16,6 +16,7 @@
     "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.52.0",
     "@types/node": "^22.20.2",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.2.0",
     "framer-motion": "^12.43.0",
     "hic-pageflip": "^1.0.3",
@@ -27,6 +28,7 @@
     "react-dom": "^19.3.0",
     "react-pageflip": "^2.0.3",
     "react-router-dom": "^7.18.3",
+    "three": "^0.186.1",
     "typescript": "~5.9.3",
     "vite": "^8.3.0"
   }
