@@ -10,21 +10,14 @@ import {
   Play, 
   Pause, 
   Volume2, 
-  VolumeX,
   RotateCcw, 
   Sparkles, 
   X, 
   Sun,
-  Eye,
-  Sliders,
-  CheckCircle,
-  HelpCircle,
-  Layers,
-  Feather
+  Eye
 } from 'lucide-react';
 import { StorySegment } from '../types';
 import { extractChapters } from '../utils/chapterUtils';
-import { playPageTurnSound, isPageTurnSoundEnabled, setPageTurnSoundEnabled } from '../utils/pageTurnSound';
 import { ThreeBookCover } from './ThreeBookCover';
 
 export interface FlipBookReaderProps {
@@ -159,7 +152,6 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
   const [highContrast, setHighContrast] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isSyncAudioActive, setIsSyncAudioActive] = useState<boolean>(true);
-  const [isSoundFxActive, setIsSoundFxActive] = useState<boolean>(() => isPageTurnSoundEnabled());
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
 
   // Synchronized Layouts: Single vs Double page orientation calculation
@@ -262,7 +254,6 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
   const handleFlip = useCallback((e: any) => {
     const newPageIndex = e.data;
     setCurrentPage(newPageIndex);
-    playPageTurnSound();
 
     const sceneIndex = pageNumberToScene(newPageIndex);
     if (onActiveAudioSegmentChange && isSyncAudioActive) {
@@ -345,25 +336,6 @@ export const FlipBookReader: React.FC<FlipBookReaderProps> = ({
           >
             <Volume2 className="w-3.5 h-3.5" />
             <span>Audio Sync</span>
-            {isSyncAudioActive && <CheckCircle className="w-3 h-3 text-emerald-400" />}
-          </button>
-
-          {/* Page-Turn Audio Foley Toggle */}
-          <button
-            onClick={() => {
-              const next = !isSoundFxActive;
-              setIsSoundFxActive(next);
-              setPageTurnSoundEnabled(next);
-              if (next) playPageTurnSound();
-            }}
-            className={`p-2 rounded-xl border transition-all ${
-              isSoundFxActive
-                ? 'bg-purple-600/20 border-purple-400 text-purple-200 shadow-sm'
-                : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-            }`}
-            title={isSoundFxActive ? 'Page-Turn Audio Foley: Enabled (Click to mute)' : 'Page-Turn Audio Foley: Muted (Click to enable)'}
-          >
-            {isSoundFxActive ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
           {/* High-Contrast Mode Toggle */}

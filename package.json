@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
+    "start": "node server.ts",
     "prebuild": "node scripts/verify-lucide-icons.cjs",
     "build": "vite build",
     "preview": "vite preview",
@@ -14,10 +15,13 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "@google/genai": "^1.52.0",
+    "@google/genai": "^3.3.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.20.2",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
     "framer-motion": "^12.43.0",
     "hic-pageflip": "^1.0.3",
     "html2canvas": "^1.4.1",
@@ -29,6 +33,7 @@
     "react-pageflip": "^2.0.3",
     "react-router-dom": "^7.18.3",
     "three": "^0.186.1",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^8.3.0"
   }

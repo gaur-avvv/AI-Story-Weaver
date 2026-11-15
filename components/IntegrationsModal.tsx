@@ -42,6 +42,7 @@ import { downloadFullStoryAudio, hasAvailableAudio, countAudioSegments } from '.
 interface IntegrationsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  storyId?: string;
   title?: string;
   segments?: StorySegment[];
   settings?: Partial<Settings>;
@@ -51,9 +52,26 @@ interface IntegrationsModalProps {
 
 type TabType = 'oauth' | 'mcp' | 'agents' | 'publishing' | 'video';
 
+interface AgentDownloadArtifact {
+  fileId?: string;
+  filename: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  downloadUrl: string;
+  relativeUrl?: string;
+}
+
+interface AgentToolTraceItem {
+  name: string;
+  args: Record<string, any>;
+  result: any;
+  isError?: boolean;
+}
+
 export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   isOpen,
   onClose,
+  storyId,
   title = 'Untitled Story',
   segments = [],
   settings,
@@ -67,7 +85,8 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   const currentGenre = settings?.genre || 'fantasy';
   const currentAudience = settings?.targetAudience || 'children';
   const currentImageStyle = settings?.imageStyle || 'whimsical';
-  const currentModel = settings?.textModel || 'gemini-2.5-flash';
+  const currentModel = settings?.textModel || 'gemini-4-hydrogen';
+  const resolvedStoryId = storyId || (title || 'novellaio_story').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
   // OAuth Client IDs
   const googleClientId = (((import.meta as any)?.env?.VITE_GOOGLE_CLIENT_ID || (import.meta as any)?.env?.GOOGLE_CLIENT_ID || (process.env as any)?.VITE_GOOGLE_CLIENT_ID || (process.env as any)?.GOOGLE_CLIENT_ID || '')).toString().replace(/["',;]/g, '').trim();
@@ -107,12 +126,29 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     JSON.stringify({ prompt: "A hidden clockwork dragon in the steam caverns", genre: "fantasy", targetAudience: "children", style: "whimsical" }, null, 2)
   );
   const [toolOutput, setToolOutput] = useState<string>('');
+  const [mcpDownloads, setMcpDownloads] = useState<AgentDownloadArtifact[]>([]);
+  const [mcpGeneratedSegment, setMcpGeneratedSegment] = useState<StorySegment | null>(null);
   const [isExecutingTool, setIsExecutingTool] = useState<boolean>(false);
   const [mcpClientType, setMcpClientType] = useState<'claude' | 'cursor' | 'adk' | 'curl'>('claude');
 
   // Agent State
   const [subAgentTab, setSubAgentTab] = useState<'auditor' | 'branch' | 'characters' | 'art_director'>('auditor');
   const [branchDirection, setBranchDirection] = useState<'tension_twist' | 'peaceful_discovery' | 'character_revelation' | 'cliffhanger'>('tension_twist');
+  const [agentGoalPrompt, setAgentGoalPrompt] = useState<string>('Generate a dramatic next chapter for this story and prepare a downloadable PDF storybook.');
+  const [isRunningAutonomousAgent, setIsRunningAutonomousAgent] = useState<boolean>(false);
+  const [autonomousAgentResult, setAutonomousAgentResult] = useState<{
+    summary: string;
+    model?: string;
+    latencyMs?: number;
+    toolCalls: AgentToolTraceItem[];
+    downloads: AgentDownloadArtifact[];
+  } | null>(null);
+  const [characterQuery, setCharacterQuery] = useState<string>('');
+  const [characterDossier, setCharacterDossier] = useState<any>(null);
+  const [isGeneratingCharacter, setIsGeneratingCharacter] = useState<boolean>(false);
+  const [artDirectorResults, setArtDirectorResults] = useState<Array<{ chapter: number; imagePrompt: string; lighting?: string; palette?: string[]; downloadUrl?: string }>>([]);
+  const [isRunningArtDirector, setIsRunningArtDirector] = useState<boolean>(false);
+
   const [agentPacingScore, setAgentPacingScore] = useState<number | null>(null);
   const [agentMetrics, setAgentMetrics] = useState<{
     tension: string;
@@ -142,6 +178,23 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   // Video Settings
   const [videoAspectRatio, setVideoAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [videoSubtitleStyle, setVideoSubtitleStyle] = useState<'kinetic' | 'classic' | 'subtle'>('kinetic');
+
+  // Sync active story to server repository whenever modal opens so MCP tools & agents see it
+  React.useEffect(() => {
+    if (!isOpen || segments.length === 0) return;
+    fetch('/api/stories/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storyId: resolvedStoryId,
+        title: title || 'Novellaio Adventure',
+        genre: currentGenre,
+        targetAudience: currentAudience,
+        author: authorName,
+        segments,
+      }),
+    }).catch(() => {});
+  }, [isOpen, resolvedStoryId, title, currentGenre, currentAudience, authorName, segments.length]);
 
   if (!isOpen) return null;
 
@@ -436,14 +489,41 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   const handleRunMcpTool = async () => {
     setIsExecutingTool(true);
     setToolOutput('');
+    setMcpDownloads([]);
+    setMcpGeneratedSegment(null);
     const startTime = performance.now();
 
     try {
-      let parsedArgs = {};
+      let parsedArgs: Record<string, any> = {};
       try {
         parsedArgs = JSON.parse(toolInput);
-      } catch (e) {
+      } catch {
         parsedArgs = { prompt: toolInput };
+      }
+
+      // Auto-sync active story before executing download/audit tools if no inline text/segments provided
+      if (
+        segments.length > 0 &&
+        ['download_audio_file', 'download_video_file', 'download_pdf_file', 'publish_ebook', 'create_video_reel', 'audit_narrative_flow'].includes(selectedTool) &&
+        !parsedArgs.text &&
+        !parsedArgs.paragraphs &&
+        !parsedArgs.segments
+      ) {
+        await fetch('/api/stories/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storyId: resolvedStoryId,
+            title: title || 'Novellaio Adventure',
+            genre: currentGenre,
+            targetAudience: currentAudience,
+            author: authorName,
+            segments,
+          }),
+        }).catch(() => {});
+        if (!parsedArgs.storyId) {
+          parsedArgs.storyId = resolvedStoryId;
+        }
       }
 
       const isProtocolMethod = selectedTool.startsWith('resources/') || selectedTool.startsWith('prompts/');
@@ -476,7 +556,51 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
       const data = await response.json();
       setToolOutput(JSON.stringify(data, null, 2));
-      showSuccessToast(`Executed ${selectedTool} via MCP in ${latency}ms!`);
+
+      // Extract downloadUrl or generated chapter from structuredContent / text payload
+      const structured = data?.result?.structuredContent || (() => {
+        try {
+          const txt = data?.result?.content?.[0]?.text;
+          return txt ? JSON.parse(txt) : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      if (structured) {
+        const downloadsFound: AgentDownloadArtifact[] = [];
+        if (structured.downloadUrl) {
+          downloadsFound.push({
+            fileId: structured.fileId,
+            filename: structured.filename || `${selectedTool}_output`,
+            mimeType: structured.mimeType,
+            sizeBytes: structured.sizeBytes,
+            downloadUrl: structured.downloadUrl,
+            relativeUrl: structured.relativeUrl,
+          });
+        }
+        if (structured.renderedImage?.downloadUrl) {
+          downloadsFound.push(structured.renderedImage);
+        }
+        setMcpDownloads(downloadsFound);
+
+        if (selectedTool === 'generate_story_chapter' && structured.paragraph) {
+          setMcpGeneratedSegment({
+            id: `seg_${Date.now()}`,
+            chapterNumber: structured.chapterNumber || segments.length + 1,
+            chapterTitle: structured.chapterTitle,
+            paragraph: structured.paragraph,
+            choices: structured.choices,
+            sentiment: structured.sentiment,
+          });
+        }
+      }
+
+      if (data?.result?.isError) {
+        showWarningToast(`${selectedTool} returned an error — check the JSON response.`);
+      } else {
+        showSuccessToast(`Executed ${selectedTool} via MCP in ${latency}ms!`);
+      }
     } catch (err: any) {
       const latency = Math.round(performance.now() - startTime);
       setMcpLatencyMs(latency);
@@ -487,140 +611,266 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     }
   };
 
-  // Run ADK Story Analysis
-  const handleRunAgentStoryAnalysis = () => {
+  // Run Real ADK / MCP Narrative Audit via Gemini + Quantitative Metrics
+  const handleRunAgentStoryAnalysis = async () => {
     if (segments.length === 0) {
       showWarningToast('Generate a story first to run the ADK narrative agent.');
       return;
     }
     setIsAnalyzingStory(true);
-    setTimeout(() => {
-      const allText = segments.map(s => s.paragraph || '').join(' ');
-      const words = allText.split(/\s+/).filter(Boolean);
-      const totalWords = words.length;
-      const sentences = (allText.match(/[.!?]+/g) || []).length || 1;
-      const avgLen = (totalWords / sentences).toFixed(1);
-
-      // Dialogue calculation
-      const quoteMatches: string[] = allText.match(/"([^"]*)"|“([^”]*)”/g) || [];
-      const dialogueWords: number = quoteMatches.reduce((acc: number, q: string) => acc + q.split(/\s+/).filter(Boolean).length, 0);
-      const dialoguePercent = totalWords > 0 ? Math.min(100, Math.round((dialogueWords / totalWords) * 100)) : 28;
-      const prosePercent = 100 - dialoguePercent;
-
-      // Flesch-Kincaid Grade Level
-      const fkGrade = Math.max(1, Math.min(14, +(0.39 * (totalWords / sentences) + 1.8).toFixed(1)));
-      const gradeStr = `Grade ${fkGrade} (${fkGrade < 6 ? 'Accessible & Fluid' : 'Literary & Immersive'})`;
-
-      // Character extraction: scan for capitalized names in the text
-      const candidateNames = Array.from(new Set(
-        (allText.match(/\b[A-Z][a-z]{2,15}\b/g) || [])
-          .filter(n => !['The', 'Then', 'And', 'When', 'With', 'After', 'Before', 'Into', 'Through', 'There', 'They', 'This', 'That', 'Suddenly', 'Deep', 'Ancient', 'High', 'From', 'Chapter'].includes(n))
-      )).slice(0, 6);
-
-      const tensionCurve = segments.map((seg, i) => {
-        const text = seg.paragraph || '';
-        if (text.includes('peril') || text.includes('danger') || text.includes('monster') || text.includes('blade') || text.includes('trap')) {
-          return `Ch ${i + 1}: High Tension`;
-        }
-        if (text.includes('whisper') || text.includes('ancient') || text.includes('glow') || text.includes('rune') || text.includes('secret')) {
-          return `Ch ${i + 1}: Rising Mystery`;
-        }
-        return `Ch ${i + 1}: Narrative Development`;
+    try {
+      const allText = segments.map(s => s.paragraph || '').join('\n\n');
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'tools/call',
+          params: {
+            name: 'audit_narrative_flow',
+            arguments: {
+              storyId: resolvedStoryId,
+              storyText: allText,
+              genre: currentGenre,
+              targetAudience: currentAudience,
+            },
+          },
+        }),
       });
+      const rpc = await res.json();
+      const audit = rpc?.result?.structuredContent || JSON.parse(rpc?.result?.content?.[0]?.text || '{}');
+      const ri = audit.readabilityIndex || {};
+      const arc = audit.narrativeArc || {};
+      const recs = Array.isArray(audit.agentRecommendations) ? audit.agentRecommendations : [];
 
-      const calculatedScore = Math.min(99, Math.max(88, 90 + Math.min(8, segments.length * 2)));
-      setAgentPacingScore(calculatedScore);
-
+      setAgentPacingScore(Number(audit.pacingScore) || 92);
       setAgentMetrics({
-        tension: tensionCurve[tensionCurve.length - 1] || 'Dynamic Narrative Arc',
-        readabilityGrade: gradeStr,
-        dialogueRatio: `${dialoguePercent}% Dialogue, ${prosePercent}% Prose`,
-        wordCount: totalWords,
-        sentenceCount: sentences,
-        avgSentenceLength: `${avgLen} words/sentence`,
-        tensionCurve,
-        charactersDetected: candidateNames.length > 0 ? candidateNames : ['Protagonist', 'Companion'],
-        feedback: 
-          `• Structural Flow: Cohesive rhythm across ${segments.length} chapter(s) with ${totalWords} total words (${avgLen} words/sentence avg).\n` +
-          `• Narrative Agency: ${dialoguePercent}% dialogue to ${prosePercent}% descriptive prose balance optimal for "${currentAudience}".\n` +
-          `• Setting & Style: Tone aligns smoothly with "${currentGenre}" tropes; sensory anchors present in each chapter.\n` +
-          `• Character Integrity: Identified ${candidateNames.length > 0 ? candidateNames.join(', ') : 'central protagonist'} with consistent motivations.\n` +
-          `• Publishing Status: Fully certified for EPUB 3.0 compilation and automated video reel export.`
+        tension: arc.tensionLevel || 'Dynamic Narrative Arc',
+        readabilityGrade: `Grade ${ri.fleschKincaidGrade || '6.5'}`,
+        dialogueRatio: arc.dialogueRatio || 'Balanced dialogue & prose',
+        wordCount: Number(ri.wordCount) || allText.split(/\s+/).filter(Boolean).length,
+        sentenceCount: Number(ri.sentenceCount) || 1,
+        avgSentenceLength: `${ri.avgSentenceLength || '14.2'} words/sentence`,
+        tensionCurve: Array.isArray(arc.pacingCurve) ? arc.pacingCurve : ['Hook', 'Escalation', 'Climax'],
+        charactersDetected: Array.isArray(audit.charactersDetected) && audit.charactersDetected.length > 0
+          ? audit.charactersDetected
+          : ['Central Protagonist'],
+        feedback: recs.map((r: string) => `• ${r}`).join('\n') || 'Audit completed.',
       });
+      showSuccessToast('Gemini ADK Narrative Audit complete!');
+    } catch (err: any) {
+      showErrorToast(`Audit failed: ${err?.message || 'Unknown error'}`);
+    } finally {
       setIsAnalyzingStory(false);
-      showSuccessToast('ADK Narrative Agent analysis complete!');
-    }, 700);
+    }
   };
 
-  // Co-Author Action: Suggest Next Branch
-  const handleAgentSuggestBranch = () => {
+  // Run Real Co-Author Branch Agent via /api/mcp generate_story_chapter
+  const handleAgentSuggestBranch = async () => {
     if (!onUpdateSegments) {
       showWarningToast('Segment updater is not available.');
       return;
     }
     setIsGeneratingAgentBranch(true);
-    setTimeout(() => {
-      const nextChapterNum = segments.length + 1;
+    try {
+      const directionMap: Record<string, string> = {
+        tension_twist: 'Introduce a dramatic, surprising plot twist that escalates the stakes',
+        peaceful_discovery: 'Uncover an atmospheric, wondrous discovery with rich lore secrets',
+        character_revelation: 'Reveal a hidden personal motive or deepen character bonds',
+        cliffhanger: 'End on an urgent, high-stakes cliffhanger confronting immediate peril',
+      };
 
-      let chapterTitle = '';
-      let paragraph = '';
-      let choices: string[] = [];
+      await fetch('/api/stories/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyId: resolvedStoryId,
+          title: title || 'Novellaio Adventure',
+          genre: currentGenre,
+          targetAudience: currentAudience,
+          author: authorName,
+          segments,
+        }),
+      }).catch(() => {});
 
-      if (currentGenre === 'cyberpunk') {
-        chapterTitle = branchDirection === 'tension_twist' 
-          ? 'The Glitched Sub-Level Grid' 
-          : 'Decryption in the High Towers';
-        paragraph = `The neon rain mirrored distorted reflections against the chrome parapet. As the bio-implant cooled, the terminal flickered with a clandestine datastream routed directly from the subterranean vault. A synthetic voice chimed through the earpiece: "They know you bypassed the firewall. You have twelve seconds to make your move."`;
-        choices = [
-          'Overclock the neural deck and trigger an EMP cascade',
-          'Reroute the feed through the black-market orbital relay',
-          'Slip into the air duct before the corporate security drones arrive'
-        ];
-      } else if (currentGenre === 'bedtime' || currentAudience === 'children') {
-        chapterTitle = branchDirection === 'peaceful_discovery' 
-          ? 'The Garden of Whispering Fireflies' 
-          : 'The Moonlit Meadow Riddle';
-        paragraph = `A soft, soothing melody drifted on the warm evening breeze. All around, gentle fireflies danced in glowing circles, painting luminous constellations among the clover blossoms. A friendly owl perched on a mossy branch, blinking warmly as if expecting this very arrival.`;
-        choices = [
-          'Follow the fireflies toward the cozy hollow in the great oak',
-          'Ask the wise owl for the secret riddle of the starlight',
-          'Lie back on the velvety grass and watch the dreaming sky'
-        ];
-      } else if (currentGenre === 'scifi') {
-        chapterTitle = 'The Quantum Resonator Rift';
-        paragraph = `The gravitational dampener hummed with an unfamiliar harmonic. Through the observation viewport, the event horizon pulsed with iridescent chronal waves. Every sensor readout confirmed an impossible reading: an artificial structure resting undisturbed at the core of the spatial anomaly.`;
-        choices = [
-          'Transmit the calibrated quantum frequency to initiate docking',
-          'Deploy the remote probe to scan for organic bio-signatures',
-          'Charge the sub-light thrusters and hold position at the perimeter'
-        ];
-      } else {
-        // Fantasy / Default
-        chapterTitle = branchDirection === 'tension_twist' 
-          ? 'The Trial of the Obsidian Gate' 
-          : 'The Echo of the Arcane Core';
-        paragraph = `As the ancient runes along the archway ignited with cold violet fire, the heavy stone seal shifted inward. A chamber lost to mortal memory opened before you, its vaulted ceiling studded with glowing moonstones. At the center stood a pedestal cradling a relic of immense, vibrating resonance.`;
-        choices = [
-          'Approach the altar and speak the forgotten invocation',
-          'Examine the surrounding relief carvings for hidden ward traps',
-          'Draw your enchanted weapon and advance with guarded footsteps'
-        ];
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'tools/call',
+          params: {
+            name: 'generate_story_chapter',
+            arguments: {
+              storyId: resolvedStoryId,
+              title: title || 'Novellaio Adventure',
+              prompt: directionMap[branchDirection] || 'Continue the adventure with rich consequence',
+              genre: currentGenre,
+              targetAudience: currentAudience,
+              style: currentImageStyle,
+              previousContext: segments.slice(-3).map(s => s.paragraph).join('\n\n'),
+            },
+          },
+        }),
+      });
+
+      const rpc = await res.json();
+      const ch = rpc?.result?.structuredContent || JSON.parse(rpc?.result?.content?.[0]?.text || '{}');
+      if (rpc?.result?.isError || !ch?.paragraph) {
+        throw new Error(ch?.error || 'Chapter generation returned empty text.');
       }
 
+      const nextChapterNum = segments.length + 1;
       const newSegment: StorySegment = {
         id: `seg_${Date.now()}`,
         chapterNumber: nextChapterNum,
-        chapterTitle,
-        paragraph,
-        choices,
+        chapterTitle: ch.chapterTitle || `Chapter ${nextChapterNum}`,
+        paragraph: ch.paragraph,
+        choices: Array.isArray(ch.choices) ? ch.choices : [],
+        sentiment: ch.sentiment,
         selectedChoice: undefined,
-        imageUrl: segments[segments.length - 1]?.imageUrl || undefined
       };
 
       onUpdateSegments([...segments, newSegment]);
+      showSuccessToast(`Gemini Agent appended Chapter ${nextChapterNum}: "${newSegment.chapterTitle}"!`);
+    } catch (err: any) {
+      showErrorToast(`Branch Architect failed: ${err?.message || 'Check server configuration.'}`);
+    } finally {
       setIsGeneratingAgentBranch(false);
-      showSuccessToast(`Agent appended Chapter ${nextChapterNum}: "${chapterTitle}" to the story!`);
-    }, 800);
+    }
+  };
+
+  // Run Autonomous Multi-Tool Gemini Function Calling Agent
+  const handleRunAutonomousAgent = async (overrideGoal?: string) => {
+    const goal = (overrideGoal || agentGoalPrompt).trim();
+    if (!goal) {
+      showWarningToast('Enter a goal for the autonomous Gemini agent.');
+      return;
+    }
+
+    setIsRunningAutonomousAgent(true);
+    setAutonomousAgentResult(null);
+    try {
+      const response = await fetch('/api/agents/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal,
+          storyId: resolvedStoryId,
+          title: title || 'Novellaio Adventure',
+          genre: currentGenre,
+          targetAudience: currentAudience,
+          segments,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Agent execution failed.');
+      }
+
+      setAutonomousAgentResult({
+        summary: data.summary || 'Completed.',
+        model: data.model,
+        latencyMs: data.latencyMs,
+        toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : [],
+        downloads: Array.isArray(data.downloads) ? data.downloads : [],
+      });
+
+      if (onUpdateSegments && Array.isArray(data.generatedSegments) && data.generatedSegments.length > 0) {
+        onUpdateSegments([...segments, ...data.generatedSegments]);
+      } else if (onUpdateSegments && segments.length === 0 && Array.isArray(data.updatedStory?.segments) && data.updatedStory.segments.length > 0) {
+        onUpdateSegments(data.updatedStory.segments);
+      }
+
+      showSuccessToast(`Autonomous Agent finished (${data.toolCalls?.length || 0} MCP tool calls)!`);
+    } catch (err: any) {
+      showErrorToast(`Agent error: ${err?.message || 'Failed to run autonomous agent'}`);
+    } finally {
+      setIsRunningAutonomousAgent(false);
+    }
+  };
+
+  const handleRunCharacterProfileAgent = async () => {
+    const targetName = characterQuery.trim() || agentMetrics?.charactersDetected?.[0] || 'Protagonist';
+    setIsGeneratingCharacter(true);
+    try {
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'tools/call',
+          params: {
+            name: 'generate_character_profile',
+            arguments: {
+              characterName: targetName,
+              role: 'protagonist',
+              genre: currentGenre,
+              storyContext: segments.map(s => s.paragraph).join('\n\n').slice(0, 2000),
+            },
+          },
+        }),
+      });
+      const rpc = await res.json();
+      const dossier = rpc?.result?.structuredContent || JSON.parse(rpc?.result?.content?.[0]?.text || '{}');
+      setCharacterDossier(dossier);
+      showSuccessToast(`Generated dossier for ${dossier.name || targetName}!`);
+    } catch (err: any) {
+      showErrorToast(`Character agent failed: ${err?.message || 'Error'}`);
+    } finally {
+      setIsGeneratingCharacter(false);
+    }
+  };
+
+  const handleRunArtDirectorAgent = async (renderImage: boolean = false) => {
+    if (segments.length === 0) {
+      showWarningToast('Generate a story first to run the Art Director agent.');
+      return;
+    }
+    setIsRunningArtDirector(true);
+    try {
+      const targetSegs = segments.slice(0, renderImage ? 1 : 3);
+      const outputs: Array<{ chapter: number; imagePrompt: string; lighting?: string; palette?: string[]; downloadUrl?: string }> = [];
+      for (let i = 0; i < targetSegs.length; i++) {
+        const seg = targetSegs[i];
+        const res = await fetch('/api/mcp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: Date.now() + i,
+            method: 'tools/call',
+            params: {
+              name: 'synthesize_scene_art',
+              arguments: {
+                paragraph: seg.paragraph,
+                style: currentImageStyle,
+                genre: currentGenre,
+                renderImage,
+              },
+            },
+          }),
+        });
+        const rpc = await res.json();
+        const data = rpc?.result?.structuredContent || JSON.parse(rpc?.result?.content?.[0]?.text || '{}');
+        outputs.push({
+          chapter: seg.chapterNumber || i + 1,
+          imagePrompt: data.imagePrompt || '',
+          lighting: data.recommendedLighting,
+          palette: data.colorPalette,
+          downloadUrl: data.renderedImage?.downloadUrl,
+        });
+      }
+      setArtDirectorResults(outputs);
+      showSuccessToast(`Art Director generated ${outputs.length} scene directive(s)!`);
+    } catch (err: any) {
+      showErrorToast(`Art Director failed: ${err?.message || 'Error'}`);
+    } finally {
+      setIsRunningArtDirector(false);
+    }
   };
 
   // Download EPUB
@@ -738,7 +988,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
       "mcp": {
         "servers": {
           "storyspark": {
-            "url": "http://localhost:3000/api/mcp",
+            "url": `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/mcp`,
             "type": "http"
           }
         }
@@ -747,20 +997,27 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
     adk: JSON.stringify({
       "adkAgent": {
         "name": "storyspark-story-co-pilot",
-        "version": "1.3.0",
-        "mcpEndpoint": "http://localhost:3000/api/mcp",
+        "version": "2.0.0",
+        "mcpEndpoint": `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/mcp`,
+        "agentOrchestratorEndpoint": `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/agents/run`,
         "tools": [
           "generate_story_chapter",
+          "generate_full_story",
           "synthesize_scene_art",
           "audit_narrative_flow",
+          "generate_character_profile",
+          "list_saved_stories",
+          "download_audio_file",
+          "download_video_file",
+          "download_pdf_file",
           "publish_ebook",
           "create_video_reel"
         ]
       }
     }, null, 2),
-    curl: `curl -X POST http://localhost:3000/api/mcp \\
+    curl: `curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/api/mcp \\
   -H "Content-Type: application/json" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"generate_story_chapter","arguments":{"prompt":"A magical discovery in the starlit forest","genre":"fantasy"}}}'`
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"download_pdf_file","arguments":{"title":"Starlight Quest","text":"Deep in the crystal woods, a lantern flickered to life."}}}'`
   };
 
   return (
@@ -1268,11 +1525,71 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                     <span className="text-xs text-purple-300/80 font-mono">JSON-RPC 2.0</span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                    <button
+                      onClick={() => {
+                        setSelectedTool('download_audio_file');
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, title: title || "The Starlight Chronicles", voice: settings?.voice || "Kore" }, null, 2));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                        selectedTool === 'download_audio_file'
+                          ? 'bg-indigo-600/30 border-indigo-400 text-white font-semibold'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <code className="text-indigo-300 font-bold block truncate">download_audio_file</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Direct .WAV audiobook</p>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTool('download_video_file');
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, title: title || "The Starlight Chronicles", aspectRatio: videoAspectRatio, format: "mp4", subtitlesEnabled: true }, null, 2));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                        selectedTool === 'download_video_file'
+                          ? 'bg-fuchsia-600/30 border-fuchsia-400 text-white font-semibold'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <code className="text-fuchsia-300 font-bold block truncate">download_video_file</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Render & download .MP4</p>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTool('download_pdf_file');
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, title: title || "The Starlight Chronicles", author: authorName, theme: "classic_ivory", includeImages: true }, null, 2));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                        selectedTool === 'download_pdf_file'
+                          ? 'bg-cyan-600/30 border-cyan-400 text-white font-semibold'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <code className="text-cyan-300 font-bold block truncate">download_pdf_file</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Compile & download .PDF</p>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTool('publish_ebook');
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, title: title || "The Starlight Chronicles", author: authorName, genre: currentGenre || "fantasy", suggestedPriceUsd: ebookPrice }, null, 2));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                        selectedTool === 'publish_ebook'
+                          ? 'bg-emerald-600/30 border-emerald-400 text-white font-semibold'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <code className="text-emerald-300 font-bold block truncate">publish_ebook</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Download .EPUB + KDP</p>
+                    </button>
+
                     <button
                       onClick={() => {
                         setSelectedTool('generate_story_chapter');
-                        setToolInput(JSON.stringify({ prompt: "A mechanical dragon in steam caverns", genre: currentGenre || "fantasy", targetAudience: currentAudience || "children", style: "whimsical" }, null, 2));
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, prompt: "A mechanical dragon in steam caverns", genre: currentGenre || "fantasy", targetAudience: currentAudience || "children", style: currentImageStyle || "whimsical" }, null, 2));
                       }}
                       className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                         selectedTool === 'generate_story_chapter'
@@ -1281,13 +1598,28 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       }`}
                     >
                       <code className="text-purple-300 font-bold block truncate">generate_story_chapter</code>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Chapter & Branch choices</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Chapter & branch choices</p>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTool('generate_full_story');
+                        setToolInput(JSON.stringify({ prompt: "A clockmaker discovers a starlit compass", genre: currentGenre || "fantasy", targetAudience: currentAudience || "children", scenesCount: 3 }, null, 2));
+                      }}
+                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                        selectedTool === 'generate_full_story'
+                          ? 'bg-purple-600/30 border-purple-400 text-white font-semibold'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <code className="text-purple-300 font-bold block truncate">generate_full_story</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Multi-scene storybook</p>
                     </button>
 
                     <button
                       onClick={() => {
                         setSelectedTool('synthesize_scene_art');
-                        setToolInput(JSON.stringify({ paragraph: segments[0]?.paragraph || "Gears turned with rhythmic thunder in the glowing crystal cave", style: "whimsical", genre: currentGenre || "fantasy" }, null, 2));
+                        setToolInput(JSON.stringify({ paragraph: segments[0]?.paragraph || "Gears turned with rhythmic thunder in the glowing crystal cave", style: currentImageStyle || "whimsical", genre: currentGenre || "fantasy", renderImage: false }, null, 2));
                       }}
                       className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                         selectedTool === 'synthesize_scene_art'
@@ -1296,13 +1628,13 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       }`}
                     >
                       <code className="text-purple-300 font-bold block truncate">synthesize_scene_art</code>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Illustration prompt director</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Art prompt & render</p>
                     </button>
 
                     <button
                       onClick={() => {
                         setSelectedTool('audit_narrative_flow');
-                        setToolInput(JSON.stringify({ storyText: segments.map(s => s.paragraph).join("\n\n") || "A seeker explored ancient ruins.", genre: currentGenre || "fantasy", targetAudience: currentAudience || "children" }, null, 2));
+                        setToolInput(JSON.stringify({ storyId: resolvedStoryId, storyText: segments.map(s => s.paragraph).join("\n\n") || "A seeker explored ancient ruins.", genre: currentGenre || "fantasy", targetAudience: currentAudience || "children" }, null, 2));
                       }}
                       className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                         selectedTool === 'audit_narrative_flow'
@@ -1331,32 +1663,17 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
 
                     <button
                       onClick={() => {
-                        setSelectedTool('publish_ebook');
-                        setToolInput(JSON.stringify({ title: title || "The Starlight Chronicles", author: authorName, genre: currentGenre || "fantasy", suggestedPriceUsd: ebookPrice, chaptersCount: segments.length || 3 }, null, 2));
+                        setSelectedTool('list_saved_stories');
+                        setToolInput(JSON.stringify({ limit: 10 }, null, 2));
                       }}
                       className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                        selectedTool === 'publish_ebook'
+                        selectedTool === 'list_saved_stories'
                           ? 'bg-purple-600/30 border-purple-400 text-white font-semibold'
                           : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                       }`}
                     >
-                      <code className="text-purple-300 font-bold block truncate">publish_ebook</code>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">EPUB, KDP tags & price</p>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedTool('create_video_reel');
-                        setToolInput(JSON.stringify({ title: title || "Story Reel", aspectRatio: videoAspectRatio, genre: currentGenre || "fantasy", subtitlesEnabled: true }, null, 2));
-                      }}
-                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
-                        selectedTool === 'create_video_reel'
-                          ? 'bg-purple-600/30 border-purple-400 text-white font-semibold'
-                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      }`}
-                    >
-                      <code className="text-purple-300 font-bold block truncate">create_video_reel</code>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Reel & karaoke subtitles</p>
+                      <code className="text-purple-300 font-bold block truncate">list_saved_stories</code>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Query synced stories</p>
                     </button>
 
                     <button
@@ -1431,6 +1748,43 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                     </button>
                   </div>
 
+                  {mcpDownloads.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                      <span className="text-xs font-semibold text-emerald-300 mr-2">Generated Download Artifact:</span>
+                      {mcpDownloads.map((dl, idx) => (
+                        <a
+                          key={dl.fileId || idx}
+                          href={dl.relativeUrl || dl.downloadUrl}
+                          download={dl.filename}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                        >
+                          <DownloadIcon className="w-3.5 h-3.5" />
+                          <span>{dl.filename}</span>
+                          {dl.sizeBytes ? <span className="opacity-80">({Math.max(1, Math.round(dl.sizeBytes / 1024))} KB)</span> : null}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {mcpGeneratedSegment && onUpdateSegments && (
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/30">
+                      <span className="text-xs text-purple-200">
+                        MCP generated <strong>{mcpGeneratedSegment.chapterTitle || 'new chapter'}</strong>.
+                      </span>
+                      <button
+                        onClick={() => {
+                          onUpdateSegments([...segments, mcpGeneratedSegment]);
+                          setMcpGeneratedSegment(null);
+                          showSuccessToast('Appended MCP chapter to active story!');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Append to Story</span>
+                      </button>
+                    </div>
+                  )}
+
                   {toolOutput && (
                     <div className="mt-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
                       <div className="flex items-center justify-between mb-1">
@@ -1460,8 +1814,111 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                 <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-sm text-purple-200/90 leading-relaxed flex items-start gap-3">
                   <Bot className="w-5 h-5 text-purple-300 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-white">ADK Autonomous Narrative Agent Studio:</span> Four specialized agent personas orchestrating deep lexical auditing, context-aware branch authoring, character continuity tracking, and multi-model visual art direction.
+                    <span className="font-semibold text-white">Gemini Autonomous Agent & MCP Orchestrator:</span> Issue natural-language goals and let Gemini autonomously invoke MCP tools (chapter authoring, narrative auditing, WAV audio synthesis, MP4 video rendering, PDF/EPUB export).
                   </div>
+                </div>
+
+                {/* Autonomous Multi-Tool Gemini Agent Bar */}
+                <div className="p-5 rounded-2xl bg-slate-950/70 border border-purple-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-purple-400" />
+                      <span>Autonomous Agent Command (Gemini Function Calling → MCP Tools)</span>
+                    </span>
+                    <span className="text-[11px] font-mono text-purple-300/80">/api/agents/run</span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={agentGoalPrompt}
+                      onChange={(e) => setAgentGoalPrompt(e.target.value)}
+                      placeholder="e.g., Audit this story, write Chapter 3, and generate a downloadable PDF and MP4 reel"
+                      className="flex-1 px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                    <button
+                      onClick={() => handleRunAutonomousAgent()}
+                      disabled={isRunningAutonomousAgent}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 whitespace-nowrap shadow-[0_0_15px_rgba(168,85,247,0.35)]"
+                    >
+                      {isRunningAutonomousAgent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                      <span>Run Agent</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: 'Export PDF', goal: 'Compile and expose a downloadable PDF file for the active story.' },
+                      { label: 'Render MP4 Video', goal: 'Render a vertical 9:16 MP4 story video reel with subtitles for the active story.' },
+                      { label: 'Synthesize WAV Audio', goal: 'Generate and expose a downloadable WAV audiobook file for the active story.' },
+                      { label: 'Write Next Chapter + PDF', goal: 'Generate a dramatic next chapter for this story and compile a downloadable PDF file.' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          setAgentGoalPrompt(preset.goal);
+                          handleRunAutonomousAgent(preset.goal);
+                        }}
+                        disabled={isRunningAutonomousAgent}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-purple-600/30 border border-slate-800 hover:border-purple-400/40 text-[11px] text-purple-200 transition-colors"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {autonomousAgentResult && (
+                    <div className="mt-3 p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                        <span className="text-emerald-400 font-semibold">
+                          Model: {autonomousAgentResult.model} • {autonomousAgentResult.toolCalls.length} tool call(s)
+                        </span>
+                        {autonomousAgentResult.latencyMs && <span>{autonomousAgentResult.latencyMs}ms</span>}
+                      </div>
+
+                      <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-line">
+                        {autonomousAgentResult.summary}
+                      </p>
+
+                      {autonomousAgentResult.downloads.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {autonomousAgentResult.downloads.map((dl, idx) => (
+                            <a
+                              key={dl.fileId || idx}
+                              href={dl.relativeUrl || dl.downloadUrl}
+                              download={dl.filename}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                            >
+                              <DownloadIcon className="w-3.5 h-3.5" />
+                              <span>Download {dl.filename}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {autonomousAgentResult.toolCalls.length > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-purple-300 block">
+                            Executed MCP Tool Trace:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {autonomousAgentResult.toolCalls.map((tc, i) => (
+                              <span
+                                key={i}
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-mono border ${
+                                  tc.isError
+                                    ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                                    : 'bg-purple-500/10 border-purple-500/30 text-purple-200'
+                                }`}
+                              >
+                                {i + 1}. {tc.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Sub-Agent Selector Tabs */}
@@ -1544,7 +2001,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                             <div className="p-3.5 rounded-xl bg-slate-900 border border-purple-500/20">
                               <span className="text-[10px] font-mono text-purple-300 uppercase">Quality Index</span>
                               <div className="text-xl font-bold font-mono text-emerald-400 mt-1">{agentPacingScore} / 100</div>
-                              <p className="text-[10px] text-slate-400 mt-0.5">Optimal dramatic arc</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">Gemini + lexical audit</p>
                             </div>
                             <div className="p-3.5 rounded-xl bg-slate-900 border border-purple-500/20">
                               <span className="text-[10px] font-mono text-purple-300 uppercase">Readability</span>
@@ -1573,7 +2030,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                           </div>
 
                           <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                            <span className="text-[11px] font-semibold text-slate-300 block mb-2">Tension Arc per Chapter:</span>
+                            <span className="text-[11px] font-semibold text-slate-300 block mb-2">Tension Arc Progression:</span>
                             <div className="flex flex-wrap gap-2">
                               {agentMetrics.tensionCurve.map((tc, idx) => (
                                 <span key={idx} className="px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-200 text-xs font-mono">
@@ -1586,7 +2043,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       ) : (
                         <div className="py-8 text-center text-slate-400 space-y-3">
                           <Bot className="w-10 h-10 text-purple-400 mx-auto opacity-60" />
-                          <p className="text-xs">Click "Run Full ADK Audit" to trigger deep lexical & tension analysis on your story chapters.</p>
+                          <p className="text-xs">Click "Run Full ADK Audit" to trigger Gemini + lexical analysis on your story chapters.</p>
                         </div>
                       )}
                     </div>
@@ -1601,7 +2058,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                           <span className="text-xs font-bold text-white">Autonomous Branch Co-Author</span>
                         </div>
                         <p className="text-xs text-indigo-200/80">
-                          The Branch Architect analyzes previous chapter consequences and crafts a high-agency sequel scene with 3 divergent choice forks.
+                          Calls Gemini via MCP <code>generate_story_chapter</code> to weave a sequel chapter with 3 divergent choice forks.
                         </p>
 
                         <div>
@@ -1651,31 +2108,38 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                       <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/30 space-y-3">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-cyan-400" />
-                          <span className="text-xs font-bold text-white">Character & Entity Continuity Auditor</span>
+                          <span className="text-xs font-bold text-white">Character & Entity Continuity Profiler</span>
                         </div>
                         <p className="text-xs text-cyan-200/80">
-                          Tracks protagonists, companions, and antagonists across chapter transitions to prevent dropped storylines or item inconsistencies.
+                          Calls MCP <code>generate_character_profile</code> to synthesize grounded archetypes, motivations, and signature items from your active narrative.
                         </p>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-                            <span className="text-[10px] font-mono text-cyan-300 uppercase block">Active Characters</span>
-                            <div className="text-sm font-bold text-white mt-1">
-                              {agentMetrics?.charactersDetected.join(', ') || 'Central Protagonist'}
-                            </div>
-                            <span className="text-[10px] text-emerald-400 mt-0.5 block">Consistent voice</span>
-                          </div>
-                          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-                            <span className="text-[10px] font-mono text-cyan-300 uppercase block">Continuity Integrity</span>
-                            <div className="text-sm font-bold text-emerald-400 mt-1">100% No Contradictions</div>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">Verified across chapters</span>
-                          </div>
-                          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-                            <span className="text-[10px] font-mono text-cyan-300 uppercase block">Emotional Stake</span>
-                            <div className="text-sm font-bold text-purple-300 mt-1">High Personal Agency</div>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">Clear motivation</span>
-                          </div>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            value={characterQuery}
+                            onChange={(e) => setCharacterQuery(e.target.value)}
+                            placeholder={agentMetrics?.charactersDetected?.[0] || "Enter character name (e.g. Eldrin)"}
+                            className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                          />
+                          <button
+                            onClick={handleRunCharacterProfileAgent}
+                            disabled={isGeneratingCharacter}
+                            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
+                          >
+                            {isGeneratingCharacter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
+                            <span>Profile Character</span>
+                          </button>
                         </div>
+
+                        {characterDossier && (
+                          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs">
+                            <div className="font-bold text-cyan-300">{characterDossier.name} ({characterDossier.archetype})</div>
+                            <div className="text-slate-300"><strong>Motivation:</strong> {characterDossier.secretMotivation}</div>
+                            <div className="text-slate-300"><strong>Traits:</strong> {(characterDossier.traits || []).join(', ')}</div>
+                            <div className="text-slate-300"><strong>Inventory:</strong> {(characterDossier.signatureItems || []).join(', ')}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1684,27 +2148,53 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
                   {subAgentTab === 'art_director' && (
                     <div className="space-y-4">
                       <div className="p-4 rounded-xl bg-pink-950/30 border border-pink-500/30 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Paintbrush className="w-4 h-4 text-pink-400" />
-                          <span className="text-xs font-bold text-white">Visual Art Director (Diffusion Optimization)</span>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Paintbrush className="w-4 h-4 text-pink-400" />
+                            <span className="text-xs font-bold text-white">Visual Art Director (MCP <code>synthesize_scene_art</code>)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleRunArtDirectorAgent(false)}
+                              disabled={isRunningArtDirector}
+                              className="px-3 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5"
+                            >
+                              {isRunningArtDirector ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paintbrush className="w-3.5 h-3.5" />}
+                              <span>Generate Directives</span>
+                            </button>
+                            <button
+                              onClick={() => handleRunArtDirectorAgent(true)}
+                              disabled={isRunningArtDirector}
+                              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold"
+                            >
+                              Render Cover Image
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-xs text-pink-200/80">
-                          Generates exact volumetric lighting, color palette, camera lens, and composition directives tailored for FLUX Schnell, SD 3.5, and Leonardo.
-                        </p>
 
-                        <div className="space-y-3">
-                          {segments.slice(0, 3).map((seg, idx) => (
-                            <div key={seg.id || idx} className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="font-bold text-pink-300">Chapter {seg.chapterNumber || (idx + 1)} Art Directive</span>
-                                <span className="text-[10px] font-mono text-slate-400">Target: FLUX.1 / SD 3.5</span>
+                        {artDirectorResults.length > 0 ? (
+                          <div className="space-y-3">
+                            {artDirectorResults.map((item) => (
+                              <div key={item.chapter} className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-bold text-pink-300">Scene {item.chapter} Art Directive</span>
+                                  {item.downloadUrl && (
+                                    <a href={item.downloadUrl} download className="text-emerald-400 hover:underline flex items-center gap-1">
+                                      <DownloadIcon className="w-3 h-3" /> Download Artwork
+                                    </a>
+                                  )}
+                                </div>
+                                <p className="text-xs font-mono text-slate-300 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                                  {item.imagePrompt}
+                                </p>
                               </div>
-                              <p className="text-xs font-mono text-slate-300 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
-                                Masterpiece {currentGenre} digital painting, {seg.paragraph?.slice(0, 80) || 'Atmospheric scene'}, cinematic volumetric rim light, 35mm lens, dynamic focal depth, 8k resolution concept art.
-                              </p>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-pink-200/75">
+                            Click "Generate Directives" to invoke Gemini via MCP for lighting, palette, and diffusion prompts tailored to your active scenes.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}

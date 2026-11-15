@@ -1,12 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { BookPage } from './bookTypes';
 import { CornerAffordance, type CornerId } from './CornerAffordance';
-import {
-  isPageTurnSoundEnabled,
-  playPageTurnSound,
-  setPageTurnSoundEnabled,
-} from '../../utils/pageTurnSound';
 // Side-effect import: registers <hic-pageflip> and <hic-pageflip-page> once at
 // module scope (the package guards against double registration itself).
 import 'hic-pageflip';
@@ -719,37 +714,6 @@ const StoryFlipbook: React.FC<StoryFlipbookProps> = ({
   /** grab over a corner, grabbing while holding the page, else default. */
   const stageCursor = isGrabbing ? 'grabbing' : cornerHint ? 'grab' : 'default';
 
-  // Page-turn rustle: on by default, persisted, toggled from the book's own UI.
-  const [soundOn, setSoundOn] = useState<boolean>(isPageTurnSoundEnabled);
-
-  const handleSoundToggle = useCallback(() => {
-    setSoundOn((previous) => {
-      const next = !previous;
-      setPageTurnSoundEnabled(next);
-      // Play once when re-enabling so the reader hears what they turned on.
-      if (next) playPageTurnSound();
-      return next;
-    });
-  }, []);
-
-  const soundToggleButton = (
-    <button
-      type="button"
-      onClick={handleSoundToggle}
-      aria-pressed={soundOn}
-      aria-label={soundOn ? 'Mute the page-turn sound' : 'Enable the page-turn sound'}
-      title={soundOn ? 'Page-turn sound: on' : 'Page-turn sound: off'}
-      className="flex h-6 w-6 items-center justify-center rounded-full border transition-colors"
-      style={{
-        borderColor: 'rgba(138,106,47,0.5)',
-        background: 'rgba(20,14,8,0.6)',
-        color: soundOn ? '#e8d9a8' : 'rgba(232,217,168,0.45)',
-      }}
-    >
-      {soundOn ? <Volume2 size={12} /> : <VolumeX size={12} />}
-    </button>
-  );
-
   // Listen to `pagechange` (detail: { currentPage, currentSpread }) and keep
   // BOTH the state and the ref mirror in sync.
   useEffect(() => {
@@ -758,11 +722,6 @@ const StoryFlipbook: React.FC<StoryFlipbookProps> = ({
     const onPageChange = (event: Event) => {
       const detail = (event as CustomEvent<{ currentPage?: number; currentSpread?: number[] }>).detail;
       if (detail && typeof detail.currentPage === 'number') {
-        // A real sheet turned (user flip, arrow, seek or narration sync) —
-        // rustle the paper.
-        if (detail.currentPage !== currentPageRef.current) {
-          playPageTurnSound();
-        }
         currentPageRef.current = detail.currentPage;
         setCurrentPage(detail.currentPage);
         if (Array.isArray(detail.currentSpread) && detail.currentSpread.length > 0) {
@@ -981,9 +940,6 @@ const StoryFlipbook: React.FC<StoryFlipbookProps> = ({
           <ChevronRight size={20} />
         </button>
 
-        {/* Page-turn rustle toggle, tucked under the engine pills. */}
-        <div className="absolute right-3 top-12 z-20">{soundToggleButton}</div>
-
         {/* Engine toggle — compact pills pinned to the top-right of the stage. */}
         <div
           className="absolute right-3 top-3 z-20 flex overflow-hidden rounded-full border"
@@ -1113,7 +1069,6 @@ const StoryFlipbook: React.FC<StoryFlipbookProps> = ({
               );
             })}
           </div>
-          {soundToggleButton}
         </div>
 
         <div className="flex items-baseline gap-2" aria-live="polite">

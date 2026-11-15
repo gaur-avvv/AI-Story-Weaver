@@ -676,25 +676,27 @@ class ModelRegistryServiceImpl {
 
     try {
       if (endpoint.provider === 'google') {
-        if (!cleanKey) {
-          return { success: false, message: 'Google API key is required to test connection.' };
-        }
-        const testUrl = `${cleanUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${endpoint.modelId || 'gemini-2.5-flash'}?key=${cleanKey}`;
-        const res = await fetch(testUrl, { method: 'GET' });
+        const res = await fetch('/api/gemini/test-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: cleanKey || undefined,
+            model: endpoint.modelId || 'gemini-2.5-flash',
+          }),
+        });
         const latencyMs = Math.round(performance.now() - startTime);
+        const data = await res.json().catch(() => ({}));
 
-        if (res.ok) {
+        if (res.ok && data.success) {
           return {
             success: true,
             message: `Connected successfully to Google AI Studio (${endpoint.modelId}) in ${latencyMs}ms.`,
             latencyMs,
           };
         } else {
-          const errData = await res.json().catch(() => ({}));
-          const errMsg = errData.error?.message || `HTTP ${res.status} ${res.statusText}`;
           return {
             success: false,
-            message: `Google API Error: ${errMsg}`,
+            message: data.message || data.error || `HTTP ${res.status} ${res.statusText}`,
             latencyMs,
           };
         }

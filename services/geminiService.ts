@@ -1,7 +1,78 @@
-import { GoogleGenAI, Type, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import { globalStoryGraph } from './storyGraphState';
 import { StorySegment } from '../types';
+
+const Type = {
+  OBJECT: 'OBJECT',
+  STRING: 'STRING',
+  NUMBER: 'NUMBER',
+  INTEGER: 'INTEGER',
+  BOOLEAN: 'BOOLEAN',
+  ARRAY: 'ARRAY',
+} as const;
+
+async function callServerGeminiContent(payload: {
+  model?: string;
+  contents: any;
+  systemInstruction?: string;
+  responseMimeType?: string;
+  responseSchema?: any;
+  temperature?: number;
+  apiKey?: string | null;
+}): Promise<string> {
+  const res = await fetch('/api/gemini/generate-content', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `Gemini server request failed (${res.status})`);
+  }
+  if (!data?.text) {
+    throw new Error('The AI model returned an empty response.');
+  }
+  return data.text;
+}
+
+async function callServerGeminiImage(payload: {
+  model?: string;
+  prompt: string;
+  aspectRatio?: string;
+  imageSize?: string;
+  outputMimeType?: string;
+  apiKey?: string | null;
+}): Promise<string | null> {
+  const res = await fetch('/api/gemini/generate-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `Gemini image request failed (${res.status})`);
+  }
+  return data?.dataUrl || null;
+}
+
+async function callServerGeminiTts(payload: {
+  model?: string;
+  text: string;
+  voice?: string;
+  promptDirective?: string;
+  apiKey?: string | null;
+}): Promise<string | null> {
+  const res = await fetch('/api/gemini/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `Gemini TTS request failed (${res.status})`);
+  }
+  return data?.dataUrl || null;
+}
 
 // Helper to retry external API calls with exponential backoff and jitter
 export async function withRetry<T>(
@@ -101,16 +172,7 @@ async function callPuterAiChat(prompt: string, systemPrompt: string, model: stri
   return JSON.stringify(response);
 }
 
-// Helper to get the correct AI client instance
-const getAiClient = (apiKey?: string | null): GoogleGenAI => {
-  // The app is designed to allow a user-provided API key, which takes precedence.
-  // If not provided, it attempts to fall back to the environment variable.
-  const keyToUse = apiKey || process.env.API_KEY || (process.env as any)?.GEMINI_API_KEY || (import.meta as any)?.env?.VITE_GEMINI_API_KEY || (import.meta as any)?.env?.GEMINI_API_KEY;
-  if (!keyToUse) {
-    throw new Error("API key is not configured. Please provide your Gemini API key in the settings.");
-  }
-  return new GoogleGenAI({ apiKey: keyToUse });
-};
+
 
 export function getOpenAIProviderConfig(
   provider: string,
@@ -597,6 +659,68 @@ You are a master, award-winning fiction author and cinematic storyteller. Your o
 - Absolutely NO cheesy, artificial, or hyper-dramatic "AI clichés" (e.g., do not use words like: tapestry, testament, beacon, delve, revolutionize, ultimate, or untamed).
 - Do not conclude the story with a tidy moral summary or explicit philosophical wrap-up. Let the final action or image linger naturally.`;
 
+function getArcStageDirective(currentIndex = 0, targetLength = 5, isLastSegment = false): string {
+  if (isLastSegment || (targetLength > 1 && currentIndex >= targetLength - 1)) {
+    return `NARRATIVE ARC STAGE: CLIMACTIC RESOLUTION
+- Resolve the central dramatic tension through earned character choices and tangible consequences.
+- Let the closing image linger naturally with emotional weight rather than summarizing a tidy moral.`;
+  }
+  if (currentIndex === 0) {
+    return `NARRATIVE ARC STAGE: INCITING HOOK
+- Drop directly into vivid motion, sensory texture, and character agency in the opening sentence.
+- Introduce a clear goal, an immediate tension or anomaly, and tangible stakes right away.`;
+  }
+  const progress = targetLength > 1 ? currentIndex / (targetLength - 1) : 0.5;
+  if (progress < 0.45) {
+    return `NARRATIVE ARC STAGE: RISING COMPLICATION
+- Directly carry forward the physical and emotional consequences of the protagonist's latest decision.
+- Introduce a complication or obstacle ("BUT... THEREFORE...") that raises urgency.`;
+  }
+  if (progress < 0.75) {
+    return `NARRATIVE ARC STAGE: MIDPOINT TURNING POINT
+- Deliver a meaningful shift, discovery, or reversal that reframes what the protagonist believed was true.
+- Deepen interpersonal or environmental stakes without stalling momentum.`;
+  }
+  return `NARRATIVE ARC STAGE: CLIMACTIC APPROACH
+- Converge active plot threads toward a decisive confrontation or high-stakes turning point.
+- Heighten sensory urgency and give the choices irreversible weight.`;
+}
+
+function normalizeChoices(rawChoices: any, isLastSegment: boolean): string[] | undefined {
+  if (isLastSegment) return undefined;
+  const cleaned = Array.isArray(rawChoices)
+    ? rawChoices.map((c) => String(c || '').trim()).filter(Boolean).slice(0, 3)
+    : [];
+  const defaults = [
+    'Press forward boldly into the heart of the mystery',
+    'Pause to inspect the subtle clues hidden in the surroundings',
+    'Seek an unexpected alliance or negotiate before acting',
+  ];
+  while (cleaned.length < 3) {
+    cleaned.push(defaults[cleaned.length]);
+  }
+  return cleaned;
+}
+
+function normalizeSegmentOutput(
+  parsed: any,
+  isLastSegment: boolean,
+  isFirstSegment: boolean
+): { title?: string; paragraph: string; choices?: string[]; tone?: string; sentiment?: string } {
+  const paragraph = String(parsed?.paragraph || parsed?.text || parsed?.content || '').trim();
+  if (!paragraph) {
+    throw new Error('Story generation returned an empty paragraph.');
+  }
+  const title = isFirstSegment && parsed?.title ? String(parsed.title).trim() : undefined;
+  return {
+    ...(title ? { title } : {}),
+    paragraph,
+    choices: normalizeChoices(parsed?.choices, isLastSegment),
+    tone: parsed?.tone ? String(parsed.tone).trim() : undefined,
+    sentiment: parsed?.sentiment ? String(parsed.sentiment).trim() : undefined,
+  };
+}
+
 export const generateStory = async (
   prompt: string,
   language: string,
@@ -627,9 +751,9 @@ ${toneDirective}
 
 Story Structure & Depth:
 - Formulate a creative, memorable story title.
-- Deliver exactly ${lengthDescription} distinct, connected narrative paragraphs that build a complete, satisfying story arc.
-- Infuse the prose with dynamic sensory details, authentic character expressions, and situational pacing tailored to the vocabulary guidelines.
-- Focus on character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
+- Deliver ${lengthDescription} distinct, tightly connected narrative paragraphs that progress smoothly through Hook -> Escalation -> Turning Point -> Resolution.
+- Ensure every paragraph advances plot or character interiority via causal "But / Therefore" momentum and avoids repeating opening phrasing across scenes.
+- Infuse the prose with dynamic sensory details, authentic character expressions, and grounded situational pacing tailored to the vocabulary guidelines.
 
 Output Format:
 Return ONLY a valid JSON object matching this schema:
@@ -641,21 +765,15 @@ Return ONLY a valid JSON object matching this schema:
   return withRetry(async () => {
     if (provider === 'gemini') {
       try {
-        const ai = getAiClient(apiKey);
-        const response = await ai.models.generateContent({
-          model: model,
+        const responseText = await callServerGeminiContent({
+          model,
           contents: `The story should be about: "${prompt}"`,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: storySchema,
-            temperature: 1.05,
-          },
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: storySchema,
+          temperature: 1.05,
+          apiKey,
         });
-        const responseText = response.text;
-        if (!responseText) {
-          throw new Error("The AI model returned an empty response.");
-        }
         return extractJson(responseText);
       } catch (geminiErr: any) {
         console.warn("Gemini story generation failed, falling back to zero-key Puter/Pollinations tier:", geminiErr);
@@ -773,7 +891,14 @@ export const generateStorySegment = async (
   isLastSegment: boolean = false,
   isFirstSegment: boolean = false,
   graphContext?: string,
-  options?: { customBaseUrl?: string; cloudflareAccountId?: string; tone?: string } | string,
+  options?: {
+    customBaseUrl?: string;
+    cloudflareAccountId?: string;
+    tone?: string;
+    currentIndex?: number;
+    targetLength?: number;
+    previousChoices?: string[];
+  } | string,
   explicitTone?: string
 ): Promise<{ title?: string; paragraph: string; choices?: string[]; tone?: string; sentiment?: string }> => {
   const optionsObj = typeof options === 'object' && options !== null ? options : {};
@@ -782,6 +907,19 @@ export const generateStorySegment = async (
   const genreDirective = getGenreNarrativeDirective(genre);
   const audienceDirective = getTargetAudienceDirective(targetAudience);
   const toneDirective = getToneVocabularyDirective(effectiveTone, genre, prompt + ' ' + (previousParagraphs.slice(-1)[0] || ''));
+  const arcDirective = getArcStageDirective(
+    optionsObj.currentIndex ?? previousParagraphs.length,
+    optionsObj.targetLength ?? 5,
+    isLastSegment
+  );
+
+  const recentOpeners = previousParagraphs
+    .slice(-2)
+    .map((p) => p.trim().split(/\s+/).slice(0, 6).join(' '))
+    .filter(Boolean);
+  const varietyGuard = recentOpeners.length > 0
+    ? `\nANTI-REPETITION GUARD:\n- Vary sentence openings and sensory anchors. Do NOT begin with phrasing similar to: ${recentOpeners.map((o) => `"${o}..."`).join(', ')}\n`
+    : '';
 
   const effectiveGraphContext = graphContext || globalStoryGraph.getLoreContextForPrompt();
   const lorePrompt = effectiveGraphContext ? `\nKnowledge Graph & Character Emotional Trends Context (Maintain strict continuity with these entities, relationship connections, and character emotional arcs):\n${effectiveGraphContext}\n` : '';
@@ -799,16 +937,17 @@ ${genreDirective}
 ${audienceDirective}
 
 ${toneDirective}
-${lorePrompt}
+
+${arcDirective}
+${varietyGuard}${lorePrompt}
 ${inconsistencyPrompt}
 
 Instructions:
 ${isFirstSegment ? 'This is the start of the story. You must provide an evocative, memorable "title" for the story.' : 'This is a continuation of the story. Do NOT provide a title.'}
-- Write exactly ONE new, high-immersion narrative paragraph that dramatically advances the scene based on the user\'s prompt or choice.
-- Strictly adapt your vocabulary, phrasing, and syntax according to the Tonal & Vocabulary Directive above (e.g., formal/archaic for fantasy/lore, clinical/sharp for cyberpunk/sci-fi, gritty/noir for mystery, visceral/gothic for horror).
-- Infuse the scene with vivid sensory atmosphere, authentic dialogue/reactions, and character emotional stakes.
-- Ground the prose in character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
-${isLastSegment ? '- This is the final paragraph. Bring the story to a satisfying, emotionally resonant conclusion. Do NOT provide choices.' : '- Provide exactly THREE distinct, proactive narrative choices for what happens next in the "choices" array. Each choice MUST represent a distinct strategic mindset (e.g. one bold/risky action, one clever/observant move, one empathetic/diplomatic choice).'}
+- Write ONE vivid, richly paced narrative paragraph (approx. 90-140 words) that directly pays off the user's prompt or chosen branch action.
+- Strictly adapt vocabulary, phrasing, and syntax to the Tonal & Vocabulary Directive above.
+- Infuse the scene with physical sensory details, character interiority/dialogue, and causal consequences without bloated exposition.
+${isLastSegment ? '- This is the final paragraph. Bring the story to a satisfying, emotionally resonant conclusion. Do NOT provide choices.' : '- Provide THREE distinct, proactive, mutually exclusive narrative choices in the "choices" array: (1) Bold/Risky action, (2) Clever/Observant deduction or stealth, (3) Empathetic/Diplomatic or unexpected approach.'}
 
 Output Format:
 Return ONLY a valid JSON object:
@@ -816,12 +955,16 @@ Return ONLY a valid JSON object:
   ${isFirstSegment ? '"title": "Story Title",' : ''}
   "paragraph": "The new narrative paragraph...",
   ${!isLastSegment ? '"choices": ["Choice 1 (Bold action)...", "Choice 2 (Clever deduction)...", "Choice 3 (Empathetic/Cautious)..."],' : ''}
-  "tone": "archaic_lyrical | clinical_cyber | gritty_noir | visceral_gothic | whimsical_playful | suspenseful_urgent | tender_romantic | etc",
+  "tone": "archaic_lyrical | clinical_cyber | gritty_noir | visceral_gothic | whimsical_playful | suspenseful_urgent | tender_romantic",
   "sentiment": "suspense | triumph | dread | tender | clinical | playful | calm | excitement"
 }`;
 
+  const recentParagraphs = previousParagraphs.slice(-6);
+  const earlierSummaryNote = previousParagraphs.length > 6
+    ? `[Earlier scenes established: ${previousParagraphs.slice(0, -6).map((p) => p.split(/[.!?]/)[0]).filter(Boolean).slice(0, 3).join('. ')}.]\n\n`
+    : '';
   const historyContext = previousParagraphs.length > 0 
-    ? `\n\nPrevious story so far:\n${previousParagraphs.join('\n\n')}\n\nContinue the story based on the user's choice: `
+    ? `\n\n${earlierSummaryNote}Recent story progression:\n${recentParagraphs.join('\n\n')}\n\nContinue immediately from the chosen action: `
     : `\n\nThe story should be about: `;
 
   const fullPrompt = `${historyContext}"${prompt}"`;
@@ -829,29 +972,23 @@ Return ONLY a valid JSON object:
   return withRetry(async () => {
     if (provider === 'gemini') {
       try {
-        const ai = getAiClient(apiKey);
-        const response = await ai.models.generateContent({
-          model: model,
+        const responseText = await callServerGeminiContent({
+          model,
           contents: fullPrompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: segmentSchema as any,
-            temperature: 1.05,
-          },
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: segmentSchema,
+          temperature: 1.05,
+          apiKey,
         });
-        const responseText = response.text;
-        if (!responseText) {
-          throw new Error("The AI model returned an empty response.");
-        }
-        return extractJson(responseText);
+        return normalizeSegmentOutput(extractJson(responseText), isLastSegment, isFirstSegment);
       } catch (geminiErr: any) {
         console.warn("[Auto-Recovery] Gemini segment generation encountered rate-limit or quota error, cascading to free zero-key tier:", geminiErr?.message || geminiErr);
         
         // Tier 2: In-browser free Puter.js chat
         try {
           const raw = await callPuterAiChat(fullPrompt, systemInstruction, 'openai/gpt-5.4-nano');
-          if (raw) return extractJson(raw);
+          if (raw) return normalizeSegmentOutput(extractJson(raw), isLastSegment, isFirstSegment);
         } catch (puterErr) {
           console.warn("[Auto-Recovery] Puter AI fallback failed, trying Pollinations tier:", puterErr);
         }
@@ -963,7 +1100,7 @@ export const generateNextChapter = async (
   otherApiKey?: string,
   targetAudience: string = 'children',
   userGuidance?: string,
-  options?: { customBaseUrl?: string; cloudflareAccountId?: string; tone?: string }
+  options?: { customBaseUrl?: string; cloudflareAccountId?: string; tone?: string; graphContext?: string }
 ): Promise<{ chapterTitle: string; paragraphs: string[]; choices?: string[]; tone?: string }> => {
   const lengthDescription = getLengthDescription(length);
   
@@ -971,7 +1108,7 @@ export const generateNextChapter = async (
   const audienceDirective = getTargetAudienceDirective(targetAudience);
   const toneDirective = getToneVocabularyDirective(options?.tone, genre, userGuidance || storyTitle);
 
-  const loreContext = globalStoryGraph.getLoreContextForPrompt();
+  const loreContext = options?.graphContext || globalStoryGraph.getLoreContextForPrompt();
   const lorePrompt = loreContext ? `\nKnowledge Graph Lore Context:\n${loreContext}\n` : '';
   const inconsistencyAudit = globalStoryGraph.getInconsistencyAudit();
   const inconsistencyPrompt = inconsistencyAudit 
@@ -994,9 +1131,9 @@ ${inconsistencyPrompt}
 Instructions:
 - Write Chapter ${chapterNumber} of the story.
 - Generate an imaginative, evocative chapter title (e.g. "Chapter ${chapterNumber}: <Compelling Subtitle>").
-- Provide exactly ${lengthDescription} connected, vivid narrative paragraphs that continue the plot seamlessly from previous events with rich sensory atmosphere and emotional depth.
-- Focus on character interiority, sensory immersion, and escalating stakes without unnecessary exposition.
-- Provide exactly THREE proactive, strategic narrative choices for future branches in the "choices" field (e.g., one bold confrontation, one tactical/stealth maneuver, one diplomatic/investigative action).
+- Provide ${lengthDescription} connected, vivid narrative paragraphs that advance the chapter through setup, escalation, and turning point with rich sensory atmosphere and emotional depth.
+- Maintain strict character and world continuity with previous chapters and vary sentence openings cleanly.
+- Provide THREE proactive, strategic narrative choices for future branches in the "choices" field (bold confrontation, clever maneuver, diplomatic/investigative action).
 
 Output Format:
 Return a JSON object with:
@@ -1008,28 +1145,36 @@ Return a JSON object with:
   const guidance = userGuidance ? `\n\nDirect user guidance for this chapter: "${userGuidance}"` : '';
   const fullPrompt = `${historyContext}${guidance}\n\nWrite Chapter ${chapterNumber} now.`;
 
+  const normalizeChapter = (rawObj: any) => {
+    const paragraphs = Array.isArray(rawObj?.paragraphs)
+      ? rawObj.paragraphs.map((p: any) => String(p || '').trim()).filter(Boolean)
+      : [];
+    return {
+      chapterTitle: String(rawObj?.chapterTitle || `Chapter ${chapterNumber}: Uncharted Horizons`).trim(),
+      paragraphs: paragraphs.length > 0 ? paragraphs : [String(rawObj?.paragraph || 'The journey pressed forward into deeper mystery.').trim()],
+      choices: normalizeChoices(rawObj?.choices, false),
+      tone: rawObj?.tone ? String(rawObj.tone).trim() : undefined,
+    };
+  };
+
   return withRetry(async () => {
     if (provider === 'gemini') {
       try {
-        const ai = getAiClient(apiKey);
-        const response = await ai.models.generateContent({
-          model: model,
+        const responseText = await callServerGeminiContent({
+          model,
           contents: fullPrompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: chapterResponseSchema as any,
-            temperature: 1.05,
-          },
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: chapterResponseSchema,
+          temperature: 1.05,
+          apiKey,
         });
-        const responseText = response.text;
-        if (!responseText) throw new Error("The AI model returned an empty response.");
-        return extractJson(responseText);
+        return normalizeChapter(extractJson(responseText));
       } catch (geminiErr: any) {
         console.warn("[Auto-Recovery] Gemini chapter generation failed or exceeded quota, trying free fallbacks:", geminiErr?.message || geminiErr);
         try {
           const raw = await callPuterAiChat(fullPrompt, systemInstruction, 'openai/gpt-5.4-nano');
-          if (raw) return extractJson(raw);
+          if (raw) return normalizeChapter(extractJson(raw));
         } catch (puterErr) {
           console.warn("[Auto-Recovery] Puter chapter fallback failed, trying Pollinations:", puterErr);
         }
@@ -1142,17 +1287,15 @@ Format: Return a JSON object with a "twists" array of 3 objects, each containing
   return withRetry(async () => {
     if (provider === 'gemini') {
       try {
-        const ai = getAiClient(apiKey);
-        const response = await ai.models.generateContent({
+        const responseText = await callServerGeminiContent({
           model,
           contents: fullPrompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: plotTwistsSchema,
-          },
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: plotTwistsSchema,
+          apiKey,
         });
-        const parsed = extractJson(response.text || '');
+        const parsed = extractJson(responseText);
         return parsed.twists || [];
       } catch (geminiErr) {
         console.warn("[Auto-Recovery] Gemini plot twists failed, trying Puter fallback:", geminiErr);
@@ -1428,49 +1571,14 @@ export const generateImage = async (
   // Define resilient tier strategies
   const tryGemini = async (mdl: string): Promise<string | null> => {
     try {
-      const ai = getAiClient(apiKey);
-      const isImagen = mdl.startsWith('imagen');
-
-      if (isImagen) {
-        try {
-          const response = await ai.models.generateImages({
-            model: mdl,
-            prompt: fullPrompt,
-            config: {
-              numberOfImages: 1,
-              outputMimeType: 'image/jpeg',
-              aspectRatio: geminiRatio,
-            },
-          });
-          if (response.generatedImages?.[0]?.image?.imageBytes) {
-            return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
-          }
-        } catch (imgErr) {
-          console.warn(`[Auto-Retry Image] Imagen model ${mdl} failed, falling back to gemini image models:`, imgErr);
-        }
-      }
-
-      const effectiveModel = !isImagen && mdl ? mdl : 'gemini-2.5-flash-image';
-      const response = await ai.models.generateContent({
-        model: effectiveModel,
-        contents: {
-          parts: [{ text: fullPrompt }],
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: geminiRatio,
-            imageSize: "1K"
-          }
-        }
+      return await callServerGeminiImage({
+        model: mdl,
+        prompt: fullPrompt,
+        aspectRatio: geminiRatio,
+        imageSize: '1K',
+        outputMimeType: 'image/jpeg',
+        apiKey,
       });
-
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          const base64EncodeString: string = part.inlineData.data;
-          return `data:image/png;base64,${base64EncodeString}`;
-        }
-      }
-      return null;
     } catch (e) {
       console.warn(`[Auto-Retry Image] Gemini model ${mdl} attempt failed:`, e);
       return null;
@@ -1819,57 +1927,18 @@ COMPOSITION & LIGHTING: Masterpiece front book cover illustration, vertical port
 
   // Use provider-specific generation with cover prompt
   if (finalProvider === 'gemini') {
-    const keyToUse = finalApiKey || process.env.API_KEY || (typeof window !== 'undefined' ? (window as any).GEMINI_API_KEY : '');
-    if (keyToUse) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: keyToUse });
-        
-        // 1. Try generateImages with Imagen
-        try {
-          const response = await ai.models.generateImages({
-            model: 'imagen-3.0-generate-002',
-            prompt: fullCoverPrompt,
-            config: {
-              numberOfImages: 1,
-              outputMimeType: 'image/jpeg',
-              aspectRatio: '3:4',
-            },
-          });
-
-          if (response.generatedImages?.[0]?.image?.imageBytes) {
-            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-            return `data:image/jpeg;base64,${base64ImageBytes}`;
-          }
-        } catch (imgErr) {
-          console.warn("Imagen generation for cover failed, attempting Gemini multimodal image generation:", imgErr);
-        }
-
-        // 2. Try generateContent with gemini-2.5-flash-image
-        try {
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: {
-              parts: [{ text: fullCoverPrompt }]
-            },
-            config: {
-              imageConfig: {
-                aspectRatio: "3:4",
-                imageSize: "1K"
-              }
-            }
-          });
-
-          for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-              return `data:image/png;base64,${part.inlineData.data}`;
-            }
-          }
-        } catch (genContentErr) {
-          console.warn("Gemini content image generation for cover failed:", genContentErr);
-        }
-      } catch (e) {
-        console.warn("Gemini cover image generation encountered error, falling back cleanly:", e);
-      }
+    try {
+      const coverDataUrl = await callServerGeminiImage({
+        model: finalModel || 'imagen-3.0-generate-002',
+        prompt: fullCoverPrompt,
+        aspectRatio: '3:4',
+        imageSize: '1K',
+        outputMimeType: 'image/jpeg',
+        apiKey: finalApiKey,
+      });
+      if (coverDataUrl) return coverDataUrl;
+    } catch (e) {
+      console.warn("Gemini cover image generation encountered error, falling back cleanly:", e);
     }
   } else if (finalProvider === 'puter') {
     if (typeof window !== 'undefined' && (window as any).puter?.ai?.txt2img) {
@@ -1948,49 +2017,7 @@ COMPOSITION & LIGHTING: Masterpiece front book cover illustration, vertical port
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=768&height=1024&seed=${seed}&model=${coverModel}&nologo=true${keyParam}`;
 };
 
-// Helper to convert 16-bit PCM (sample rate 24000, 1 channel) to WAV Base64
-const pcmBase64ToWavBase64 = (pcmBase64: string): string => {
-  const binaryString = atob(pcmBase64);
-  const pcmLength = binaryString.length;
-  
-  // WAV Header is 44 bytes
-  const wavBuffer = new ArrayBuffer(44 + pcmLength);
-  const view = new DataView(wavBuffer);
-  
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
 
-  writeString(0, 'RIFF'); // ChunkID
-  view.setUint32(4, 36 + pcmLength, true); // ChunkSize
-  writeString(8, 'WAVE'); // Format
-  writeString(12, 'fmt '); // Subchunk1ID
-  view.setUint32(16, 16, true); // Subchunk1Size
-  view.setUint16(20, 1, true); // AudioFormat (PCM)
-  view.setUint16(22, 1, true); // NumChannels
-  view.setUint32(24, 24000, true); // SampleRate
-  view.setUint32(28, 24000 * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-  view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
-  view.setUint16(34, 16, true); // BitsPerSample
-  writeString(36, 'data'); // Subchunk2ID
-  view.setUint32(40, pcmLength, true); // Subchunk2Size
-
-  // Write PCM Data
-  const uint8View = new Uint8Array(wavBuffer, 44);
-  for (let i = 0; i < pcmLength; i++) {
-    uint8View[i] = binaryString.charCodeAt(i);
-  }
-
-  // Convert ArrayBuffer back to Base64
-  let wavBinary = '';
-  const wavBytes = new Uint8Array(wavBuffer);
-  for (let i = 0; i < wavBytes.length; i++) {
-    wavBinary += String.fromCharCode(wavBytes[i]);
-  }
-  return window.btoa(wavBinary);
-};
 
 export const mapSentimentToVoiceExpression = (
   sentiment?: string,
@@ -2072,31 +2099,17 @@ export const generateTTSAudio = async (
     options?.sentiment || options?.emotion
   );
   
-  // Strategy 1: Attempt Gemini TTS with expressive directional prompt
+  // Strategy 1: Attempt Gemini TTS with expressive directional prompt via server
   const tryGeminiTts = async (mdl: string, v: string): Promise<string | null> => {
     try {
-      const ai = getAiClient(apiKey);
       const promptDirective = `${voiceDirection}\n\nNarrate the following story paragraph expressively:\n"${text}"`;
-      
-      const response = await ai.models.generateContent({
+      return await callServerGeminiTts({
         model: mdl,
-        contents: [{ parts: [{ text: promptDirective }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: v }, 
-            },
-          },
-        },
+        text,
+        voice: v,
+        promptDirective,
+        apiKey,
       });
-      
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        const wavBase64 = pcmBase64ToWavBase64(base64Audio);
-        return `data:audio/wav;base64,${wavBase64}`;
-      }
-      return null;
     } catch (err) {
       console.warn(`[Auto-Retry TTS] Gemini TTS ${mdl} failed:`, err);
       return null;
@@ -2188,10 +2201,8 @@ export const generateTTSAudio = async (
     if (audioRes) return audioRes;
   }
 
-  // Step 2: Auto-retry across other available options
-  // Try Gemini if an API key is present in environment
-  const envGeminiKey = apiKey || process.env.API_KEY || (typeof window !== 'undefined' ? (window as any).GEMINI_API_KEY : '');
-  if (envGeminiKey && provider !== 'gemini') {
+  // Step 2: Auto-retry across other available options via server Gemini TTS
+  if (provider !== 'gemini') {
     const geminiFallback = await tryGeminiTts('gemini-3.1-flash-tts-preview', 'Kore');
     if (geminiFallback) return geminiFallback;
   }
@@ -2222,15 +2233,12 @@ Guidelines:
 
   if (provider === 'gemini') {
     try {
-      const ai = getAiClient(apiKey);
-      const response = await ai.models.generateContent({
-        model: model,
+      const responseText = await callServerGeminiContent({
+        model,
         contents: `Enhance this story idea: "${prompt}"`,
-        config: {
-          systemInstruction,
-        },
+        systemInstruction,
+        apiKey,
       });
-      const responseText = response.text;
       return responseText ? responseText.trim() : prompt;
     } catch (geminiErr) {
       console.warn("[Auto-Recovery] Gemini enhancePrompt failed, using Puter/Pollinations fallback:", geminiErr);
@@ -2284,27 +2292,21 @@ Guidelines:
 export const testApiKey = async (apiKey: string): Promise<{ success: boolean; message: string; }> => {
   if (!apiKey) return { success: false, message: 'API Key cannot be empty.' };
   try {
-    const ai = getAiClient(apiKey);
-    // A simple, low-cost call to verify the key and model access.
-    await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: 'test' });
-    return { success: true, message: 'Success! Your API Key is valid.' };
+    const res = await fetch('/api/gemini/test-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, model: 'gemini-2.5-flash' }),
+    });
+    const data = await res.json().catch(() => null);
+    if (data && typeof data.success === 'boolean') {
+      return { success: data.success, message: data.message };
+    }
+    return { success: false, message: `Connection test failed (${res.status}).` };
   } catch (error: any) {
     console.error("API Key test failed:", error);
-    let userMessage = "An unknown error occurred. Please double-check your API key.";
-    const errorMessage = error.toString().toLowerCase();
-    const linkText = "You can find or create a key at the Google AI Studio.";
-
-    if (errorMessage.includes('api key not valid')) {
-      userMessage = "Invalid API Key. Please ensure you have copied the entire key correctly.";
-    } else if (errorMessage.includes('quota') || errorMessage.includes('resource has been exhausted')) {
-      userMessage = "You may have exceeded your API quota for the day. Please check your usage in your Google Cloud account.";
-    } else if (errorMessage.includes('fetch')) {
-      userMessage = "A network error occurred. Please check your internet connection and try again.";
-    }
-    
-    return { 
-        success: false, 
-        message: `${userMessage} ${linkText}`
+    return {
+      success: false,
+      message: "A network error occurred. Please check your internet connection and try again. You can find or create a key at Google AI Studio.",
     };
   }
 };
@@ -2526,18 +2528,14 @@ Guidelines:
     let resultJson: any = null;
 
     if (provider === 'gemini') {
-      const ai = getAiClient(apiKey);
-      const response = await ai.models.generateContent({
+      const responseText = await callServerGeminiContent({
         model: model || 'gemini-2.5-flash',
         contents: userPrompt,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: translationResponseSchema as any,
-        },
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: translationResponseSchema,
+        apiKey,
       });
-      const responseText = response.text;
-      if (!responseText) throw new Error("Translation returned empty response.");
       resultJson = extractJson(responseText);
     } else if (provider === 'puter') {
       const raw = await callPuterAiChat(userPrompt, systemInstruction, model || 'openai/gpt-5.4-nano');
@@ -2645,33 +2643,28 @@ Respond with ONLY a valid JSON array of objects matching this exact structure:
     console.warn("[suggestTopics] Puter AI attempt failed, trying Pollinations tier:", e);
   }
 
-  // 2. Try Gemini 2.5 Flash if available
-  const envGeminiKey = apiKey || (typeof process !== 'undefined' ? process.env.API_KEY : '') || (typeof window !== 'undefined' ? (window as any).GEMINI_API_KEY : '');
-  if (envGeminiKey) {
-    try {
-      const ai = getAiClient(envGeminiKey);
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: promptText,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 1.1,
-        },
-      });
-      const parsed = extractJson(res.text || '');
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.slice(0, count).map((s: any) => ({
-          label: s.label || 'The Secret Gateway',
-          genre: s.genre || 'fantasy',
-          audience: s.audience || 'children',
-          storyLength: 'short',
-          description: s.description || s.label,
-        }));
-      }
-    } catch (e) {
-      console.warn("[suggestTopics] Gemini attempt failed, trying Pollinations:", e);
+  // 2. Try Gemini via server-side API route
+  try {
+    const responseText = await callServerGeminiContent({
+      model: 'gemini-2.5-flash',
+      contents: promptText,
+      systemInstruction,
+      responseMimeType: 'application/json',
+      temperature: 1.1,
+      apiKey,
+    });
+    const parsed = extractJson(responseText);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.slice(0, count).map((s: any) => ({
+        label: s.label || 'The Secret Gateway',
+        genre: s.genre || 'fantasy',
+        audience: s.audience || 'children',
+        storyLength: 'short',
+        description: s.description || s.label,
+      }));
     }
+  } catch (e) {
+    console.warn("[suggestTopics] Gemini attempt failed, trying Pollinations:", e);
   }
 
   // 3. Try Pollinations free endpoint

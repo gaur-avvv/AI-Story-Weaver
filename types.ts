@@ -210,6 +210,7 @@ export interface Settings {
   fontSize?: number;
   justifyText?: boolean;
   autoPlayNarration?: boolean;
+  ambientSoundEnabled?: boolean;
 
   // API Keys & Configs
   geminiApiKey?: string;

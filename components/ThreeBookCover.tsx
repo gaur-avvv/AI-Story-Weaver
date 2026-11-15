@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { BookOpen, Sparkles, ChevronRight, Eye } from 'lucide-react';
-import { playPageTurnSound } from '../utils/pageTurnSound';
 
 export interface ThreeBookCoverProps {
   storyTitle: string;
@@ -197,7 +196,6 @@ export const ThreeBookCover: React.FC<ThreeBookCoverProps> = ({
     if (isOpeningRef.current) return;
     isOpeningRef.current = true;
     setIsOpening(true);
-    playPageTurnSound(0.24);
   }, []);
 
   useEffect(() => {

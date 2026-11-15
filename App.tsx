@@ -442,7 +442,8 @@ function StoryCreatorContent() {
     if (savedSettings) {
       try {
         const parsedSettings = JSON.parse(savedSettings);
-        setSettings({ ...defaultSettings, ...parsedSettings });
+        const merged = { ...defaultSettings, ...parsedSettings };
+        setSettings(merged);
         if (parsedSettings.genre) {
           setGenre(parsedSettings.genre as VfxGenre);
         }
@@ -514,6 +515,20 @@ function StoryCreatorContent() {
         setLastSavedTimestamp(Date.now());
         setSaveState('saved');
       }
+
+      // Sync active story to server repository for MCP tools & autonomous agents
+      fetch('/api/stories/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyId,
+          title,
+          genre: settings.genre,
+          targetAudience: settings.targetAudience,
+          author: 'Novellaio AI Author',
+          segments,
+        }),
+      }).catch(() => {});
     }
   }, [segmentsFingerprint, title, isGenerating, isTranslatingLanguage]);
 
@@ -754,6 +769,8 @@ function StoryCreatorContent() {
           customBaseUrl: activeSettings.customBaseUrl,
           cloudflareAccountId: activeSettings.cloudflareAccountId,
           tone: activeSettings.tone || activeSettings.storyTone,
+          currentIndex: 0,
+          targetLength,
         }
       );
       
@@ -844,6 +861,8 @@ function StoryCreatorContent() {
           customBaseUrl: settings.customBaseUrl,
           cloudflareAccountId: settings.cloudflareAccountId,
           tone: settings.tone || settings.storyTone,
+          currentIndex: currentLength,
+          targetLength,
         }
       );
 
@@ -894,11 +913,12 @@ function StoryCreatorContent() {
         settings.textProvider,
         textApiKey || undefined,
         settings.targetAudience,
-        graphContext,
+        undefined,
         {
           customBaseUrl: settings.customBaseUrl,
           cloudflareAccountId: settings.cloudflareAccountId,
           tone: settings.tone || settings.storyTone,
+          graphContext,
         }
       );
 
@@ -2229,6 +2249,7 @@ function StoryCreatorContent() {
         <IntegrationsModal
           isOpen={isIntegrationsOpen}
           onClose={() => setIsIntegrationsOpen(false)}
+          storyId={title ? title.replace(/[^a-z0-9]/gi, '_').toLowerCase() : undefined}
           segments={segments}
           title={title}
           settings={settings}

@@ -5,7 +5,6 @@ import type { Variants } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { BookPage } from './bookTypes';
 import { CornerAffordance, type CornerId } from './CornerAffordance';
-import { playPageTurnSound } from '../../utils/pageTurnSound';
 
 export interface CssFlipbookProps {
   pages: BookPage[];
@@ -430,8 +429,6 @@ export function CssFlipbook({
       setDirection(next > clampedCurrent ? 1 : -1);
       setSpread(next);
       setTurnCount((count) => count + 1);
-      // Rustle the paper — same synthesized page-turn sound as the canvas book.
-      playPageTurnSound();
     },
     [spread, totalSpreads]
   );
